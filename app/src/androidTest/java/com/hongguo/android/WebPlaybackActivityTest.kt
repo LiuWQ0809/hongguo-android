@@ -31,15 +31,15 @@ class WebPlaybackActivityTest {
                     val browser = activity.findViewById<android.view.ViewGroup>(android.R.id.content).getChildAt(0) as WebView
                     browser.evaluateJavascript("""(() => { const v = document.querySelector('video');
                         if (!v || v.readyState === 0) return 'loading';
-                        return v.currentTime > 1 ? 'playing' : 'ready'; })()""") { result = it; latch.countDown() }
+                        return v.currentTime > 1 ? 'playing' : (v.paused ? 'paused' : 'buffering'); })()""") { result = it; latch.countDown() }
                 }
                 assertTrue("JavaScript callback timed out", latch.await(5, TimeUnit.SECONDS))
                 advanced = result == "\"playing\""
-                if (!tapped && result == "\"ready\"") {
+                if (!tapped && result == "\"paused\"") {
                     val now = SystemClock.uptimeMillis()
                     val automation = InstrumentationRegistry.getInstrumentation()
-                    automation.sendPointerSync(MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 540f, 600f, 0))
-                    automation.sendPointerSync(MotionEvent.obtain(now, now + 50, MotionEvent.ACTION_UP, 540f, 600f, 0))
+                    automation.sendPointerSync(MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 540f, 1080f, 0))
+                    automation.sendPointerSync(MotionEvent.obtain(now, now + 50, MotionEvent.ACTION_UP, 540f, 1080f, 0))
                     tapped = true
                 }
                 if (!advanced) Thread.sleep(1000)

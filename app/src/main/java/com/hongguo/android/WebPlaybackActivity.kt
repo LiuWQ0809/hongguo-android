@@ -12,6 +12,7 @@ class WebPlaybackActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        title = "网页播放"
         val series = intent.getStringExtra("series").orEmpty()
         val episode = intent.getStringExtra("episode").orEmpty()
         if (!series.matches(Regex("[0-9]+")) || !episode.matches(Regex("[0-9]+"))) { finish(); return }
