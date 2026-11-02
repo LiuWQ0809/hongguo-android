@@ -23,6 +23,8 @@ class WebPlaybackActivity : Activity() {
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
             settings.useWideViewPort = true
             settings.loadWithOverviewMode = true
+            settings.builtInZoomControls = true
+            settings.displayZoomControls = false
             settings.domStorageEnabled = true
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.allowFileAccess = false
