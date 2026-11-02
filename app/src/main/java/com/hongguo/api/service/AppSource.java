@@ -125,7 +125,7 @@ public final class AppSource {
     /** 播放接口返回空响应：疑似匿名身份被拒，fetch 会换新身份重试一次。 */
     static final class EmptyPlaybackResponseException extends IllegalStateException {
         EmptyPlaybackResponseException() {
-            super("App 接口返回空响应，疑似播放设备身份被拒，请稍后重试");
+            super("播放接口返回空响应，请稍后重试");
         }
     }
 
