@@ -19,6 +19,10 @@ class WebPlaybackActivity : Activity() {
         browser = WebView(this).apply {
             contentDescription = "网页播放"
             settings.javaScriptEnabled = true
+            settings.userAgentString = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
             settings.domStorageEnabled = true
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.allowFileAccess = false

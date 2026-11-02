@@ -22,7 +22,7 @@ class WebPlaybackActivityTest {
             .putExtra("episode", "7696085244503411774")
         ActivityScenario.launch<WebPlaybackActivity>(intent).use { scenario ->
             var advanced = false
-            var tapped = false
+            var lastTap = 0L
             val deadline = System.currentTimeMillis() + 90_000
             while (System.currentTimeMillis() < deadline && !advanced) {
                 val latch = CountDownLatch(1)
@@ -35,12 +35,12 @@ class WebPlaybackActivityTest {
                 }
                 assertTrue("JavaScript callback timed out", latch.await(5, TimeUnit.SECONDS))
                 advanced = result == "\"playing\""
-                if (!tapped && result == "\"paused\"") {
+                if (result == "\"paused\"" && SystemClock.uptimeMillis() - lastTap > 5_000) {
                     val now = SystemClock.uptimeMillis()
                     val automation = InstrumentationRegistry.getInstrumentation()
                     automation.sendPointerSync(MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 540f, 1080f, 0))
                     automation.sendPointerSync(MotionEvent.obtain(now, now + 50, MotionEvent.ACTION_UP, 540f, 1080f, 0))
-                    tapped = true
+                    lastTap = now
                 }
                 if (!advanced) Thread.sleep(1000)
             }
