@@ -8,9 +8,37 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class WebPlaybackActivityTest {
+    @Test fun websiteVideoCanAdvanceOnTheDevice() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val intent = Intent(context, WebPlaybackActivity::class.java)
+            .putExtra("series", "7696083096164125721")
+            .putExtra("episode", "7696085244503411774")
+        ActivityScenario.launch<WebPlaybackActivity>(intent).use { scenario ->
+            var advanced = false
+            val deadline = System.currentTimeMillis() + 90_000
+            while (System.currentTimeMillis() < deadline && !advanced) {
+                val latch = CountDownLatch(1)
+                var result = ""
+                scenario.onActivity { activity ->
+                    val browser = activity.findViewById<android.view.ViewGroup>(android.R.id.content).getChildAt(0) as WebView
+                    browser.settings.mediaPlaybackRequiresUserGesture = false
+                    browser.evaluateJavascript("""(() => { const v = document.querySelector('video');
+                        if (!v) return 'no-video'; if (v.paused) v.play().catch(() => {});
+                        return String(v.currentTime > 1); })()""") { result = it; latch.countDown() }
+                }
+                assertTrue("JavaScript callback timed out", latch.await(5, TimeUnit.SECONDS))
+                advanced = result == "\"true\""
+                if (!advanced) Thread.sleep(1000)
+            }
+            assertTrue("Website video did not advance on this Android emulator", advanced)
+        }
+    }
+
     @Test fun episodeOpensOnTheExpectedSiteWithoutFileAccess() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val intent = Intent(context, WebPlaybackActivity::class.java)
