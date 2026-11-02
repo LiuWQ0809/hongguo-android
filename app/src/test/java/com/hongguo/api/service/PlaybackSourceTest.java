@@ -201,7 +201,7 @@ public class PlaybackSourceTest {
 
     // ==================== 无签名播放请求 ====================
 
-    @Test public void playbackRequestUsesRegisteredIdentityWithoutSignature() throws Exception {
+    @Test public void playbackBaseUsesRegisteredIdentity() throws Exception {
         PlaybackDevice.resetForTest((url, headers, body) -> okReply());
         PlaybackDevice.Identity id = PlaybackDevice.get();
         String url = AppSource.playbackUrl(id, 1_793_000_000_123L);
@@ -219,6 +219,25 @@ public class PlaybackSourceTest {
         for (String k : headers.keySet()) assertFalse(k, isSignatureHeader(k));
         assertFalse(AppSource.deviceBase().containsKey("iid"));
         assertFalse(AppSource.deviceBase().containsKey("device_id"));
+    }
+
+    @Test public void signedPlaybackUsesSameTimestampTicketAndBody() throws Exception {
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        PlaybackDevice.Identity id = PlaybackDevice.get();
+        byte[] body = "{\"example\":1}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        long now = 1_793_000_000_123L;
+        AppSource.SignedPlaybackRequest request = AppSource.signedPlaybackRequest(body, id, now);
+        long ticket = Long.parseLong(request.headers.get("x-ss-req-ticket"));
+        long timestamp = now / 1000L;
+        assertTrue(ticket >= now && ticket < now + 128);
+        assertEquals(AppSource.playbackUrl(id, ticket, timestamp), request.url);
+        assertEquals(0, com.hongguo.api.core.PureSign.branchOf(request.url, body, timestamp));
+        assertEquals(String.valueOf(timestamp), request.headers.get("x-khronos"));
+        for (String name : new String[]{"x-gorgon", "x-ladon", "x-argus", "x-helios", "x-medusa"}) {
+            assertNotNull(name, request.headers.get(name));
+            assertFalse(name, request.headers.get(name).isEmpty());
+        }
+        assertEquals("cn", request.headers.get("x-tt-store-region"));
     }
 
     @Test public void emptyPlaybackResponseIsReportedAsIdentityRejection() {

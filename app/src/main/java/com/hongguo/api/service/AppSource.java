@@ -68,7 +68,7 @@ public final class AppSource {
             + "Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 "
             + "QuicVersion:c67e9834 2025-09-08)";
 
-    /** 播放请求 UA（与「注册身份 + 无签名」路径配套）。 */
+    /** 播放请求 UA（与注册设备身份配套）。 */
     static final String PLAYBACK_UA =
             "com.phoenix.read/71532 (Linux; U; Android 9; SM-N9860; "
             + "Build/PQ3A.190705.10241111;tt-ok/3.12.13.20)";
