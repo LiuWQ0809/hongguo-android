@@ -367,6 +367,7 @@ public final class AppSource {
 
     /** 按同一个时间戳、URL 和 body 生成完整签名；只使用上游可接受的分支。 */
     static SignedPlaybackRequest signedPlaybackRequest(byte[] body, PlaybackDevice.Identity identity, long now) {
+        if (body == null || body.length == 0) throw new IllegalArgumentException("播放请求体不能为空");
         long timestamp = now / 1000L;
         for (int i = 0; i < 128; i++) {
             long ticket = now + i;

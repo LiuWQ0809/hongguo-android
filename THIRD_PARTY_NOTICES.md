@@ -58,6 +58,9 @@ Local changes: the registered identity (device_id / iid / cdid only) is kept in 
 
 Local changes: concurrent callers that see the same rejected identity share one renewal; renewal still honors the 30-second registration failure cooldown, and a cancelled playback thread does not retry.
 
+Playback signature request construction was adapted from jackotom/hongguo-drama 5.4, GPL-3.0-only, commit `93e694e3f4ab71b83b58846f70258191112a6ca3`, `src/native/app-source.js`:
+https://github.com/jackotom/hongguo-drama/tree/93e694e3f4ab71b83b58846f70258191112a6ca3
+
 ## 猜你喜欢 (0.7.10)
 
 `app/src/main/java/com/hongguo/account/protocol/GuessFeed.kt` (request parameters, card parsing) is adapted from tsukiyo-zero/hongguoTV, commit `97c5b1d15dc2233e53f6152918c7e3cc3bbebb84` (2026-10-30), GPL-3.0-only — `kotlin-tv/core/.../RecommendationFeed.kt`, whose endpoint path and card shape reference Xanerix/guoapp `native/core/provider_hongguo_recommendations.go`.

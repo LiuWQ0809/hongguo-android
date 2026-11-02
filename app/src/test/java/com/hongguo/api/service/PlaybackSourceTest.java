@@ -238,6 +238,10 @@ public class PlaybackSourceTest {
             assertFalse(name, request.headers.get(name).isEmpty());
         }
         assertEquals("cn", request.headers.get("x-tt-store-region"));
+        try {
+            AppSource.signedPlaybackRequest(new byte[0], id, now);
+            fail("Empty playback requests must not be signed");
+        } catch (IllegalArgumentException expected) { /* expected */ }
     }
 
     @Test public void emptyPlaybackResponseIsReportedAsIdentityRejection() {

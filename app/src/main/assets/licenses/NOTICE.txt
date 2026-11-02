@@ -48,3 +48,6 @@ On 2026-10-27 the upstream playback endpoint began rejecting per-request synthet
   https://github.com/sunnysky123/hongguo-web/tree/79babdfefb6a80284e371b1ba14be897f7988c96
 
 Local changes: the registered identity (device_id / iid / cdid only) is kept in process memory and is fully separate from the personal account module; no device token, cookie or raw response is stored. Successful registration is shared by playback, prefetch and retries; a failed registration is reused only for a 30-second cooldown instead of until process restart, because an Android process may first play while offline and then stay resident.
+
+Playback signature request construction was adapted from jackotom/hongguo-drama 5.4, GPL-3.0-only, commit 93e694e3f4ab71b83b58846f70258191112a6ca3, src/native/app-source.js:
+https://github.com/jackotom/hongguo-drama/tree/93e694e3f4ab71b83b58846f70258191112a6ca3
