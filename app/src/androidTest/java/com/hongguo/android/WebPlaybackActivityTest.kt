@@ -1,0 +1,30 @@
+package com.hongguo.android
+
+import android.content.Intent
+import android.webkit.WebView
+import androidx.test.core.app.ActivityScenario
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.*
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class WebPlaybackActivityTest {
+    @Test fun episodeOpensOnTheExpectedSiteWithoutFileAccess() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val intent = Intent(context, WebPlaybackActivity::class.java)
+            .putExtra("series", "7696083096164125721")
+            .putExtra("episode", "7696085244503411774")
+        ActivityScenario.launch<WebPlaybackActivity>(intent).use { scenario ->
+            scenario.onActivity { activity ->
+                val content = activity.findViewById<android.view.ViewGroup>(android.R.id.content)
+                val browser = content.getChildAt(0) as WebView
+                assertEquals("https://hongguoduanju.com/player/7696083096164125721/7696085244503411774", browser.url)
+                assertTrue(browser.settings.javaScriptEnabled)
+                assertFalse(browser.settings.allowFileAccess)
+                assertFalse(browser.settings.allowContentAccess)
+            }
+        }
+    }
+}
