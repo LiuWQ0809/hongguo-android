@@ -41,11 +41,10 @@ import java.util.Map;
  *
  * <p><b>2026-10-27 上游变化</b>（同步自 sunnysky123/hongguo-web 1.1.5 {@code 79babdf}、
  * jackotom/hongguo-drama 3.9 {@code 5febca2}、tsukiyo-zero/hongguoTV {@code 3889318}）：
- * 播放接口开始校验设备身份，每次随机合成、互不关联的 iid/device_id 会被软拦截
- * （HTTP 200 + 0 字节）；该接口也不再接受签名请求。现改为：
+ * 播放接口校验注册设备身份；2026-11-02 起还需要完整签名。当前流程：
  * <ol>
  *   <li>{@link PlaybackDevice} 向 device_register 注册匿名设备，进程内复用；</li>
- *   <li>播放请求 query 使用注册身份的 device_id / iid / cdid，<b>不带任何签名头</b>；</li>
+ *   <li>播放请求使用注册身份的 device_id / iid / cdid 和完整签名头；</li>
  *   <li>UA 换为 {@link #PLAYBACK_UA}；</li>
  *   <li>片源内联在 video_model.video_list 时直接使用，不再请求 fallback_api；
  *       内联片源若声明加密却缺少 spade_a，按无效处理，不当作明文播放；</li>
@@ -101,7 +100,7 @@ public final class AppSource {
             throw new IllegalArgumentException("分集编号无效");
         }
 
-        // ---- 1. 无签名 POST multi_video_model/v1（使用注册的匿名身份）----
+        // ---- 1. 签名 POST multi_video_model/v1（使用注册的匿名身份）----
         byte[] body = Json.stringify(payload(vid)).getBytes(StandardCharsets.UTF_8);
         PlaybackDevice.Identity identity = PlaybackDevice.get();
         Map<String, Object> j;
@@ -348,7 +347,7 @@ public final class AppSource {
         return VIDEO_API + "?" + qs;
     }
 
-    /** 播放请求头：无任何签名头（x-gorgon / x-argus / x-medusa 等）。 */
+    /** 播放请求的基础请求头，签名字段由 signedPlaybackRequest 添加。 */
     static Map<String, String> playbackHeaders() {
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("User-Agent", PLAYBACK_UA);
@@ -386,13 +385,13 @@ public final class AppSource {
         throw new IllegalStateException("无法生成播放请求签名");
     }
 
-    /** 无签名 POST（2026-10-27 起该接口不再接受签名请求）。 */
+    /** 使用最终 URL 和原始 body 生成签名后发送播放请求。 */
     private static Map<String, Object> postPlayback(byte[] body, PlaybackDevice.Identity identity)
             throws Exception {
-        String url = playbackUrl(identity, System.currentTimeMillis());
-        Http.Req req = new Http.Req(url).method("POST").timeout(15000);
+        SignedPlaybackRequest signed = signedPlaybackRequest(body, identity, System.currentTimeMillis());
+        Http.Req req = new Http.Req(signed.url).method("POST").timeout(15000);
         req.followRedirect = false;
-        for (Map.Entry<String, String> e : playbackHeaders().entrySet()) {
+        for (Map.Entry<String, String> e : signed.headers.entrySet()) {
             req.header(e.getKey(), e.getValue());
         }
         req.body(body);
