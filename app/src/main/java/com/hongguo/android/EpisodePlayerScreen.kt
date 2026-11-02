@@ -2,6 +2,7 @@ package com.hongguo.android
 
 import com.hongguo.account.AccountViewModel
 
+import android.content.Intent
 import android.content.res.Configuration
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -268,6 +269,12 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
                         Text(state.playbackError, color = Color.White, fontSize = 14.sp, lineHeight = 23.sp,
                             modifier = Modifier.testTag("media_status"))
                         Button(onClick = model::retryPlayback, modifier = Modifier.testTag("retry_playback"), shape = RoundedCornerShape(13.dp)) { Text("重新播放") }
+                        if (detail.id.matches(Regex("[0-9]+")) && detail.episodes[selected].id.matches(Regex("[0-9]+"))) {
+                            TextButton(onClick = {
+                                activity?.startActivity(Intent(activity, WebPlaybackActivity::class.java)
+                                    .putExtra("series", detail.id).putExtra("episode", detail.episodes[selected].id))
+                            }, modifier = Modifier.testTag("web_playback")) { Text("使用网页播放", color = Color.White) }
+                        }
                     }
                     state.preparing || (activeVideo != null && playback.player == null) || (playback.isBuffering && playback.playWhenReady) -> {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(13.dp)) {
