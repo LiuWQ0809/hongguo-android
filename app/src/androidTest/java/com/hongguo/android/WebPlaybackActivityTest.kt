@@ -30,7 +30,7 @@ class WebPlaybackActivityTest {
                 scenario.onActivity { activity ->
                     val browser = activity.findViewById<android.view.ViewGroup>(android.R.id.content).getChildAt(0) as WebView
                     browser.evaluateJavascript("""(() => { const v = document.querySelector('video');
-                        if (!v || v.readyState === 0) return 'loading';
+                        if (!v) return 'loading';
                         return v.currentTime > 1 ? 'playing' : (v.paused ? 'paused' : 'buffering'); })()""") { result = it; latch.countDown() }
                 }
                 assertTrue("JavaScript callback timed out", latch.await(5, TimeUnit.SECONDS))

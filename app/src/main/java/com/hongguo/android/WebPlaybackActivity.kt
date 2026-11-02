@@ -17,6 +17,7 @@ class WebPlaybackActivity : Activity() {
         val episode = intent.getStringExtra("episode").orEmpty()
         if (!series.matches(Regex("[0-9]+")) || !episode.matches(Regex("[0-9]+"))) { finish(); return }
         browser = WebView(this).apply {
+            contentDescription = "网页播放"
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.javaScriptCanOpenWindowsAutomatically = false
