@@ -21,6 +21,7 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/update_paths" />
         </provider>
+        <activity android:name=".WebPlaybackActivity" android:exported="false" />
         <activity
             android:name=".OfficialLoginActivity"
             android:configChanges="orientation|screenSize|keyboardHidden"
