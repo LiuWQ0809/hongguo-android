@@ -1,6 +1,7 @@
 package com.hongguo.api.service;
 
 import com.hongguo.api.core.Spade;
+import com.hongguo.api.core.PureSign;
 import com.hongguo.api.util.Crypto;
 import com.hongguo.api.util.Http;
 import com.hongguo.api.util.Json;
@@ -354,6 +355,35 @@ public final class AppSource {
         headers.put("Accept", "application/json; charset=utf-8,application/x-protobuf");
         headers.put("Content-Type", "application/json; charset=UTF-8");
         return headers;
+    }
+
+    static final class SignedPlaybackRequest {
+        final String url;
+        final Map<String, String> headers;
+        SignedPlaybackRequest(String url, Map<String, String> headers) {
+            this.url = url;
+            this.headers = headers;
+        }
+    }
+
+    /** 按同一个时间戳、URL 和 body 生成完整签名；只使用上游可接受的分支。 */
+    static SignedPlaybackRequest signedPlaybackRequest(byte[] body, PlaybackDevice.Identity identity, long now) {
+        long timestamp = now / 1000L;
+        for (int i = 0; i < 128; i++) {
+            long ticket = now + i;
+            String url = playbackUrl(identity, ticket, timestamp);
+            if (PureSign.branchOf(url, body, timestamp) != 0) continue;
+            Map<String, String> headers = playbackHeaders();
+            headers.put("x-ss-req-ticket", String.valueOf(ticket));
+            headers.put("sdk-version", "2");
+            headers.put("x-xs-from-web", "0");
+            headers.putAll(PureSign.sign(url, body, timestamp));
+            headers.put("x-tt-dt", "");
+            headers.put("x-tt-store-region", "cn");
+            headers.put("x-tt-store-region-src", "did");
+            return new SignedPlaybackRequest(url, headers);
+        }
+        throw new IllegalStateException("无法生成播放请求签名");
     }
 
     /** 无签名 POST（2026-10-27 起该接口不再接受签名请求）。 */
