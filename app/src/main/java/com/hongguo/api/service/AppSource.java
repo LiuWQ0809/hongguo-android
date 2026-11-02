@@ -328,10 +328,15 @@ public final class AppSource {
      * {@code !'()* } 也编成 %XX（resolution=1280*2772 里的 * 就在此列）。
      */
     static String playbackUrl(PlaybackDevice.Identity identity, long rticket) {
+        return playbackUrl(identity, rticket, null);
+    }
+
+    static String playbackUrl(PlaybackDevice.Identity identity, long rticket, Long timestamp) {
         Map<String, Object> q = deviceBase();
         q.put("device_id", identity.deviceId);
         q.put("iid", identity.iid);
         q.put("cdid", identity.cdid);
+        if (timestamp != null) q.put("ts", String.valueOf(timestamp));
         q.put("_rticket", String.valueOf(rticket));
         StringBuilder qs = new StringBuilder();
         for (Map.Entry<String, Object> e : q.entrySet()) {
