@@ -18,6 +18,8 @@ class WebPlaybackActivity : Activity() {
         browser = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
             settings.mediaPlaybackRequiresUserGesture = true
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -35,7 +37,13 @@ class WebPlaybackActivity : Activity() {
         if (::browser.isInitialized && browser.canGoBack()) browser.goBack() else super.onBackPressed()
     }
 
-    override fun onPause() { if (::browser.isInitialized) browser.onPause(); super.onPause() }
+    override fun onPause() {
+        if (::browser.isInitialized) {
+            browser.evaluateJavascript("document.querySelectorAll('video').forEach(v => v.pause())", null)
+            browser.onPause()
+        }
+        super.onPause()
+    }
     override fun onResume() { super.onResume(); if (::browser.isInitialized) browser.onResume() }
     override fun onDestroy() { if (::browser.isInitialized) { browser.stopLoading(); browser.destroy() }; super.onDestroy() }
 }
