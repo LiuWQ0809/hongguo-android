@@ -233,10 +233,9 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
     DisposableEffect(activity, active) {
         onDispose { (activity as? MainActivity)?.updatePictureInPicture(false, 0, 0) }
     }
-    LaunchedEffect(activity, active, playback.player, playback.playWhenReady, playback.ended, sheetOpen) {
-        val size = playback.player?.videoSize
+    LaunchedEffect(activity, active, playback.player, playback.playWhenReady, playback.ended, playback.videoWidth, playback.videoHeight, sheetOpen) {
         (activity as? MainActivity)?.updatePictureInPicture(active && playback.player != null && playback.playWhenReady && !playback.ended && !sheetOpen,
-            size?.width ?: 0, size?.height ?: 0)
+            playback.videoWidth, playback.videoHeight)
     }
     // A sheet owns another window and can reveal system bars or change their icons without resuming the Activity.
     val fullScreen = playerHidesSystemBars(LocalConfiguration.current.orientation)

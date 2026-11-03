@@ -20,6 +20,7 @@ import androidx.media3.common.C
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -38,6 +39,8 @@ internal data class VideoPlaybackUi(
     val playWhenReady: Boolean = true,
     /** Pauses for a gesture (a page swipe) without touching the user's play/pause intent, status or forced saves. */
     val holdForGesture: (Boolean) -> Unit = {},
+    val videoWidth: Int = 0,
+    val videoHeight: Int = 0,
 )
 
 /** One player owner above the pager; page composition only attaches its surface. */
@@ -79,7 +82,8 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
             val duration = active.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0
             ui = VideoPlaybackUi(active, active.isPlaying, active.playbackState == Player.STATE_BUFFERING,
                 active.playbackState == Player.STATE_ENDED, active.currentPosition.coerceAtLeast(0), duration,
-                active.bufferedPosition.coerceAtLeast(0), active.playWhenReady || gestureHold[0], holdForGesture)
+                active.bufferedPosition.coerceAtLeast(0), active.playWhenReady || gestureHold[0], holdForGesture,
+                active.videoSize.width, active.videoSize.height)
         }
 
         fun releasePlayer() {
@@ -121,6 +125,7 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
                 active.setHandleAudioBecomingNoisy(true)
                 active.setWakeMode(C.WAKE_MODE_NETWORK)
                 active.addListener(object : Player.Listener {
+                    override fun onVideoSizeChanged(videoSize: VideoSize) { updateSnapshot(active) }
                     override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
                         // Publish seeks immediately so releasing the thumb never restores an old snapshot.
                         if (isCurrent(active)) updateSnapshot(active)
@@ -223,7 +228,8 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
             val duration = active.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0
             ui = VideoPlaybackUi(active, active.isPlaying, active.playbackState == Player.STATE_BUFFERING,
                 active.playbackState == Player.STATE_ENDED, active.currentPosition.coerceAtLeast(0), duration,
-                active.bufferedPosition.coerceAtLeast(0), active.playWhenReady || gestureHold[0], holdForGesture)
+                active.bufferedPosition.coerceAtLeast(0), active.playWhenReady || gestureHold[0], holdForGesture,
+                active.videoSize.width, active.videoSize.height)
             val now = android.os.SystemClock.elapsedRealtime()
             if (active.isPlaying) model.onPlaybackBuffered(currentVideo.episodeId, currentVideo.requestId,
                 active.bufferedPosition - active.currentPosition)

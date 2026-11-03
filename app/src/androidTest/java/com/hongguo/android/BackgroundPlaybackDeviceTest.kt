@@ -70,6 +70,15 @@ class BackgroundPlaybackDeviceTest {
         try {
             automation.executeShellCommand("input keyevent KEYCODE_HOME").close()
             compose.waitUntil(10_000) { activity.isInPictureInPictureMode }
+            Thread.sleep(1_000)
+            var expectedAspect = 0f
+            var pipAspect = 0f
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                expectedAspect = (active.videoSize.width.toFloat() / active.videoSize.height).coerceIn(1f / 2.39f, 2.39f)
+                val view = activity.window.decorView
+                pipAspect = view.width.toFloat() / view.height
+            }
+            assertEquals("PiP must follow the video's aspect ratio", expectedAspect, pipAspect, .12f)
             val pipStart = position(active)
             Thread.sleep(3_000)
             assertTrue("PiP playback must advance", position(active) > pipStart + 1_000)
