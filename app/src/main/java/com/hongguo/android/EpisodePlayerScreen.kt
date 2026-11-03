@@ -221,6 +221,14 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
         tween(if (state.firstFrameRendered) 240 else 0), label = "first_frame_fade")
     val activity = LocalActivity.current
     val view = LocalView.current
+    DisposableEffect(activity, active) {
+        onDispose { (activity as? MainActivity)?.updatePictureInPicture(false, 0, 0) }
+    }
+    LaunchedEffect(activity, active, playback.player, playback.isPlaying, sheetOpen) {
+        val size = playback.player?.videoSize
+        (activity as? MainActivity)?.updatePictureInPicture(active && playback.isPlaying && !sheetOpen,
+            size?.width ?: 0, size?.height ?: 0)
+    }
     // A sheet owns another window and can reveal system bars or change their icons without resuming the Activity.
     val fullScreen = playerHidesSystemBars(LocalConfiguration.current.orientation)
     LaunchedEffect(sheetOpen, activity, view, fullScreen, active) {
@@ -251,7 +259,7 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
                 if (page == selected && activeVideo != null && playback.player != null) {
                     VideoSurface(playback, Modifier.fillMaxSize())
                     Box(Modifier.fillMaxSize().graphicsLayer { alpha = pictureCover.value }.background(Color.Black))
-                    PlayerInteractionLayer(modifier = Modifier.fillMaxSize().testTag("player_toggle"),
+                    if (!pip) PlayerInteractionLayer(modifier = Modifier.fillMaxSize().testTag("player_toggle"),
                         enabled = !sheetOpen, onTap = togglePlayback, onHoldSpeedChange = { holding ->
                             // Holding a paused video must not resume it or change the saved speed.
                             doubleSpeedHeld = holding && playback.isPlaying && !sheetOpen
@@ -297,6 +305,7 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
             }
         }
 
+        if (!pip) {
         PlayerTopBar(episodeIndex = visibleEpisode.index, episodeCount = detail.episodes.size,
             onBack = model::closePlayer, onShowEpisodes = { showEpisodes = true },
             temporaryDoubleSpeed = temporaryDoubleSpeed, modifier = Modifier.align(Alignment.TopCenter))
@@ -344,6 +353,7 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
                         fontWeight = FontWeight.Medium)
                 }
             }
+        }
         }
     }
 
