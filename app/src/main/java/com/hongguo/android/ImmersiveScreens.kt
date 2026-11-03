@@ -614,6 +614,7 @@ internal fun ImmersiveDetail(state: HongguoUiState, model: HongguoViewModel, acc
         if (state.loadingDetail) item { DarkLoading("正在获取完整选集…") }
         state.detailError?.let { error -> item { Box(Modifier.padding(horizontal = 16.dp)) { FailurePanel(error, model::retryDetails) } } }
         if (detail != null) {
+            item { RelatedWorks(card, model) }
             if (detail.summary.isNotBlank()) item {
                 Text(detail.summary, color = Muted, fontSize = 14.sp, lineHeight = 22.sp, maxLines = 5,
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp))

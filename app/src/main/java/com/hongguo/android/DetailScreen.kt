@@ -77,6 +77,7 @@ internal fun DetailScreen(state: HongguoUiState, model: HongguoViewModel, accoun
             }
             if (state.detailError != null) item { FailurePanel(state.detailError, model::retryDetails) }
             if (detail != null) {
+                item { RelatedWorks(card, model) }
                 if (detail.summary.isNotBlank()) item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("故事简介", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
