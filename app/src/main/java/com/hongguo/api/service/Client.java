@@ -653,21 +653,35 @@ public final class Client {
         return new Page(merged, page.hasMore, page.nextSkip);
     }
 
-    /** App signed search first; official HTML is a metadata fallback. */
+    /** 优先原生搜索，同时补充官网建议中可能遗漏的分季。 */
     public static Page searchPage(String query, int maxItemsArg, int skip) throws Exception {
         String keyword = query == null ? "" : query.trim();
         int limit = Math.max(1, Math.min(maxItemsArg > 0 ? maxItemsArg : 20, 40));
         int skipN = Math.max(0, Math.min(skip, 10000));
         if (keyword.isEmpty()) return Page.slice(new ArrayList<>(), skipN, limit, false);
         if (keyword.length() > 200) throw new IllegalArgumentException("搜索词过长");
+        String suggestionsKey = Safeguards.cacheKey("suggest-v1", keyword);
+        Object cachedSuggestions = Safeguards.cacheGet(suggestionsKey);
+        List<Object> suggestions = cachedSuggestions instanceof List ? castList(cachedSuggestions) : null;
+        if (suggestions == null) {
+            try {
+                suggestions = webSearchItems(WebSource.suggest(keyword));
+                Safeguards.cacheSet(suggestionsKey, suggestions, 600);
+            } catch (IOException e) {
+                if (Thread.currentThread().isInterrupted()) throw e;
+                suggestions = new ArrayList<>();
+                Safeguards.cacheSet(suggestionsKey, suggestions, 60);
+            }
+        }
         Exception appError = null;
         try {
             Page page = appSearchPage(keyword, limit, skipN);
-            if (!page.items.isEmpty()) return page;
+            if (!page.items.isEmpty() || skipN > 0) return mergeSearchSuggestions(page, suggestions, skipN);
         } catch (Exception error) {
             if (Thread.currentThread().isInterrupted()) throw error;
             appError = error;
         }
+        if (skipN == 0 && !suggestions.isEmpty()) return Page.slice(suggestions, 0, suggestions.size(), false);
         String cacheKey = Safeguards.cacheKey("websearch", keyword);
         Object cached = Safeguards.cacheGet(cacheKey);
         List<Object> webItems = cached instanceof List ? castList(cached) : null;
