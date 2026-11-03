@@ -324,6 +324,8 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
                             Text(if (state.preparing) preparationLabel(state.preparationStage) else "正在缓冲", color = Color.White.copy(alpha = .85f), fontSize = 12.sp,
                                 modifier = Modifier.testTag("media_status"))
                             if (state.preparing) TextButton(onClick = model::closePlayer) { Text("返回详情", color = Color.White.copy(alpha = .75f)) }
+                            if (fullScreen && controlsVisible && !pip && playback.player != null && playback.playWhenReady)
+                                TextButton(onClick = togglePlayback, modifier = Modifier.testTag("player_pause")) { Text("暂停", color = Color.White) }
                         }
                     }
                     playback.player != null && (!playback.playWhenReady || playback.ended) -> {

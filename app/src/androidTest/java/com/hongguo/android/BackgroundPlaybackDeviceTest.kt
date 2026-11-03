@@ -63,6 +63,7 @@ class BackgroundPlaybackDeviceTest {
         Thread.sleep(5_500)
         compose.onNodeWithTag("player_top_bar").assertExists()
         compose.onNodeWithTag("player_seek").performTouchInput { up() }
+        compose.waitUntil(15_000) { compose.onAllNodesWithTag("player_pause").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("player_pause").performClick()
         compose.onNodeWithTag("player_resume").assertExists()
         Thread.sleep(5_500)
