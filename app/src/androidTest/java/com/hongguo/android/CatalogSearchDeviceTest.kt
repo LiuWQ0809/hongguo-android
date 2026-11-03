@@ -52,6 +52,8 @@ class CatalogSearchDeviceTest {
         assertNotNull("未返回相关作品", cell)
         val rows = Json.optArr(cell!!["video_data"])
         rows.forEach { println("RELATED_SAMPLE ${Json.optObj(it)?.get("series_id")} ${Json.optObj(it)?.get("title")}") }
+        rows.mapNotNull { Json.optObj(it) }.firstOrNull { Json.optStr(it["series_id"], "") == "7699796892317649944" }
+            ?.let { println("RELATED_UPCOMING ${Json.stringify(it)}") }
         assertTrue("相关作品数量不足", rows.size >= 10)
     }
 }
