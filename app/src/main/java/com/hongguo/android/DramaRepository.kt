@@ -20,6 +20,7 @@ data class DramaCard(
     val cover: String,
     val episodeCount: Int,
     val summary: String,
+    val upcoming: Boolean = false,
 )
 
 data class Episode(val id: String, val index: Int, val title: String)
@@ -117,8 +118,11 @@ class DramaRepository {
             val id = Json.optStr(row["series_id"], "")
             val title = Json.optStr(row["title"], "")
             if (id.isBlank() || title.isBlank()) return@mapNotNull null
+            val upcoming = Json.optInt(row["episode_cnt"], 0) == 0 && Json.optArr(row["sub_title_list"]).any {
+                Json.optStr(Json.optObj(it)?.get("content"), "") == "预告"
+            }
             DramaCard(id, title, Json.optStr(row["cover"], ""), Json.optInt(row["episode_cnt"], 0),
-                Json.optStr(row["video_desc"], ""))
+                Json.optStr(row["video_desc"], ""), upcoming)
         }
     }
 

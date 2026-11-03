@@ -1,6 +1,8 @@
 package com.hongguo.android
 
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -33,6 +35,7 @@ class RelatedWorksDeviceTest {
         compose.waitUntil(60_000) { compose.onAllNodesWithTag(second).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("related_7683455900727659545").assertExists()
         compose.onNodeWithTag("related_7699796892317649944").assertExists()
+            .assertTextContains("即将上线").assertIsNotEnabled()
         compose.onNodeWithTag(second).performScrollTo().performClick()
         compose.waitUntil(120_000) { !model.state.value.loadingDetail }
         assertEquals("7676706788724460568", model.state.value.detail?.id)

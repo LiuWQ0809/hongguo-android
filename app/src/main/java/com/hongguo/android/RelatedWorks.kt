@@ -40,8 +40,10 @@ internal fun RelatedWorks(card: DramaCard, model: HongguoViewModel) {
         if (expanded) {
             if (works.isNullOrEmpty()) Text("暂无相关作品")
             works.orEmpty().forEach { related ->
-                TextButton(onClick = { model.openDrama(related) }, modifier = Modifier.fillMaxWidth().testTag("related_${related.id}")) {
-                    Text(related.title + if (related.episodeCount > 0) " · ${related.episodeCount}集" else " · 暂无集数信息")
+                TextButton(onClick = { model.openDrama(related) }, enabled = !related.upcoming,
+                    modifier = Modifier.fillMaxWidth().testTag("related_${related.id}")) {
+                    Text(related.title + when { related.upcoming -> " · 即将上线"; related.episodeCount > 0 -> " · ${related.episodeCount}集"
+                        else -> " · 暂无集数信息" })
                 }
             }
         }
