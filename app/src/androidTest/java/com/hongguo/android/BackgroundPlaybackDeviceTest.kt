@@ -5,10 +5,13 @@ import android.app.KeyguardManager
 import android.os.PowerManager
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
 import androidx.lifecycle.ViewModelProvider
 import androidx.media3.common.Player
 import androidx.media3.ui.PlayerView
@@ -48,6 +51,18 @@ class BackgroundPlaybackDeviceTest {
         compose.onNodeWithTag("player_seek").assertDoesNotExist()
         compose.onNodeWithTag("player_toggle").performClick()
         compose.onNodeWithTag("player_top_bar").assertExists()
+        compose.runOnIdle { assertTrue("Showing controls must not pause playback", findPlayer(compose.activity.window.decorView)?.playWhenReady == true) }
+        Thread.sleep(3_000)
+        compose.onNodeWithTag("player_seek").performTouchInput { click(center) }
+        Thread.sleep(3_000)
+        compose.onNodeWithTag("player_top_bar").assertExists()
+        compose.onNodeWithTag("player_seek").performTouchInput {
+            down(Offset(width * .35f, center.y))
+            moveTo(Offset(width * .5f, center.y), delayMillis = 200)
+        }
+        Thread.sleep(5_500)
+        compose.onNodeWithTag("player_top_bar").assertExists()
+        compose.onNodeWithTag("player_seek").performTouchInput { up() }
         compose.onNodeWithTag("player_pause").performClick()
         compose.onNodeWithTag("player_resume").assertExists()
         Thread.sleep(5_500)
