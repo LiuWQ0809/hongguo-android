@@ -270,10 +270,10 @@ public class PlaybackSourceTest {
         model.put("video_list", list);
         AtomicInteger calls = new AtomicInteger();
         AppSource.setPlaybackTabForTest((id, identity) -> { calls.incrementAndGet(); return response(id, model); });
-        AppSource.setPlaybackPostForTest((body, identity) -> response(vid, model));
+        AppSource.setPlaybackPostForTest((body, identity, host) -> response(vid, model));
         assertEquals("https://v1.qznovelvod.com/test.mp4", AppSource.fetch(vid, "auto").url);
         assertEquals(0, calls.get());
-        AppSource.setPlaybackPostForTest((body, identity) -> { throw new IOException("unavailable"); });
+        AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new IOException("unavailable"); });
         assertEquals("https://v1.qznovelvod.com/test.mp4", AppSource.fetch(vid, "auto").url);
         assertEquals(1, calls.get());
     }
@@ -298,9 +298,11 @@ public class PlaybackSourceTest {
         PlaybackDevice.resetForTest((url, headers, body) -> registrations.incrementAndGet() == 1
                 ? okReply() : reply("7432109876543219999", "7432109876543218888"));
         List<PlaybackDevice.Identity> used = new ArrayList<>();
+        List<String> hosts = new ArrayList<>();
         List<String> bodies = new ArrayList<>();
-        AppSource.setPlaybackPostForTest((body, identity) -> {
+        AppSource.setPlaybackPostForTest((body, identity, host) -> {
             used.add(identity);
+            hosts.add(host);
             bodies.add(new String(body, StandardCharsets.UTF_8));
             if (used.size() == 1) throw new AppSource.EmptyPlaybackResponseException();
             throw new IllegalStateException("reached retry");
@@ -312,6 +314,7 @@ public class PlaybackSourceTest {
             assertEquals("reached retry", e.getMessage());
         }
         assertEquals(2, used.size());
+        assertEquals(java.util.Arrays.asList(AppSource.VIDEO_API_HOST, AppSource.RETRY_HOST), hosts);
         assertEquals(2, registrations.get());
         assertEquals(DEVICE_ID, used.get(0).deviceId);
         assertEquals("7432109876543219999", used.get(1).deviceId);
@@ -326,7 +329,7 @@ public class PlaybackSourceTest {
             return okReply();
         });
         AtomicInteger posts = new AtomicInteger();
-        AppSource.setPlaybackPostForTest((body, identity) -> {
+        AppSource.setPlaybackPostForTest((body, identity, host) -> {
             posts.incrementAndGet();
             throw new AppSource.EmptyPlaybackResponseException();
         });
@@ -340,14 +343,14 @@ public class PlaybackSourceTest {
         assertEquals(2, registrations.get());
     }
 
-    @Test public void failedRenewalReportsOriginalEmptyResponse() throws Exception {
+    @Test public void failedRenewalStillAttemptsTheBackupHost() throws Exception {
         AtomicInteger registrations = new AtomicInteger();
         PlaybackDevice.resetForTest((url, headers, body) -> {
             if (registrations.incrementAndGet() > 1) throw new IOException("offline");
             return okReply();
         });
         AtomicInteger posts = new AtomicInteger();
-        AppSource.setPlaybackPostForTest((body, identity) -> {
+        AppSource.setPlaybackPostForTest((body, identity, host) -> {
             posts.incrementAndGet();
             throw new AppSource.EmptyPlaybackResponseException();
         });
@@ -357,7 +360,7 @@ public class PlaybackSourceTest {
         } catch (AppSource.EmptyPlaybackResponseException e) {
             assertEquals(1, e.getSuppressed().length);
         }
-        assertEquals(1, posts.get());
+        assertEquals(2, posts.get());
         assertEquals(2, registrations.get());
     }
 

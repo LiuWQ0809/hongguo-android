@@ -122,19 +122,19 @@ public final class AppSource {
         byte[] body = Json.stringify(payload(vid)).getBytes(StandardCharsets.UTF_8);
         Map<String, Object> j;
         try {
-            j = playbackPost.post(body, identity);
+            j = playbackPost.post(body, identity, VIDEO_API_HOST);
         } catch (EmptyPlaybackResponseException e) {
             // 空响应多为当前匿名身份被拒：换一个新注册的身份只重试一次（同步自 hongguo-drama 5.0）。
             if (Thread.currentThread().isInterrupted()) throw e;
-            PlaybackDevice.Identity renewed;
+            PlaybackDevice.Identity renewed = identity;
             try {
                 renewed = PlaybackDevice.renew(identity);
             } catch (IOException re) {
                 e.addSuppressed(re);
-                throw e;
             }
-            if (renewed == identity) throw e;
-            j = playbackPost.post(body, renewed);
+            Thread.sleep(300);
+            try { j = playbackPost.post(body, renewed, RETRY_HOST); }
+            catch (Exception retry) { retry.addSuppressed(e); throw retry; }
         }
         return parseModel(vid, j, quality);
     }
@@ -148,7 +148,7 @@ public final class AppSource {
 
     /** 可替换的播放请求（JVM 测试注入）；生产实现见 {@link #postPlayback}. */
     interface PlaybackPost {
-        Map<String, Object> post(byte[] body, PlaybackDevice.Identity identity) throws Exception;
+        Map<String, Object> post(byte[] body, PlaybackDevice.Identity identity, String host) throws Exception;
     }
 
     private static PlaybackPost playbackPost = AppSource::postPlayback;
@@ -461,11 +461,12 @@ public final class AppSource {
     }
 
     /** 使用最终 URL 和原始 body 生成签名后发送播放请求。 */
-    private static Map<String, Object> postPlayback(byte[] body, PlaybackDevice.Identity identity)
+    private static Map<String, Object> postPlayback(byte[] body, PlaybackDevice.Identity identity, String host)
             throws Exception {
-        SignedPlaybackRequest signed = signedPlaybackRequest(body, identity, System.currentTimeMillis());
+        SignedPlaybackRequest signed = signedPlaybackRequest(body, identity, System.currentTimeMillis(), host);
         Http.Req req = new Http.Req(signed.url).method("POST").timeout(15000);
         req.followRedirect = false;
+        if (!VIDEO_API_HOST.equals(host)) req.header("Connection", "close");
         for (Map.Entry<String, String> e : signed.headers.entrySet()) {
             req.header(e.getKey(), e.getValue());
         }
