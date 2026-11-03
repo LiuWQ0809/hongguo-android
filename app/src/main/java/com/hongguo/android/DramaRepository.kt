@@ -111,6 +111,17 @@ class DramaRepository {
         )
     }
 
+    suspend fun related(seriesId: String): List<DramaCard> = runInterruptible(Dispatchers.IO) {
+        Client.relatedWorks(seriesId).mapNotNull { raw ->
+            val row = Json.optObj(raw) ?: return@mapNotNull null
+            val id = Json.optStr(row["series_id"], "")
+            val title = Json.optStr(row["title"], "")
+            if (id.isBlank() || title.isBlank()) return@mapNotNull null
+            DramaCard(id, title, Json.optStr(row["cover"], ""), Json.optInt(row["episode_cnt"], 0),
+                Json.optStr(row["video_desc"], ""))
+        }
+    }
+
     suspend fun prepare(episode: Episode, allowFallback: Boolean = true,
                         progress: (String, Long, Long) -> Unit): PreparedVideo {
         val context = currentCoroutineContext()
