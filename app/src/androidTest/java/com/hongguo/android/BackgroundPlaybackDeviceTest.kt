@@ -7,6 +7,9 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.ViewModelProvider
 import androidx.media3.common.Player
@@ -43,6 +46,17 @@ class BackgroundPlaybackDeviceTest {
         compose.onNodeWithTag("player_fullscreen").performClick()
         compose.waitUntil(10_000) { compose.activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE }
         assertEquals(request, model.state.value.video?.requestId)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("player_top_bar").fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithTag("player_seek").assertDoesNotExist()
+        compose.onNodeWithTag("player_toggle").performClick()
+        compose.onNodeWithTag("player_top_bar").assertExists()
+        compose.onNodeWithTag("player_pause").performClick()
+        compose.onNodeWithTag("player_resume").assertExists()
+        Thread.sleep(5_500)
+        compose.onNodeWithTag("player_top_bar").assertExists()
+        compose.onNodeWithTag("player_resume").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("player_top_bar").fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithTag("player_toggle").performClick()
         compose.onNodeWithTag("player_fullscreen").performClick()
         compose.waitUntil(10_000) { compose.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }
         assertEquals(request, model.state.value.video?.requestId)
