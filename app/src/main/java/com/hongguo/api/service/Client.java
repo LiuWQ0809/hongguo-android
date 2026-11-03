@@ -676,7 +676,15 @@ public final class Client {
         Exception appError = null;
         try {
             Page page = appSearchPage(keyword, limit, skipN);
-            if (!page.items.isEmpty() || skipN > 0) return mergeSearchSuggestions(page, suggestions, skipN);
+            Page merged = mergeSearchSuggestions(page, suggestions, skipN);
+            int attempts = 0;
+            while (skipN > 0 && merged.items.isEmpty() && page.hasMore
+                    && page.nextSkip > skipN && attempts++ <= suggestions.size()) {
+                skipN = page.nextSkip;
+                page = appSearchPage(keyword, limit, skipN);
+                merged = mergeSearchSuggestions(page, suggestions, skipN);
+            }
+            if (!page.items.isEmpty() || skipN > 0) return merged;
         } catch (Exception error) {
             if (Thread.currentThread().isInterrupted()) throw error;
             appError = error;

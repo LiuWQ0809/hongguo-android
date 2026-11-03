@@ -30,11 +30,14 @@ class CatalogSearchDeviceTest {
             offset = page.nextSkip
         }
         assertTrue("未找到 Mac 当前播放的第一季", ids.contains("7671966197985856536"))
+        assertTrue("未找到第二季", ids.contains("7675687876633316377"))
+        assertTrue("未找到第五季", ids.contains("7683455900727659545"))
+        assertTrue("未找到第十一季", ids.contains("7699796892317649944"))
     }
 
     @Test fun inspectOfficialCatalogSearchForSeasonCoverage() {
-        val rows = WebSource.search("持械入宋")
+        val rows = WebSource.suggest("持械入宋")
         rows.forEach { println("OFFICIAL_SAMPLE ${it["series_id"]} ${it["series_title"]}") }
-        assertTrue("官网搜索未返回样本", rows.isNotEmpty())
+        assertTrue("官网建议未返回样本", rows.size >= 10)
     }
 }
