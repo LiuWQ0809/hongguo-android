@@ -99,6 +99,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hongguo.account.AccountSessionStatus
 import androidx.media3.common.Player
 import java.util.Locale
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun EpisodePlayerScreen(state: HongguoUiState, model: HongguoViewModel, accountModel: AccountViewModel? = null,
@@ -176,8 +178,12 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
         if (pager.currentPage != selected || pager.settledPage != selected) {
             synchronizing = selected
             // animateScrollToPage itself jumps close first when the target is several pages away.
-            try { pager.animateScrollToPage(selected, animationSpec = tween(EpisodeSlideMillis, easing = FastOutSlowInEasing)) }
-            finally { synchronizing = null }
+            try {
+                coroutineScope {
+                    launch { pager.animateScrollToPage(selected, animationSpec = tween(EpisodeSlideMillis, easing = FastOutSlowInEasing)) }.join()
+                    if (pager.settledPage != selected) pager.scrollToPage(selected)
+                }
+            } finally { synchronizing = null }
         }
     }
     LaunchedEffect(pager, detail.id) {
