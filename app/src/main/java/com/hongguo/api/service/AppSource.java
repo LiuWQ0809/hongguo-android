@@ -100,9 +100,25 @@ public final class AppSource {
             throw new IllegalArgumentException("分集编号无效");
         }
 
-        // ---- 1. 签名 POST multi_video_model/v1（使用注册的匿名身份）----
-        byte[] body = Json.stringify(payload(vid)).getBytes(StandardCharsets.UTF_8);
         PlaybackDevice.Identity identity = PlaybackDevice.get();
+        try {
+            return fetchSigned(vid, quality, identity);
+        } catch (Exception primary) {
+            if (Thread.currentThread().isInterrupted()) throw primary;
+            try {
+                Map<String, Object> tab = playbackTab.get(vid, identity);
+                if (tab != null) return parseModel(vid, tab, quality);
+            } catch (Exception alternate) {
+                if (Thread.currentThread().isInterrupted()) throw alternate;
+                primary.addSuppressed(alternate);
+            }
+            throw primary;
+        }
+    }
+
+    private static Stream.VideoTrack fetchSigned(String vid, String quality, PlaybackDevice.Identity identity)
+            throws Exception {
+        byte[] body = Json.stringify(payload(vid)).getBytes(StandardCharsets.UTF_8);
         Map<String, Object> j;
         try {
             j = playbackPost.post(body, identity);
@@ -139,6 +155,10 @@ public final class AppSource {
     static void setPlaybackPostForTest(PlaybackPost post) {
         playbackPost = post == null ? AppSource::postPlayback : post;
     }
+
+    interface PlaybackTab { Map<String, Object> get(String vid, PlaybackDevice.Identity identity) throws Exception; }
+    private static PlaybackTab playbackTab = AppSource::getTabModel;
+    static void setPlaybackTabForTest(PlaybackTab tab) { playbackTab = tab == null ? AppSource::getTabModel : tab; }
 
     /**
      * 从播放接口响应解析出可播放轨道（包内可见，便于用离线响应做 JVM 测试）。

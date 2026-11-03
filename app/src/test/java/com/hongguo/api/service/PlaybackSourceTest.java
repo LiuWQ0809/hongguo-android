@@ -51,9 +51,16 @@ public class PlaybackSourceTest {
                 "1234567890123456");
     }
 
-    @Before @After public void reset() {
+    @Before public void reset() {
         PlaybackDevice.resetForTest(null);
         AppSource.setPlaybackPostForTest(null);
+        AppSource.setPlaybackTabForTest((vid, identity) -> null);
+    }
+
+    @After public void restore() {
+        PlaybackDevice.resetForTest(null);
+        AppSource.setPlaybackPostForTest(null);
+        AppSource.setPlaybackTabForTest(null);
     }
 
     // ==================== ttEncrypt 注册请求体 ====================
