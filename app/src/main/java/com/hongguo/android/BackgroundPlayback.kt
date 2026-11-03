@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Keeps automatic episode changes independent of the stopped Compose frame clock. */
@@ -37,6 +38,14 @@ internal class BackgroundPlayback(
                 if (state.playerOpen && next != null && next.requestId != video.requestId) switchTo(next)
             }
         }
+        scope.launch {
+            while (true) {
+                val active = current
+                if (!original && active != null && active.isPlaying)
+                    model.savePosition(video.episodeId, active.currentPosition, video.requestId)
+                delay(2_000)
+            }
+        }
     }
 
     private fun release() {
@@ -61,6 +70,16 @@ internal class BackgroundPlayback(
             if (next.session == null && next.path.isNotBlank()) { Stream.pin(next.path); pinned = true }
             val active = ExoPlayer.Builder(context).build()
             current = active
+            active.addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (current !== active) return
+                    if (state == Player.STATE_ENDED) model.onPlaybackEnded(next.episodeId, next.requestId,
+                        active.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0)
+                }
+                override fun onPlayerError(error: PlaybackException) {
+                    if (current === active) model.onPlaybackError(next.episodeId, next.requestId, error.errorCode in 4000..4999)
+                }
+            })
             active.setAudioAttributes(AudioAttributes.DEFAULT, true)
             active.setHandleAudioBecomingNoisy(true)
             active.setWakeMode(C.WAKE_MODE_NETWORK)
