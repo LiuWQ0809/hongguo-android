@@ -15,8 +15,8 @@ class SeasonPlaybackDeviceTest {
     @Test fun suggestedSeasonsOpenAndPlayNatively() {
         lateinit var model: HongguoViewModel
         compose.runOnIdle { model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java] }
-        val seasons = listOf("7675687876633316377" to "第二季", "7683455900727659545" to "第五季",
-            "7699796892317649944" to "第十一季")
+        // Mac 版将第十一季标记为“即将上线”，这里只测试已上线的分季。
+        val seasons = listOf("7675687876633316377" to "第二季", "7683455900727659545" to "第五季")
         for ((id, title) in seasons) {
             compose.runOnIdle { model.openDrama(DramaCard(id, title, "", 0, "")) }
             compose.waitUntil(120_000) { !model.state.value.loadingDetail }
