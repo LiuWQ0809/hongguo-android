@@ -40,4 +40,18 @@ class CatalogSearchDeviceTest {
         rows.forEach { println("OFFICIAL_SAMPLE ${it["series_id"]} ${it["series_title"]}") }
         assertTrue("官网建议未返回样本", rows.size >= 10)
     }
+
+    @Test fun inspectRelatedWorksForMacSeries() {
+        val query = linkedMapOf<String, Any>("scene" to "10", "from" to "detail_page_more_related",
+            "book_id" to "7671966197985856536")
+        val result = Client.api("GET", "/reading/bookapi/plan/v:version/", null, query, 2, true)
+        val cells = Json.optArr(result["data"])
+        val cell = cells.mapNotNull { Json.optObj(it) }.firstOrNull {
+            Json.optInt(it["show_type"], 0) == 547 || Json.optStr(it["cell_name"], "") == "相关作品"
+        }
+        assertNotNull("未返回相关作品", cell)
+        val rows = Json.optArr(cell!!["video_data"])
+        rows.forEach { println("RELATED_SAMPLE ${Json.optObj(it)?.get("series_id")} ${Json.optObj(it)?.get("title")}") }
+        assertTrue("相关作品数量不足", rows.size >= 10)
+    }
 }
