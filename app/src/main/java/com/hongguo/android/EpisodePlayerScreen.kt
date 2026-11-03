@@ -15,6 +15,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,6 +63,7 @@ import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -78,6 +81,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -100,6 +105,7 @@ import com.hongguo.account.AccountSessionStatus
 import androidx.media3.common.Player
 import java.util.Locale
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -171,6 +177,9 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
     var doubleSpeedHeld by remember(state.video?.requestId) { mutableStateOf(false) }
     var seeking by remember(state.video?.requestId) { mutableStateOf(false) }
     var seekFraction by remember(state.video?.requestId) { mutableStateOf<Float?>(null) }
+    var controlsVisible by remember { mutableStateOf(true) }
+    var controlsInteraction by remember { mutableStateOf(0) }
+    val fullScreen = playerHidesSystemBars(LocalConfiguration.current.orientation)
 
     // Model-driven changes (continue, sheet selection and autoplay) never count as a user swipe. They slide like a
     // swipe. User scrolling is off until the slide ends, so a touch cannot stop it half-way on another episode.
@@ -238,7 +247,15 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
             playback.videoWidth, playback.videoHeight)
     }
     // A sheet owns another window and can reveal system bars or change their icons without resuming the Activity.
-    val fullScreen = playerHidesSystemBars(LocalConfiguration.current.orientation)
+    LaunchedEffect(fullScreen, playback.player, playback.playWhenReady, playback.ended, state.playbackError,
+        controlsVisible, controlsInteraction, sheetOpen, seeking, doubleSpeedHeld, pip) {
+        if (!fullScreen || playback.player == null || !playback.playWhenReady || playback.ended || state.playbackError != null)
+            controlsVisible = true
+        else if (controlsVisible && !sheetOpen && !seeking && !doubleSpeedHeld && !pip) {
+            delay(5_000)
+            controlsVisible = false
+        }
+    }
     LaunchedEffect(sheetOpen, activity, view, fullScreen, active) {
         if (active && !sheetOpen) activity?.window?.let { applyPlayerSystemBars(WindowCompat.getInsetsController(it, view), fullScreen) }
     }
@@ -259,7 +276,12 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
         Unit
     }
 
-    Box(Modifier.fillMaxSize().background(Color.Black).semantics { testTagsAsResourceId = true }) {
+    Box(Modifier.fillMaxSize().background(Color.Black).pointerInput(fullScreen, controlsVisible) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            if (fullScreen && controlsVisible) controlsInteraction++
+        }
+    }.semantics { testTagsAsResourceId = true }) {
         VerticalPager(state = pager, modifier = Modifier.fillMaxSize().testTag("episode_pager"),
             key = { detail.episodes[it].id }, beyondViewportPageCount = 1,
             userScrollEnabled = active && synchronizing == null && !showEpisodes && !showSpeed && !showFavorites && !seeking) { page ->
@@ -268,7 +290,9 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
                     VideoSurface(playback, Modifier.fillMaxSize())
                     Box(Modifier.fillMaxSize().graphicsLayer { alpha = pictureCover.value }.background(Color.Black))
                     if (!pip) PlayerInteractionLayer(modifier = Modifier.fillMaxSize().testTag("player_toggle"),
-                        enabled = !sheetOpen, onTap = togglePlayback, onHoldSpeedChange = { holding ->
+                        enabled = !sheetOpen, onTap = {
+                            if (fullScreen) controlsVisible = !controlsVisible else togglePlayback()
+                        }, onHoldSpeedChange = { holding ->
                             // Holding a paused video must not resume it or change the saved speed.
                             doubleSpeedHeld = holding && playback.isPlaying && !sheetOpen
                         })
@@ -309,11 +333,19 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
                             }
                         }
                     }
+                    fullScreen && controlsVisible && !pip && playback.player != null -> {
+                        IconButton(onClick = togglePlayback, modifier = Modifier.size(76.dp).testTag("player_pause")
+                            .semantics { contentDescription = "暂停播放" }) {
+                            Surface(color = Color.Black.copy(alpha = .35f), shape = CircleShape) {
+                                Box(Modifier.size(66.dp), Alignment.Center) { Icon(Icons.Rounded.Pause, null, tint = Color.White, modifier = Modifier.size(42.dp)) }
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        if (!pip) {
+        if (!pip && (!fullScreen || controlsVisible)) {
         PlayerTopBar(episodeIndex = visibleEpisode.index, episodeCount = detail.episodes.size,
             onBack = model::closePlayer, onShowEpisodes = { showEpisodes = true },
             temporaryDoubleSpeed = temporaryDoubleSpeed, modifier = Modifier.align(Alignment.TopCenter))
