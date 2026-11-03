@@ -295,7 +295,7 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
                         }, onHoldSpeedChange = { holding ->
                             // Holding a paused video must not resume it or change the saved speed.
                             doubleSpeedHeld = holding && playback.isPlaying && !sheetOpen
-                        })
+                        }, onTapLabel = if (!fullScreen) "播放或暂停" else if (controlsVisible) "隐藏播放控制" else "显示播放控制")
                 }
                 when {
                     // Neighbouring episodes carry their number, so a swipe visibly brings the next one in.

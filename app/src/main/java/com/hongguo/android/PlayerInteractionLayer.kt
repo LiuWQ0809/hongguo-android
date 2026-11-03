@@ -35,6 +35,7 @@ internal fun PlayerInteractionLayer(
     enabled: Boolean = true,
     onTap: () -> Unit,
     onHoldSpeedChange: (Boolean) -> Unit,
+    onTapLabel: String = "播放或暂停",
 ) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val haptics = LocalHapticFeedback.current
@@ -74,7 +75,7 @@ internal fun PlayerInteractionLayer(
         .semantics {
             role = Role.Button
             if (!enabled || !foreground) disabled()
-            onClick(label = "播放或暂停") {
+            onClick(label = onTapLabel) {
                 if (currentEnabled && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
                     currentTap()
                     true
