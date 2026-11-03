@@ -1,6 +1,7 @@
 package com.hongguo.android
 
 import android.content.res.Configuration
+import android.app.KeyguardManager
 import android.os.PowerManager
 import android.view.View
 import android.view.ViewGroup
@@ -75,9 +76,19 @@ class BackgroundPlaybackDeviceTest {
             automation.executeShellCommand("input keyevent KEYCODE_SLEEP").close()
             Thread.sleep(1_000)
             assertFalse("The screen must really be off", activity.getSystemService(PowerManager::class.java).isInteractive)
+            assertTrue("The lock screen must be active", activity.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
             val lockedStart = position(active)
             Thread.sleep(3_000)
             assertTrue("Screen-off playback must advance", position(active) > lockedStart + 1_000)
+            automation.executeShellCommand("input keyevent KEYCODE_MEDIA_PAUSE").close()
+            Thread.sleep(500)
+            var playing = true
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { playing = active.playWhenReady }
+            assertFalse("Media controls must pause while screen is off", playing)
+            automation.executeShellCommand("input keyevent KEYCODE_MEDIA_PLAY").close()
+            Thread.sleep(500)
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { playing = active.playWhenReady }
+            assertTrue("Media controls must resume while screen is off", playing)
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
                 assertTrue(active.duration > 5_000)
                 active.seekTo(active.duration - 1_000)
@@ -98,6 +109,14 @@ class BackgroundPlaybackDeviceTest {
             val nextStart = position(nextPlayer)
             Thread.sleep(4_000)
             assertTrue("The next episode must play while screen is off", position(nextPlayer) > nextStart + 1_000)
+            val request = model.state.value.video?.requestId
+            automation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
+            automation.executeShellCommand("wm dismiss-keyguard").close()
+            automation.executeShellCommand("am start -n com.hongguo.android/.MainActivity -f 0x20000000").close()
+            compose.waitUntil(60_000) { model.state.value.firstFrameRendered }
+            assertEquals("Unlocking must keep the same episode", request, model.state.value.video?.requestId)
+            compose.runOnIdle { model.closePlayer() }
+            compose.waitUntil(10_000) { PlaybackSessionService.activePlayer == null }
         } finally {
             automation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
             automation.executeShellCommand("wm dismiss-keyguard").close()
