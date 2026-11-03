@@ -1,6 +1,7 @@
 package com.hongguo.android
 
 import android.content.res.Configuration
+import android.os.PowerManager
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -59,7 +60,7 @@ class BackgroundPlaybackDeviceTest {
     }
 
     @Test fun pictureInPictureAndScreenOffContinuePlayback() {
-        startVideo()
+        val model = startVideo()
         val activity = compose.activity
         var player: Player? = null
         InstrumentationRegistry.getInstrumentation().runOnMainSync { player = findPlayer(activity.window.decorView) }
@@ -73,9 +74,30 @@ class BackgroundPlaybackDeviceTest {
             assertTrue("PiP playback must advance", position(active) > pipStart + 1_000)
             automation.executeShellCommand("input keyevent KEYCODE_SLEEP").close()
             Thread.sleep(1_000)
+            assertFalse("The screen must really be off", activity.getSystemService(PowerManager::class.java).isInteractive)
             val lockedStart = position(active)
             Thread.sleep(3_000)
             assertTrue("Screen-off playback must advance", position(active) > lockedStart + 1_000)
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                assertTrue(active.duration > 5_000)
+                active.seekTo(active.duration - 1_000)
+            }
+            val deadline = System.currentTimeMillis() + 90_000
+            while (System.currentTimeMillis() < deadline && (model.state.value.episodePosition < 1 || model.state.value.video == null))
+                Thread.sleep(300)
+            assertEquals("Screen-off autoplay must advance to the next episode", 1, model.state.value.episodePosition)
+            assertNotNull("The next episode must be prepared while screen is off", model.state.value.video)
+            assertNull(model.state.value.playbackError)
+            var next: Player? = null
+            while (System.currentTimeMillis() < deadline && (next == null || next === active)) {
+                InstrumentationRegistry.getInstrumentation().runOnMainSync { next = findPlayer(activity.window.decorView) }
+                if (next == null || next === active) Thread.sleep(300)
+            }
+            val nextPlayer = requireNotNull(next)
+            assertNotSame("The next episode must have a new player", active, nextPlayer)
+            val nextStart = position(nextPlayer)
+            Thread.sleep(4_000)
+            assertTrue("The next episode must play while screen is off", position(nextPlayer) > nextStart + 1_000)
         } finally {
             automation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
             automation.executeShellCommand("wm dismiss-keyguard").close()
