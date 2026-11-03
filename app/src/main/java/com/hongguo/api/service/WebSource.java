@@ -35,6 +35,32 @@ public final class WebSource {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                     + "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
+    /** 官网搜索建议可包含正文搜索遗漏的其它季，非剧集词与重复 ID 不纳入。 */
+    static List<Map<String, Object>> parseSuggestions(String text) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        Map<String, Object> root;
+        try { root = Json.parseObject(text); } catch (Exception e) { return out; }
+        if (root == null) return out;
+        for (Object item : Json.optArr(root.get("suggest_list"))) {
+            Map<String, Object> cell = Json.optObj(item);
+            if (cell == null || !"short_play_name".equals(Json.optStr(cell.get("word_type"), ""))) continue;
+            Map<String, Object> video = Json.optObj(cell.get("video_data"));
+            if (video == null) video = Json.obj();
+            String id = Json.optStr(video.get("series_id"), Json.optStr(cell.get("keyword"), ""));
+            String title = Json.optStr(video.get("series_title"), Json.optStr(cell.get("name"), ""));
+            if (!id.matches("[0-9]{1,30}") || title.trim().isEmpty() || !seen.add(id)) continue;
+            Map<String, Object> row = Json.obj();
+            row.put("series_id", id);
+            row.put("series_title", title);
+            row.put("series_intro", Json.optStr(video.get("series_intro"), ""));
+            row.put("cover", normalizeVideoUrl(Json.optStr(video.get("series_cover"), "")));
+            row.put("episode_cnt", Json.optInt(video.get("episode_cnt"), 0));
+            out.add(row);
+        }
+        return out;
+    }
+
     // ==================== 公开接口 ====================
 
     /**
