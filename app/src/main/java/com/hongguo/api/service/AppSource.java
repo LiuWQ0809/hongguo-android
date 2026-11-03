@@ -379,6 +379,21 @@ public final class AppSource {
         return result;
     }
 
+    private static Map<String, Object> getTabModel(String vid, PlaybackDevice.Identity identity) throws IOException {
+        Http.Req req = new Http.Req(tabUrl(identity, vid, System.currentTimeMillis()))
+                .method("GET").timeout(15000);
+        req.followRedirect = false;
+        req.header("User-Agent", PLAYBACK_UA);
+        req.header("Accept", "application/json; charset=utf-8");
+        try {
+            Http.Resp res = Http.send(req);
+            return res.status == 200 ? parseTabResponse(vid, res.text()) : null;
+        } catch (IOException e) {
+            if (Thread.currentThread().isInterrupted()) throw e;
+            return null;
+        }
+    }
+
     /** 播放请求的基础请求头，签名字段由 signedPlaybackRequest 添加。 */
     static Map<String, String> playbackHeaders() {
         Map<String, String> headers = new LinkedHashMap<>();

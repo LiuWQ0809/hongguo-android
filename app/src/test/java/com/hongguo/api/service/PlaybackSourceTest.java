@@ -244,6 +244,16 @@ public class PlaybackSourceTest {
         } catch (IllegalArgumentException expected) { /* expected */ }
     }
 
+    @Test public void tabResponseAcceptsOnlyTheRequestedEpisode() {
+        String vid = "7600000000000000001";
+        String body = "{\"code\":0,\"data\":{\"video_model_data\":{\"" + vid
+                + "\":{\"video_model\":{\"video_list\":[{\"codec_type\":\"bytevc1\"}]}}}}}";
+        assertNotNull(AppSource.parseTabResponse(vid, body));
+        assertNull(AppSource.parseTabResponse("7600000000000000002", body));
+        assertNull(AppSource.parseTabResponse(vid, "{\"code\":1,\"data\":{}}"));
+        assertNull(AppSource.parseTabResponse(vid, ""));
+    }
+
     @Test public void emptyPlaybackResponseIsReportedAsIdentityRejection() {
         try {
             AppSource.parsePlaybackResponse("  ");
