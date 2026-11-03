@@ -261,6 +261,23 @@ public class PlaybackSourceTest {
         assertNull(AppSource.parseTabResponse(vid, ""));
     }
 
+    @Test public void tabFallbackRunsOnlyAfterSignedPlaybackFails() throws Exception {
+        String vid = "7600000000000000001";
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        List<Object> list = Json.arr();
+        list.add(item("h264", 720, 1280, "https://v1.qznovelvod.com/test.mp4", VALID_SPADE));
+        Map<String, Object> model = Json.obj();
+        model.put("video_list", list);
+        AtomicInteger calls = new AtomicInteger();
+        AppSource.setPlaybackTabForTest((id, identity) -> { calls.incrementAndGet(); return response(id, model); });
+        AppSource.setPlaybackPostForTest((body, identity) -> response(vid, model));
+        assertEquals("https://v1.qznovelvod.com/test.mp4", AppSource.fetch(vid, "auto").url);
+        assertEquals(0, calls.get());
+        AppSource.setPlaybackPostForTest((body, identity) -> { throw new IOException("unavailable"); });
+        assertEquals("https://v1.qznovelvod.com/test.mp4", AppSource.fetch(vid, "auto").url);
+        assertEquals(1, calls.get());
+    }
+
     @Test public void emptyPlaybackResponseIsReportedAsIdentityRejection() {
         try {
             AppSource.parsePlaybackResponse("  ");

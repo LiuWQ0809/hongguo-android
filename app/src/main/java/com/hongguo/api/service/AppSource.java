@@ -400,6 +400,7 @@ public final class AppSource {
     }
 
     private static Map<String, Object> getTabModel(String vid, PlaybackDevice.Identity identity) throws IOException {
+        if (Thread.currentThread().isInterrupted()) throw new java.io.InterruptedIOException("播放请求已取消");
         Http.Req req = new Http.Req(tabUrl(identity, vid, System.currentTimeMillis()))
                 .method("GET").timeout(15000);
         req.followRedirect = false;
