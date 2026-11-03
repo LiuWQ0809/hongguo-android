@@ -101,7 +101,7 @@ import java.util.Locale
 
 @Composable
 internal fun EpisodePlayerScreen(state: HongguoUiState, model: HongguoViewModel, accountModel: AccountViewModel? = null,
-                                 active: Boolean = true) {
+                                 active: Boolean = true, pip: Boolean = false) {
     val detail = state.detail ?: return
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val view = LocalView.current
@@ -143,7 +143,7 @@ internal fun EpisodePlayerScreen(state: HongguoUiState, model: HongguoViewModel,
     LaunchedEffect(activity, view, fullScreen, active) {
         if (active) activity?.window?.let { applyPlayerSystemBars(WindowCompat.getInsetsController(it, view), fullScreen) }
     }
-    key(detail.id) { EpisodePager(state, model, detail, accountModel, active) }
+    key(detail.id) { EpisodePager(state, model, detail, accountModel, active, pip) }
 }
 
 /** Full screen (hidden status and navigation bars) only in landscape; portrait keeps the system bars. */
@@ -154,7 +154,7 @@ private data class PagerMovement(val scrolling: Boolean, val settled: Int, val s
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail: DramaDetail, accountModel: AccountViewModel?,
-                         active: Boolean) {
+                         active: Boolean, pip: Boolean) {
     if (detail.episodes.isEmpty()) return
     val selected = state.episodePosition.coerceIn(detail.episodes.indices)
     val pager = rememberPagerState(initialPage = selected, pageCount = { detail.episodes.size })

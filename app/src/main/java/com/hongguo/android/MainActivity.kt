@@ -1,6 +1,10 @@
 package com.hongguo.android
 
 import android.content.res.Configuration
+import android.app.PictureInPictureParams
+import android.content.pm.PackageManager
+import android.os.Build
+import android.util.Rational
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -38,6 +42,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +60,28 @@ import com.hongguo.account.AccountSessionStatus
 import com.hongguo.account.AccountViewModel
 
 class MainActivity : ComponentActivity() {
+    private var pipMode by mutableStateOf(false)
+    private var pipAllowed = false
+
+    internal fun updatePictureInPicture(allowed: Boolean, width: Int, height: Int) {
+        pipAllowed = allowed && packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
+        val aspect = if (width > 0 && height > 0) (width.toFloat() / height).coerceIn(1f / 2.39f, 2.39f) else 16f / 9f
+        val params = PictureInPictureParams.Builder().setAspectRatio(Rational((aspect * 1000).toInt(), 1000))
+        if (Build.VERSION.SDK_INT >= 31) params.setAutoEnterEnabled(pipAllowed)
+        setPictureInPictureParams(params.build())
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT < 31 && pipAllowed) enterPictureInPictureMode()
+    }
+
+    override fun onPictureInPictureModeChanged(inPip: Boolean, configuration: Configuration) {
+        super.onPictureInPictureModeChanged(inPip, configuration)
+        pipMode = inPip
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyThemeWindow(storedThemeStyle().palette())
@@ -91,7 +119,7 @@ class MainActivity : ComponentActivity() {
                     }) { playerShown ->
                 // False as soon as the player starts closing (or the page starts leaving), not when the fade ends.
                 val playerActive = transition.targetState == EnterExitState.Visible
-                if (playerShown) EpisodePlayerScreen(state, model, accountModel, active = playerActive)
+                if (playerShown) EpisodePlayerScreen(state, model, accountModel, active = playerActive, pip = pipMode)
                 else {
                     val showNav = state.selectedCard == null && state.tab !in setOf(AppTab.SEARCH, AppTab.ACCOUNT, AppTab.SETTINGS, AppTab.THEME_STYLE)
                     // 悬浮玻璃: the bar floats as a liquid-glass capsule and the page runs underneath it.
