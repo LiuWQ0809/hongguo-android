@@ -13,6 +13,7 @@ class PlaybackSessionService : MediaSessionService() {
     companion object {
         private var service: PlaybackSessionService? = null
         private var current: Player? = null
+        internal val activePlayer: Player? get() = current
         private val handler = Handler(Looper.getMainLooper())
         private val stop = Runnable { if (current == null) service?.stopSelf() }
 

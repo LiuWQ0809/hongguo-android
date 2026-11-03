@@ -90,7 +90,7 @@ class BackgroundPlaybackDeviceTest {
             assertNull(model.state.value.playbackError)
             var next: Player? = null
             while (System.currentTimeMillis() < deadline && (next == null || next === active)) {
-                InstrumentationRegistry.getInstrumentation().runOnMainSync { next = findPlayer(activity.window.decorView) }
+                InstrumentationRegistry.getInstrumentation().runOnMainSync { next = PlaybackSessionService.activePlayer }
                 if (next == null || next === active) Thread.sleep(300)
             }
             val nextPlayer = requireNotNull(next)

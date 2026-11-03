@@ -72,6 +72,7 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
     DisposableEffect(video?.requestId, lifecycle, enabled) {
         var pinned = false
         var sourceHandle: VideoSourceHandle? = null
+        var background: BackgroundPlayback? = null
         fun isCurrent(active: ExoPlayer): Boolean = enabled && player === active
         fun updateSnapshot(active: ExoPlayer) {
             if (!isCurrent(active)) return
@@ -191,13 +192,22 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
 
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> createPlayer()
+                Lifecycle.Event.ON_START -> {
+                    val keptOriginal = background?.stop()
+                    background = null
+                    if (keptOriginal != true && model.state.value.video?.requestId == video?.requestId) createPlayer()
+                }
+                Lifecycle.Event.ON_STOP -> {
+                    val active = player
+                    if (active != null && video != null && background == null)
+                        background = BackgroundPlayback(context.applicationContext, model, video, active, ::releasePlayer)
+                }
                 else -> Unit
             }
         }
         lifecycle.addObserver(observer)
         createPlayer()
-        onDispose { lifecycle.removeObserver(observer); releasePlayer() }
+        onDispose { lifecycle.removeObserver(observer); background?.stop(); releasePlayer() }
     }
 
     // Updating speed must preserve the current source, position and pause intent.
