@@ -480,6 +480,29 @@ public final class Client {
         return out;
     }
 
+    /** 详情页相关作品：保留上游顺序和 ID，不按相似名称合并。 */
+    public static List<Object> relatedWorks(String seriesId) throws Exception {
+        if (seriesId == null || !seriesId.matches("[0-9]{1,30}")) throw new IllegalArgumentException("剧集编号无效");
+        Map<String, Object> q = Json.obj();
+        q.put("scene", "10");
+        q.put("from", "detail_page_more_related");
+        q.put("book_id", seriesId);
+        Map<String, Object> response = api("GET", "/reading/bookapi/plan/v:version/", null, q, 2, true);
+        List<Object> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (Object raw : Json.optArr(response.get("data"))) {
+            Map<String, Object> cell = Json.optObj(raw);
+            if (cell == null || (Json.optInt(cell.get("show_type"), 0) != 547
+                    && !"相关作品".equals(Json.optStr(cell.get("cell_name"), "")))) continue;
+            for (Object value : Json.optArr(cell.get("video_data"))) {
+                Map<String, Object> row = Json.optObj(value);
+                String id = row == null ? "" : Json.optStr(row.get("series_id"), "");
+                if (id.matches("[0-9]{1,30}") && seen.add(id)) out.add(row);
+            }
+        }
+        return out;
+    }
+
     /** 官网分集结果转为与 {@link #parseEpisodeDetail} 相同的结构（官网无简介/演员等字段）。 */
     private static Map<String, Object> webEpisodesToDetail(Map<String, Object> web) {
         String sid = Json.optStr(web.get("series_id"), "");
