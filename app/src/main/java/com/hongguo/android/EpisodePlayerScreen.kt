@@ -4,6 +4,7 @@ import com.hongguo.account.AccountViewModel
 
 import android.content.Intent
 import android.content.res.Configuration
+import android.content.pm.ActivityInfo
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.LocalActivity
@@ -114,6 +115,7 @@ internal fun EpisodePlayerScreen(state: HongguoUiState, model: HongguoViewModel,
     // and taken again if the player is reopened before the fade ends.
     DisposableEffect(lifecycle, model, activity, view, active) {
         if (!active) return@DisposableEffect onDispose { }
+        val originalOrientation = activity?.requestedOrientation
         val controller = activity?.window?.let { WindowCompat.getInsetsController(it, view) }
         val lightStatus = controller?.isAppearanceLightStatusBars
         val lightNavigation = controller?.isAppearanceLightNavigationBars
@@ -132,6 +134,7 @@ internal fun EpisodePlayerScreen(state: HongguoUiState, model: HongguoViewModel,
         onDispose {
             lifecycle.removeObserver(observer)
             model.onPlayerForeground(false)
+            if (activity != null && originalOrientation != null) activity.requestedOrientation = originalOrientation
             controller?.let {
                 it.show(WindowInsetsCompat.Type.systemBars())
                 if (lightStatus != null) it.isAppearanceLightStatusBars = lightStatus
@@ -346,6 +349,12 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
                 Text("${playerTime(displayedPosition)} / ${if (duration > 0) playerTime(duration) else "--:--"}",
                     modifier = Modifier.testTag("player_time"), color = Color.White.copy(alpha = .9f), fontSize = 12.sp)
                 Spacer(Modifier.weight(1f))
+                TextButton(onClick = {
+                    activity?.requestedOrientation = if (fullScreen) ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                        else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                }, modifier = Modifier.testTag("player_fullscreen")) {
+                    Text(if (fullScreen) "退出全屏" else "横屏全屏", color = Color.White, fontSize = 13.sp)
+                }
                 TextButton(onClick = { showSpeed = true }, modifier = Modifier.testTag("player_speed")
                     .semantics { contentDescription = "播放速度，当前${playbackSpeedLabel(state.playbackSpeed)}" }) {
                     Text("倍速 ${playbackSpeedLabel(state.playbackSpeed)}",
