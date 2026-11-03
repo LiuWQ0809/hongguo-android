@@ -356,6 +356,29 @@ public final class AppSource {
                 + "&need_mp4_align=0&use_os_player=0&video_platform=1024&source=0&from_video_id=";
     }
 
+    /** 只接受所请求分集的有效模型，再转换为原生播放器现有格式。 */
+    static Map<String, Object> parseTabResponse(String vid, String text) {
+        Map<String, Object> root;
+        try { root = Json.parseObject(text); } catch (Exception ignored) { return null; }
+        if (root == null) return null;
+        Object code = root.containsKey("code") ? root.get("code") : root.get("Code");
+        if (code == null || Json.optInt(code, -1) != 0) return null;
+        Map<String, Object> data = Json.optObj(root.get("data"));
+        Map<String, Object> rows = data == null ? null : Json.optObj(data.get("video_model_data"));
+        Map<String, Object> row = rows == null ? null : Json.optObj(rows.get(vid));
+        if (row == null) return null;
+        Map<String, Object> model = asObject(row.get("video_model"));
+        if (Json.optArr(model.get("video_list")).isEmpty()) return null;
+        Map<String, Object> entry = Json.obj();
+        entry.put("video_model", model);
+        Map<String, Object> episodes = Json.obj();
+        episodes.put(vid, entry);
+        Map<String, Object> result = Json.obj();
+        result.put("code", 0L);
+        result.put("data", episodes);
+        return result;
+    }
+
     /** 播放请求的基础请求头，签名字段由 signedPlaybackRequest 添加。 */
     static Map<String, String> playbackHeaders() {
         Map<String, String> headers = new LinkedHashMap<>();
