@@ -17,6 +17,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.C
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -71,7 +72,7 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
     DisposableEffect(video?.requestId, lifecycle, enabled) {
         var pinned = false
         var sourceHandle: VideoSourceHandle? = null
-        fun isCurrent(active: ExoPlayer): Boolean = enabled && player === active && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        fun isCurrent(active: ExoPlayer): Boolean = enabled && player === active
         fun updateSnapshot(active: ExoPlayer) {
             if (!isCurrent(active)) return
             val duration = active.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0
@@ -96,6 +97,7 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
             // Wake this source's blocked reader before ExoPlayer waits for its playback thread.
             runCatching { ownedSource?.cancelActiveReads() }
             if (active != null) {
+                PlaybackSessionService.detach(active)
                 active.pause()
                 active.release()
                 ui = ui.copy(player = null, isPlaying = false, isBuffering = false, positionMs = lastPosition)
@@ -114,6 +116,9 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
                     .setPrioritizeTimeOverSizeThresholds(true).build()
                 val active = ExoPlayer.Builder(context.applicationContext).setLoadControl(loadControl).build()
                 created = active
+                active.setAudioAttributes(AudioAttributes.DEFAULT, true)
+                active.setHandleAudioBecomingNoisy(true)
+                active.setWakeMode(C.WAKE_MODE_NETWORK)
                 active.addListener(object : Player.Listener {
                     override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
                         // Publish seeks immediately so releasing the thumb never restores an old snapshot.
@@ -167,6 +172,7 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
                 active.seekTo(lastPosition)
                 active.setPlaybackSpeed(latestSpeed.value)
                 player = active
+                PlaybackSessionService.attach(context.applicationContext, active)
                 active.prepare()
                 active.playWhenReady = wantedPlaying
                 updateSnapshot(active)
@@ -175,6 +181,7 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
                 val failedSource = sourceHandle
                 sourceHandle = null
                 runCatching { failedSource?.cancelActiveReads() }
+                created?.let(PlaybackSessionService::detach)
                 created?.release()
                 if (pinned) { Stream.unpin(video.path); pinned = false }
                 ui = ui.copy(player = null, isPlaying = false, isBuffering = false)
@@ -185,12 +192,11 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> createPlayer()
-                Lifecycle.Event.ON_STOP -> releasePlayer()
                 else -> Unit
             }
         }
         lifecycle.addObserver(observer)
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) createPlayer()
+        createPlayer()
         onDispose { lifecycle.removeObserver(observer); releasePlayer() }
     }
 
@@ -203,7 +209,7 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
         val active = player ?: return@LaunchedEffect
         val currentVideo = video ?: return@LaunchedEffect
         var lastSavedAt = 0L
-        while (enabled && player === active && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+        while (enabled && player === active) {
             val duration = active.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0
             ui = VideoPlaybackUi(active, active.isPlaying, active.playbackState == Player.STATE_BUFFERING,
                 active.playbackState == Player.STATE_ENDED, active.currentPosition.coerceAtLeast(0), duration,

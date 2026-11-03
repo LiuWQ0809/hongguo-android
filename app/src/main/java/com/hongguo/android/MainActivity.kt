@@ -34,6 +34,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -58,7 +59,7 @@ class MainActivity : ComponentActivity() {
         applyThemeWindow(storedThemeStyle().palette())
         setContent {
             val model: HongguoViewModel = viewModel()
-            val state by model.state.collectAsStateWithLifecycle()
+            val state by model.state.collectAsState()
             val snackbar = remember { SnackbarHostState() }
             // The theme in effect picks both the colors and each page's layout.
             val layout = resolveThemeStyle(state.themeStyle, state.darkFollowsSystem)

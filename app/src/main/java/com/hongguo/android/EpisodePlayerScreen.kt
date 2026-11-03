@@ -124,12 +124,11 @@ internal fun EpisodePlayerScreen(state: HongguoUiState, model: HongguoViewModel,
             when (event) {
                 Lifecycle.Event.ON_START -> model.onPlayerForeground(true)
                 Lifecycle.Event.ON_RESUME -> controller?.let { applyPlayerSystemBars(it, currentFullScreen) }
-                Lifecycle.Event.ON_STOP -> model.onPlayerForeground(false)
                 else -> Unit
             }
         }
         lifecycle.addObserver(observer)
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) model.onPlayerForeground(true)
+        model.onPlayerForeground(true)
         onDispose {
             lifecycle.removeObserver(observer)
             model.onPlayerForeground(false)
