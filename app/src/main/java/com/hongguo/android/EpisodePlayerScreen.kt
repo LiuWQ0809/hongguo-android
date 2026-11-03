@@ -9,6 +9,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.LocalActivity
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -345,13 +348,18 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
             }
         }
 
-        if (!pip && (!fullScreen || controlsVisible)) {
+        if (!pip) {
+        AnimatedVisibility(visible = !fullScreen || controlsVisible, modifier = Modifier.align(Alignment.TopCenter),
+            enter = fadeIn(tween(200)), exit = fadeOut(tween(200))) {
         PlayerTopBar(episodeIndex = visibleEpisode.index, episodeCount = detail.episodes.size,
             onBack = model::closePlayer, onShowEpisodes = { showEpisodes = true },
-            temporaryDoubleSpeed = temporaryDoubleSpeed, modifier = Modifier.align(Alignment.TopCenter))
+            temporaryDoubleSpeed = temporaryDoubleSpeed)
+        }
 
         // Keep the middle and subtitle area clear. Controls occupy only the lower edge of the frame.
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+        AnimatedVisibility(visible = !fullScreen || controlsVisible, modifier = Modifier.align(Alignment.BottomCenter),
+            enter = fadeIn(tween(200)), exit = fadeOut(tween(200))) {
+        Column(Modifier.fillMaxWidth()
             .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .74f))))
             .navigationBarsPadding().padding(start = 23.dp, end = 21.dp, top = 14.dp, bottom = 10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -399,6 +407,7 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
                         fontWeight = FontWeight.Medium)
                 }
             }
+        }
         }
         }
     }
