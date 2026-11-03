@@ -61,6 +61,19 @@ public final class WebSource {
         return out;
     }
 
+    /** 只请求匿名目录信息，不读取登录状态；播放仍由原生取流完成。 */
+    public static List<Map<String, Object>> suggest(String keyword) throws IOException {
+        String query = keyword == null ? "" : keyword.trim();
+        if (query.isEmpty()) return new ArrayList<>();
+        Http.Req req = new Http.Req(SITE_ORIGIN + "/incent_resource/suggestion?app_id=8662&count=20&query="
+                + Http.urlencode(query)).method("GET").timeout(8000);
+        req.followRedirect = false;
+        req.header("User-Agent", WEB_UA);
+        req.header("Accept", "application/json");
+        Http.Resp response = Http.send(req);
+        return response.ok() ? parseSuggestions(response.text()) : new ArrayList<>();
+    }
+
     // ==================== 公开接口 ====================
 
     /**
