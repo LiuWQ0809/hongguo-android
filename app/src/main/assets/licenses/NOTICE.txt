@@ -51,3 +51,6 @@ Local changes: the registered identity (device_id / iid / cdid only) is kept in 
 
 Playback signature request construction was adapted from jackotom/hongguo-drama 5.4, GPL-3.0-only, commit 93e694e3f4ab71b83b58846f70258191112a6ca3, src/native/app-source.js:
 https://github.com/jackotom/hongguo-drama/tree/93e694e3f4ab71b83b58846f70258191112a6ca3
+
+The video_tab playback model was adapted from OOIUa/hongguo-android v0.7.12 (GPL-3.0-only), commit 8f7184574925; its upstream reference is tsukiyo-zero/hongguoTV (GPL-3.0-only):
+https://github.com/OOIUa/hongguo-android/commit/8f7184574925
