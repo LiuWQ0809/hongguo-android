@@ -35,7 +35,7 @@ internal fun RelatedWorks(card: DramaCard, model: HongguoViewModel) {
             }
         }, modifier = Modifier.testTag("related_load"), enabled = !loading) {
             Text(when { loading -> "正在获取相关作品…"; failed -> "相关作品获取失败，点击重试"
-                expanded -> "收起相关作品"; works != null -> "相关作品（${works!!.size}）"; else -> "查看相关作品" })
+                expanded -> "收起相关作品（${works!!.size}）"; works != null -> "相关作品（${works!!.size}）"; else -> "查看相关作品" })
         }
         if (expanded) {
             if (works.isNullOrEmpty()) Text("暂无相关作品")

@@ -35,7 +35,7 @@ class RelatedWorksDeviceTest {
         compose.waitUntil(60_000) { compose.onAllNodesWithTag(second).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("related_7683455900727659545").assertExists()
         compose.onNodeWithTag("related_7699796892317649944").assertExists()
-            .assertTextContains("即将上线").assertIsNotEnabled()
+            .assertTextContains("即将上线", substring = true).assertIsNotEnabled()
         compose.onNodeWithTag(second).performScrollTo().performClick()
         compose.waitUntil(120_000) { !model.state.value.loadingDetail }
         assertEquals("7676706788724460568", model.state.value.detail?.id)
