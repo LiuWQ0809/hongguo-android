@@ -62,6 +62,7 @@ public final class AppSource {
 
     /** 接口主机（自检与排障用）。 */
     public static final String VIDEO_API_HOST = "api5-normal-sinfonlineb.fqnovel.com";
+    static final String RETRY_HOST = "api5-normal-hl.fqnovel.com";
 
     private static final String VIDEO_UA =
             "com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; "
@@ -435,11 +436,16 @@ public final class AppSource {
 
     /** 按同一个时间戳、URL 和 body 生成完整签名；只使用上游可接受的分支。 */
     static SignedPlaybackRequest signedPlaybackRequest(byte[] body, PlaybackDevice.Identity identity, long now) {
+        return signedPlaybackRequest(body, identity, now, VIDEO_API_HOST);
+    }
+
+    static SignedPlaybackRequest signedPlaybackRequest(byte[] body, PlaybackDevice.Identity identity, long now, String host) {
         if (body == null || body.length == 0) throw new IllegalArgumentException("播放请求体不能为空");
+        if (!VIDEO_API_HOST.equals(host) && !RETRY_HOST.equals(host)) throw new IllegalArgumentException("播放服务地址无效");
         long timestamp = now / 1000L;
         for (int i = 0; i < 128; i++) {
             long ticket = now + i;
-            String url = playbackUrl(identity, ticket, timestamp);
+            String url = playbackUrl(identity, ticket, timestamp).replace(VIDEO_API_HOST, host);
             if (PureSign.branchOf(url, body, timestamp) != 0) continue;
             Map<String, String> headers = playbackHeaders();
             headers.put("x-ss-req-ticket", String.valueOf(ticket));
