@@ -347,6 +347,15 @@ public final class AppSource {
         return VIDEO_API + "?" + qs;
     }
 
+    /** 上游 video_tab 单集取址，与 0.7.12 的参数顺序一致。 */
+    static String tabUrl(PlaybackDevice.Identity identity, String vid, long rticket) {
+        String url = playbackUrl(identity, rticket);
+        return "https://" + VIDEO_API_HOST + "/reading/bookapi/video_tab/multi_video_model/v1/"
+                + url.substring(url.indexOf('?'))
+                + "&video_id=" + vid + "&video_id_type=0&device_level=1&need_all_video_definition=1"
+                + "&need_mp4_align=0&use_os_player=0&video_platform=1024&source=0&from_video_id=";
+    }
+
     /** 播放请求的基础请求头，签名字段由 signedPlaybackRequest 添加。 */
     static Map<String, String> playbackHeaders() {
         Map<String, String> headers = new LinkedHashMap<>();
