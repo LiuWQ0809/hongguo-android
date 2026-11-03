@@ -636,6 +636,23 @@ public final class Client {
         return searchPage(query, maxItemsArg, 0).items;
     }
 
+    /** 合并官网剧集建议与 App 搜索页，游标始终按 App 原始页推进。 */
+    static Page mergeSearchSuggestions(Page page, List<Object> suggestions, int skip) {
+        Set<String> ids = new LinkedHashSet<>();
+        List<Object> merged = new ArrayList<>();
+        for (Object raw : suggestions) {
+            Map<String, Object> row = Json.optObj(raw);
+            String id = row == null ? "" : Json.optStr(row.get("series_id"), "");
+            if (!id.isEmpty() && ids.add(id) && skip == 0) merged.add(raw);
+        }
+        for (Object raw : page.items) {
+            Map<String, Object> row = Json.optObj(raw);
+            String id = row == null ? "" : Json.optStr(row.get("series_id"), "");
+            if (!id.isEmpty() && ids.add(id)) merged.add(raw);
+        }
+        return new Page(merged, page.hasMore, page.nextSkip);
+    }
+
     /** App signed search first; official HTML is a metadata fallback. */
     public static Page searchPage(String query, int maxItemsArg, int skip) throws Exception {
         String keyword = query == null ? "" : query.trim();
