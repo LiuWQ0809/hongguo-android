@@ -1,6 +1,8 @@
 package com.hongguo.api.service;
 
 import com.hongguo.api.util.Json;
+import com.hongguo.api.util.Config;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import java.util.Arrays;
 import java.util.List;
@@ -8,6 +10,11 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 public class CatalogSuggestionTest {
+    @BeforeClass public static void initialize() {
+        Config.initialize("{\"upstream\":{\"api_host\":\"example.invalid\"}}",
+                new java.io.File(System.getProperty("java.io.tmpdir"), "hongguo-catalog-test").getAbsolutePath(),
+                "1234567890123456");
+    }
     @Test public void parsesSeasonsEvenWhenVideoMetadataIsMissing() {
         String body = "{\"suggest_list\":["
                 + "{\"word_type\":\"short_play_name\",\"keyword\":\"123\",\"name\":\"第一季\",\"video_data\":{}},"
