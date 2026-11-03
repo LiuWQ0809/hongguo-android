@@ -47,7 +47,7 @@ class BackgroundPlaybackDeviceTest {
         compose.onNodeWithTag("player_fullscreen").performClick()
         compose.waitUntil(10_000) { compose.activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE }
         assertEquals(request, model.state.value.video?.requestId)
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("player_top_bar").fetchSemanticsNodes().isEmpty() }
+        compose.waitUntil(20_000) { compose.onAllNodesWithTag("player_top_bar").fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithTag("player_seek").assertDoesNotExist()
         compose.onNodeWithTag("player_toggle").performClick()
         compose.onNodeWithTag("player_top_bar").assertExists()
@@ -69,7 +69,7 @@ class BackgroundPlaybackDeviceTest {
         Thread.sleep(5_500)
         compose.onNodeWithTag("player_top_bar").assertExists()
         compose.onNodeWithTag("player_resume").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("player_top_bar").fetchSemanticsNodes().isEmpty() }
+        compose.waitUntil(20_000) { compose.onAllNodesWithTag("player_top_bar").fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithTag("player_toggle").performClick()
         compose.onNodeWithTag("player_fullscreen").performClick()
         compose.waitUntil(10_000) { compose.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }

@@ -163,6 +163,8 @@ internal fun EpisodePlayerScreen(state: HongguoUiState, model: HongguoViewModel,
 /** Full screen (hidden status and navigation bars) only in landscape; portrait keeps the system bars. */
 internal fun playerHidesSystemBars(orientation: Int): Boolean = orientation == Configuration.ORIENTATION_LANDSCAPE
 
+private const val FullscreenControlsTimeoutMs = 5_000L
+
 private data class PagerMovement(val scrolling: Boolean, val settled: Int, val synchronizing: Int?)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -255,7 +257,7 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
         if (!fullScreen || playback.player == null || !playback.playWhenReady || playback.ended || state.playbackError != null)
             controlsVisible = true
         else if (controlsVisible && !sheetOpen && !seeking && !doubleSpeedHeld && !pip) {
-            delay(5_000)
+            delay(FullscreenControlsTimeoutMs)
             controlsVisible = false
         }
     }
