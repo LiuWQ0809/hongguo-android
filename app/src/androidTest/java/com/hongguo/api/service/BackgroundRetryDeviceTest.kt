@@ -83,6 +83,7 @@ class BackgroundRetryDeviceTest {
 
     @Test fun lockingDuringNextEpisodePreparationStillStartsPlayback() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val activity = compose.activity
         val entered = CountDownLatch(1)
         val unblock = CountDownLatch(1)
         lateinit var model: HongguoViewModel
@@ -113,6 +114,11 @@ class BackgroundRetryDeviceTest {
             Thread.sleep(2_500)
             assertTrue(model.state.value.preparing)
             instrumentation.uiAutomation.executeShellCommand("input keyevent KEYCODE_SLEEP").close()
+            Thread.sleep(1_500)
+            instrumentation.runOnMainSync { activity.recreate() }
+            val destroyDeadline = System.currentTimeMillis() + 20_000
+            while (!activity.isDestroyed && System.currentTimeMillis() < destroyDeadline) Thread.sleep(100)
+            assertTrue("The activity must be destroyed while the next episode is preparing", activity.isDestroyed)
             Thread.sleep(15_000) // Past Android's short post-interaction background-start grace period.
             AppSource.setPlaybackPostForTest(null); unblock.countDown()
             val deadline = System.currentTimeMillis() + 90_000

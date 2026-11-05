@@ -116,6 +116,37 @@ class BackgroundPlaybackDeviceTest {
         }
     }
 
+    @Test fun playbackContinuesAfterBackgroundActivityIsRecreated() = checkDestroyedActivityPlayback(false)
+    @Test fun lockScreenPlaysAfterBackgroundActivityIsRecreated() = checkDestroyedActivityPlayback(true)
+
+    private fun checkDestroyedActivityPlayback(locked: Boolean) {
+        val model = startVideo()
+        val activity = compose.activity
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val automation = instrumentation.uiAutomation
+        try {
+            instrumentation.runOnMainSync { model.setAutoPlayNext(true); activity.updatePictureInPicture(false, 0, 0) }
+            automation.executeShellCommand("input keyevent KEYCODE_HOME").close()
+            val stopDeadline = System.currentTimeMillis() + 10_000
+            while (activity.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) && System.currentTimeMillis() < stopDeadline) Thread.sleep(100)
+            assertFalse(activity.isInPictureInPictureMode)
+            instrumentation.runOnMainSync { activity.recreate() }
+            val destroyDeadline = System.currentTimeMillis() + 20_000
+            while (!activity.isDestroyed && System.currentTimeMillis() < destroyDeadline) Thread.sleep(100)
+            assertTrue("The stopped activity must be destroyed: state=${activity.lifecycle.currentState}", activity.isDestroyed)
+            if (locked) {
+                automation.executeShellCommand("input keyevent KEYCODE_SLEEP").close()
+                Thread.sleep(1_500)
+                assertFalse(activity.getSystemService(PowerManager::class.java).isInteractive)
+                assertTrue(activity.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
+            }
+            assertBackgroundEpisodes(model, instrumentation)
+        } finally {
+            automation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
+            automation.executeShellCommand("wm dismiss-keyguard").close()
+        }
+    }
+
     @Test fun backgroundStartsPreparedEpisodeWhenNoPlayerExists() {
         val application = compose.activity.application
         val store = ViewModelStore()
