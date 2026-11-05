@@ -21,7 +21,7 @@ class LiveTabPlaybackTest {
         try {
             lateinit var model: HongguoViewModel
             compose.runOnIdle {
-                model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java]
+                model = compose.activity.playbackModel
                 model.openDrama(DramaCard("7671966197985856536", "持械入宋：第一季", "", 100, ""))
             }
             compose.waitUntil(120_000) { !model.state.value.loadingDetail }

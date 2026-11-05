@@ -22,7 +22,7 @@ class ThemeSettingsFlowTest {
 
     @Test fun settingsIsItsOwnPageAndLeavingItReturnsToMine() {
         lateinit var model: HongguoViewModel
-        compose.runOnIdle { model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java] }
+        compose.runOnIdle { model = compose.activity.playbackModel }
         compose.onNodeWithTag("nav_mine").performClick()
         compose.onNodeWithTag("my_settings").performScrollTo().performClick()
         compose.onNodeWithTag("settings_screen").assertExists()
@@ -37,7 +37,7 @@ class ThemeSettingsFlowTest {
 
     @Test fun settingsEntryOpensThemePickerAndChoicePersists() {
         lateinit var model: HongguoViewModel
-        compose.runOnIdle { model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java] }
+        compose.runOnIdle { model = compose.activity.playbackModel }
         val originalStyle = model.state.value.themeStyle
         val originalFollow = model.state.value.darkFollowsSystem
         try {

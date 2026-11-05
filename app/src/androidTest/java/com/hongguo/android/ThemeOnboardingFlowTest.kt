@@ -53,7 +53,7 @@ class ThemeOnboardingFlowTest {
 
     private fun model(scenario: ActivityScenario<MainActivity>): HongguoViewModel {
         lateinit var model: HongguoViewModel
-        scenario.onActivity { model = ViewModelProvider(it)[HongguoViewModel::class.java] }
+        scenario.onActivity { model = it.playbackModel }
         return model
     }
 

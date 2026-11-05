@@ -49,7 +49,7 @@ class VerticalPlayerFlowTest {
     @Test fun swipingPickerAndAutomaticNextKeepOneActivePlayer() {
         lateinit var model: HongguoViewModel
         compose.runOnIdle {
-            model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java]
+            model = compose.activity.playbackModel
             playbackModel = model
             originalAutoPlayNext = model.state.value.autoPlayNext
             originalPlaybackSpeed = model.state.value.playbackSpeed

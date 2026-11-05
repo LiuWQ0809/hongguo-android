@@ -23,7 +23,7 @@ class LibraryFlowTest {
         val original = preferences.getString("snapshot", null)
         val store = LibraryStore(context)
         lateinit var model: HongguoViewModel
-        compose.runOnIdle { model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java] }
+        compose.runOnIdle { model = compose.activity.playbackModel }
         val style = model.state.value.themeStyle
         val dark = model.state.value.darkFollowsSystem
         try {
@@ -55,7 +55,7 @@ class LibraryFlowTest {
         val original = preferences.getString("snapshot", null)
         val store = LibraryStore(context)
         lateinit var model: HongguoViewModel
-        compose.runOnIdle { model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java] }
+        compose.runOnIdle { model = compose.activity.playbackModel }
         val card = DramaCard("18446744073709551615", "本地数据验证", "", 10, "")
         val second = DramaCard("18446744073709551614", "收藏删除验证", "", 8, "")
         try {

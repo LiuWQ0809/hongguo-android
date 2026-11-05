@@ -23,7 +23,7 @@ class RelatedWorksDeviceTest {
     @Test fun macRelatedSeriesOpensCorrectSecondSeason() {
         lateinit var model: HongguoViewModel
         compose.runOnIdle {
-            model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java]
+            model = compose.activity.playbackModel
             model.setThemeStyle(AppThemeStyle.WARM)
             model.openDrama(DramaCard("7671966197985856536", "持械入宋：第一季", "", 100, ""))
         }

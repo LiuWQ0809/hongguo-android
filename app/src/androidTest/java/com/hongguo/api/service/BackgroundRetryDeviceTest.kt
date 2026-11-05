@@ -27,7 +27,7 @@ class BackgroundRetryDeviceTest {
         var preload = true
         var autoplay = true
         compose.runOnIdle {
-            model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java]
+            model = compose.activity.playbackModel
             preload = model.state.value.preloadNext
             autoplay = model.state.value.autoPlayNext
             model.setPreloadNext(false)
@@ -89,7 +89,7 @@ class BackgroundRetryDeviceTest {
         var preload = true
         var autoplay = true
         compose.runOnIdle {
-            model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java]
+            model = compose.activity.playbackModel
             preload = model.state.value.preloadNext; autoplay = model.state.value.autoPlayNext
             model.setPreloadNext(false); model.setAutoPlayNext(true)
             model.openDrama(DramaCard("7696083096164125721", "铁血信使", "", 0, ""))

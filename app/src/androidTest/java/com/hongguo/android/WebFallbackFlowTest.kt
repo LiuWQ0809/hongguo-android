@@ -21,7 +21,7 @@ class WebFallbackFlowTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     @Test fun nativeStreamOrInAppWebsiteIsAvailable() {
         lateinit var model: HongguoViewModel
-        compose.runOnIdle { model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java] }
+        compose.runOnIdle { model = compose.activity.playbackModel }
         compose.onNodeWithTag("home_search").performClick()
         compose.onNodeWithTag("search_input").performTextClearance()
         compose.onNodeWithTag("search_input").performTextInput("总裁")

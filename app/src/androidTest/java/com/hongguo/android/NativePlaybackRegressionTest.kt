@@ -16,7 +16,7 @@ class NativePlaybackRegressionTest {
     @Test fun originalSeriesRendersFirstAndSecondEpisodes() {
         lateinit var model: HongguoViewModel
         compose.runOnIdle {
-            model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java]
+            model = compose.activity.playbackModel
             model.openDrama(DramaCard("7696083096164125721", "铁血信使", "", 0, ""))
         }
         compose.waitUntil(120_000) { !model.state.value.loadingDetail }

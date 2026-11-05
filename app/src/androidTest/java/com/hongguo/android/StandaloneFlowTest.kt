@@ -34,7 +34,7 @@ class StandaloneFlowTest {
     @Test fun searchSelectPrepareAndRenderOnDevice() {
         assertTrue("SM3 must pass on Android", Sm3.selfTest())
         lateinit var model: HongguoViewModel
-        compose.runOnIdle { model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java] }
+        compose.runOnIdle { model = compose.activity.playbackModel }
         compose.runOnIdle { model.clearFavorites(); model.clearHistory() }
         compose.onNodeWithTag("home_search").performClick()
         compose.onNodeWithTag("search_input").performTextClearance()

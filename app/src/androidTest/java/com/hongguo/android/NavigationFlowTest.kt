@@ -18,7 +18,7 @@ class NavigationFlowTest {
 
     @Test fun fullScreenSearchAndAccountReturnToTheirOriginalTabs() {
         lateinit var model: HongguoViewModel
-        compose.runOnIdle { model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java] }
+        compose.runOnIdle { model = compose.activity.playbackModel }
         compose.onNodeWithTag("nav_search").assertDoesNotExist()
         compose.onNodeWithTag("nav_category").performClick()
         compose.onNodeWithTag("category_search").performClick()

@@ -21,7 +21,7 @@ class MyPageFlowTest {
         lateinit var model: HongguoViewModel
         lateinit var updater: UpdateViewModel
         compose.runOnIdle {
-            model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java]
+            model = compose.activity.playbackModel
             updater = ViewModelProvider(compose.activity)[UpdateViewModel::class.java]
         }
         val originalAutoplay = model.state.value.autoPlayNext

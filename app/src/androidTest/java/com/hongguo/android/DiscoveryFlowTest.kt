@@ -17,7 +17,7 @@ class DiscoveryFlowTest {
 
     @Test fun recommendationsAndCategoryFiltersUseLiveData() {
         lateinit var model: HongguoViewModel
-        compose.runOnIdle { model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java] }
+        compose.runOnIdle { model = compose.activity.playbackModel }
         compose.onNodeWithTag("nav_home").performClick()
         compose.waitUntil(120_000) { model.state.value.home.loaded && !model.state.value.home.loading }
         assertNull(model.state.value.home.error)

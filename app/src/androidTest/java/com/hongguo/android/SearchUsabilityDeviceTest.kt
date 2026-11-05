@@ -25,7 +25,7 @@ class SearchUsabilityDeviceTest {
         lateinit var model: HongguoViewModel
         try {
             compose.runOnIdle {
-                model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java]
+                model = compose.activity.playbackModel
                 model.clearRecentSearches()
                 model.selectTab(AppTab.SEARCH)
             }
