@@ -21,6 +21,7 @@ internal class BackgroundPlayback(
     private val model: HongguoViewModel,
     initial: PreparedVideo?,
     player: ExoPlayer?,
+    private val initialPlayWhenReady: Boolean = true,
     private val releaseOriginal: () -> Unit,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -68,7 +69,7 @@ internal class BackgroundPlayback(
     }
 
     private fun switchTo(next: PreparedVideo) {
-        val wantedPlaying = current?.playWhenReady ?: true
+        val wantedPlaying = current?.playWhenReady ?: initialPlayWhenReady
         release()
         video = next
         try {
