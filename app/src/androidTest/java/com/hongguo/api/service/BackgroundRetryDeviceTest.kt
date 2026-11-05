@@ -11,6 +11,8 @@ import com.hongguo.android.HongguoViewModel
 import com.hongguo.android.MainActivity
 import com.hongguo.android.PlaybackSessionService
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -76,6 +78,53 @@ class BackgroundRetryDeviceTest {
             AppSource.setPlaybackPostForTest(null)
             AppSource.setPlaybackTabForTest(null)
             compose.runOnIdle { model.setPreloadNext(preload); model.setAutoPlayNext(autoplay) }
+        }
+    }
+
+    @Test fun lockingDuringNextEpisodePreparationStillStartsPlayback() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val entered = CountDownLatch(1)
+        val unblock = CountDownLatch(1)
+        lateinit var model: HongguoViewModel
+        var preload = true
+        var autoplay = true
+        compose.runOnIdle {
+            model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java]
+            preload = model.state.value.preloadNext; autoplay = model.state.value.autoPlayNext
+            model.setPreloadNext(false); model.setAutoPlayNext(true)
+            model.openDrama(DramaCard("7696083096164125721", "铁血信使", "", 0, ""))
+        }
+        try {
+            compose.waitUntil(120_000) { !model.state.value.loadingDetail }
+            compose.runOnIdle { model.playEpisode(0, restart = true) }
+            compose.waitUntil(120_000) { model.state.value.firstFrameRendered || model.state.value.playbackError != null }
+            assertNull(model.state.value.playbackError)
+            var first: Player? = null
+            instrumentation.runOnMainSync { first = PlaybackSessionService.activePlayer }
+            val active = requireNotNull(first)
+            AppSource.setPlaybackPostForTest { _, _, _ -> entered.countDown(); unblock.await(30, TimeUnit.SECONDS); throw IOException("delayed request") }
+            instrumentation.runOnMainSync { active.seekTo(active.duration - 1_000) }
+            assertTrue("Next episode must begin preparing", entered.await(30, TimeUnit.SECONDS))
+            Thread.sleep(2_500)
+            assertTrue(model.state.value.preparing)
+            instrumentation.uiAutomation.executeShellCommand("input keyevent KEYCODE_SLEEP").close()
+            Thread.sleep(1_000)
+            AppSource.setPlaybackPostForTest(null); unblock.countDown()
+            val deadline = System.currentTimeMillis() + 90_000
+            var next: Player? = null
+            while (System.currentTimeMillis() < deadline && (next == null || next === active)) {
+                instrumentation.runOnMainSync { next = PlaybackSessionService.activePlayer }
+                if (next == null || next === active) Thread.sleep(200)
+            }
+            val nextPlayer = requireNotNull(next) { "Next episode must start after locking during preparation" }
+            assertNotSame(active, nextPlayer)
+            Thread.sleep(4_000)
+            instrumentation.runOnMainSync { assertTrue(nextPlayer.currentPosition > 1_000) }
+        } finally {
+            unblock.countDown(); AppSource.setPlaybackPostForTest(null)
+            instrumentation.uiAutomation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
+            instrumentation.uiAutomation.executeShellCommand("wm dismiss-keyguard").close()
+            instrumentation.runOnMainSync { model.setPreloadNext(preload); model.setAutoPlayNext(autoplay) }
         }
     }
 }
