@@ -31,10 +31,15 @@ internal class BackgroundPlayback(
     private var pinned = false
     var current: ExoPlayer? = player
         private set
+    val playWhenReady: Boolean get() = current?.playWhenReady ?: initialPlayWhenReady
 
     init {
         scope.launch {
             model.state.collect { state ->
+                if (!state.playerOpen) {
+                    PlaybackSessionService.takeBackground(this@BackgroundPlayback)
+                    return@collect
+                }
                 val next = state.video
                 if (state.playerOpen && next != null && state.playbackError == null &&
                     (current == null || next.requestId != video?.requestId)) switchTo(next)
