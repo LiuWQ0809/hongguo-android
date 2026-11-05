@@ -680,7 +680,7 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /** Background audio has no video surface; record only after the player actually starts. */
-    fun onPlaybackStarted(episodeId: String, requestId: Long) {
+    internal fun onPlaybackStarted(episodeId: String, requestId: Long) {
         if (!isCurrentVideo(episodeId, requestId)) return
         val playback = accountPlaybacks[requestId]?.takeIf { it.entry.episodeId == episodeId } ?: return
         if (playback.rendered) return

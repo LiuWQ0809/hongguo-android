@@ -28,7 +28,7 @@ class LibraryStore(context: Context) {
 
     fun toggleFavorite(card: DramaCard) = change { LibraryCodec.toggleFavorite(it, card, System.currentTimeMillis()) }
 
-    /** Call only after a real rendered first frame, never after selecting/preparing an episode. */
+    /** Call only after a real video frame or actual background playback, never during preparation. */
     fun recordPlayback(card: DramaCard, episodeId: String, episodeIndex: Int, positionMs: Long) =
         change { LibraryCodec.recordPlayback(it, card, episodeId, episodeIndex, positionMs, System.currentTimeMillis()) }
 

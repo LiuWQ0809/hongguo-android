@@ -70,7 +70,7 @@ object LibraryCodec {
         return normalize(current.copy(favorites = listOf(entry) + current.favorites))
     }
 
-    /** A real first frame is the only caller event allowed to add/move history. */
+    /** Callers record only after a real frame or actual background playback begins. */
     internal fun recordPlayback(
         snapshot: LibrarySnapshot,
         card: DramaCard,
