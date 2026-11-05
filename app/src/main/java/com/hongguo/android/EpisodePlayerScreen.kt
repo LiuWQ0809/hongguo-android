@@ -603,6 +603,7 @@ private fun playerTime(positionMs: Long): String {
 }
 
 internal fun preparationLabel(stage: String): String = when {
+    stage == "retry" -> "连接未成功，正在重试"
     stage.contains("download", true) || stage.contains("下载") -> "正在缓冲本集视频"
     stage.contains("decrypt", true) || stage == "processing" || stage.contains("解密") -> "正在准备画面"
     stage.contains("remux", true) || stage.contains("strip", true) || stage.contains("封装") -> "即将开始播放"
