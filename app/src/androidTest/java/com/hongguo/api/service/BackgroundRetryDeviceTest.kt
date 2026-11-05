@@ -102,13 +102,13 @@ class BackgroundRetryDeviceTest {
             var first: Player? = null
             instrumentation.runOnMainSync { first = PlaybackSessionService.activePlayer }
             val active = requireNotNull(first)
-            AppSource.setPlaybackPostForTest { _, _, _ -> entered.countDown(); unblock.await(30, TimeUnit.SECONDS); throw IOException("delayed request") }
+            AppSource.setPlaybackPostForTest { _, _, _ -> entered.countDown(); unblock.await(60, TimeUnit.SECONDS); throw IOException("delayed request") }
             instrumentation.runOnMainSync { active.seekTo(active.duration - 1_000) }
             assertTrue("Next episode must begin preparing", entered.await(30, TimeUnit.SECONDS))
             Thread.sleep(2_500)
             assertTrue(model.state.value.preparing)
             instrumentation.uiAutomation.executeShellCommand("input keyevent KEYCODE_SLEEP").close()
-            Thread.sleep(1_000)
+            Thread.sleep(15_000) // Past Android's short post-interaction background-start grace period.
             AppSource.setPlaybackPostForTest(null); unblock.countDown()
             val deadline = System.currentTimeMillis() + 90_000
             var next: Player? = null
