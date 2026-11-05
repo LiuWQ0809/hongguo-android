@@ -162,7 +162,8 @@ internal fun ImmersiveHome(state: HongguoUiState, model: HongguoViewModel) {
                         !home.hasMore -> Triple("已经看到最后一部了", "刷新", model::refreshHome)
                         else -> Triple(null, null, {})
                     }
-                    if (message != null) Row(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 64.dp, start = 24.dp, end = 24.dp)
+                    if (message != null) Row(Modifier.align(Alignment.TopCenter).statusBarsPadding()
+                        .padding(top = if (state.history.isEmpty()) 64.dp else 110.dp, start = 24.dp, end = 24.dp)
                         .clip(RoundedCornerShape(20.dp)).background(Color.Black.copy(alpha = .62f))
                         .padding(start = 16.dp, end = if (action != null) 4.dp else 16.dp).heightIn(min = 40.dp)
                         .testTag("immersive_feed_end"), verticalAlignment = Alignment.CenterVertically) {
