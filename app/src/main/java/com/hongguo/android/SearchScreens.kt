@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -104,6 +105,13 @@ internal fun SearchScreen(state: HongguoUiState, model: HongguoViewModel, trendi
         }
         LazyColumn(Modifier.fillMaxWidth().weight(1f).testTag("search_results"),
             contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (!state.searching && state.recentSearches.isNotEmpty() && (state.searchedQuery.isBlank() || state.query.isBlank())) {
+                item(key = "recent_searches") {
+                    RecentSearchRow(state.recentSearches, onClear = model::clearRecentSearches) { query ->
+                        keyboard?.hide(); focus.clearFocus(); model.searchRecent(query)
+                    }
+                }
+            }
             if (state.results.isEmpty() && !state.searching && state.searchError == null &&
                 state.searchedQuery.isBlank() && trending.isNotEmpty()) {
                 item { TrendingList(trending) { card -> keyboard?.hide(); focus.clearFocus(); model.openDrama(card) } }
@@ -131,6 +139,24 @@ internal fun SearchScreen(state: HongguoUiState, model: HongguoViewModel, trendi
             if (state.results.isNotEmpty() && !state.hasMore && !state.loadingMore) {
                 item { Text("已经到底了", Modifier.fillMaxWidth().padding(vertical = 16.dp), color = Muted,
                     fontSize = 12.sp, textAlign = TextAlign.Center) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentSearchRow(queries: List<String>, onClear: () -> Unit, onSearch: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().testTag("recent_searches")) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("最近搜索", modifier = Modifier.weight(1f), color = Ink, fontWeight = FontWeight.SemiBold)
+            TextButton(onClick = onClear, modifier = Modifier.testTag("recent_search_clear")) { Text("清除", color = Muted) }
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            itemsIndexed(queries, key = { _, query -> query }) { index, query ->
+                Surface(onClick = { onSearch(query) }, shape = RoundedCornerShape(50), color = Cream,
+                    modifier = Modifier.testTag("recent_search_$index")) {
+                    Text(query, Modifier.padding(horizontal = 14.dp, vertical = 10.dp), color = Ink, maxLines = 1)
+                }
             }
         }
     }
