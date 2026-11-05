@@ -10,7 +10,6 @@ import com.hongguo.api.service.Stream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -29,9 +28,6 @@ internal class BackgroundPlayback(
     private var original = true
     private var source: VideoSourceHandle? = null
     private var pinned = false
-    private var retry: Job? = null
-    private var retryEpisode: String? = null
-    private var retryCount = 0
     var current: ExoPlayer? = player
         private set
 
@@ -40,8 +36,6 @@ internal class BackgroundPlayback(
             model.state.collect { state ->
                 val next = state.video
                 if (state.playerOpen && next != null && next.requestId != video.requestId) switchTo(next)
-                if (state.playerOpen && state.autoPlayNext && next == null && !state.preparing && state.playbackError != null)
-                    retryNext(state)
             }
         }
         scope.launch {
@@ -51,20 +45,6 @@ internal class BackgroundPlayback(
                     model.savePosition(video.episodeId, active.currentPosition, video.requestId)
                 delay(2_000)
             }
-        }
-    }
-
-    private fun retryNext(state: HongguoUiState) {
-        val episode = state.detail?.episodes?.getOrNull(state.episodePosition)?.id ?: return
-        if (episode == video.episodeId) return
-        if (retryEpisode != episode) { retryEpisode = episode; retryCount = 0; retry?.cancel() }
-        if (retry?.isActive == true || retryCount >= 2) return
-        retryCount++
-        retry = scope.launch {
-            delay(if (retryCount == 1) 1_500 else 4_000)
-            val latest = model.state.value
-            if (latest.playerOpen && latest.autoPlayNext && !latest.preparing && latest.video == null && latest.playbackError != null &&
-                latest.detail?.episodes?.getOrNull(latest.episodePosition)?.id == episode) model.retryPlayback()
         }
     }
 
@@ -86,7 +66,6 @@ internal class BackgroundPlayback(
     }
 
     private fun switchTo(next: PreparedVideo) {
-        retry?.cancel(); retry = null; retryEpisode = null; retryCount = 0
         val wantedPlaying = current?.playWhenReady ?: true
         release()
         video = next
