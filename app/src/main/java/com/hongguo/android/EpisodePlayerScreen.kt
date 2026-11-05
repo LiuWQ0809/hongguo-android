@@ -67,6 +67,7 @@ import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -398,6 +399,10 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
                 Text("${playerTime(displayedPosition)} / ${if (duration > 0) playerTime(duration) else "--:--"}",
                     modifier = Modifier.testTag("player_time"), color = Color.White.copy(alpha = .9f), fontSize = 12.sp)
                 Spacer(Modifier.weight(1f))
+                IconButton(onClick = model::nextEpisode, enabled = selected < detail.episodes.lastIndex,
+                    modifier = Modifier.size(44.dp).testTag("player_next").semantics { contentDescription = "下一集" }) {
+                    Icon(Icons.Rounded.SkipNext, null, tint = Color.White.copy(alpha = if (selected < detail.episodes.lastIndex) 1f else .35f))
+                }
                 TextButton(onClick = {
                     activity?.requestedOrientation = if (fullScreen) ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                         else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -487,7 +492,14 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
         ModalBottomSheet(onDismissRequest = { showEpisodes = false }, containerColor = Color(0xFF211E1B), contentColor = Color.White) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Text(detail.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text("共 ${detail.episodes.size} 集 · 当前第 ${detail.episodes[selected].index} 集", color = Color.White.copy(alpha = .65f), fontSize = 12.sp)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("共 ${detail.episodes.size} 集 · 当前第 ${detail.episodes[selected].index} 集",
+                        modifier = Modifier.weight(1f), color = Color.White.copy(alpha = .65f), fontSize = 12.sp)
+                    TextButton(onClick = { model.setAutoPlayNext(!state.autoPlayNext) },
+                        modifier = Modifier.testTag("player_auto_next").semantics {
+                            contentDescription = if (state.autoPlayNext) "自动连播已开启，点击关闭" else "自动连播已关闭，点击开启"
+                        }) { Text(if (state.autoPlayNext) "连播：开" else "连播：关", color = Color.White, fontSize = 13.sp) }
+                }
                 val grid = rememberLazyGridState(initialFirstVisibleItemIndex = (selected / 5) * 5)
                 LazyVerticalGrid(columns = GridCells.Fixed(5), state = grid,
                     modifier = Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * .52f).dp).testTag("player_episode_list"),
