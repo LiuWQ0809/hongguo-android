@@ -50,6 +50,7 @@ class SearchUsabilityDeviceTest {
             compose.onNodeWithTag("search_clear").performClick()
             compose.onNodeWithTag("recent_search_clear").performClick()
             assertTrue(model.state.value.recentSearches.isEmpty())
+            assertNull("Clearing searches must also clear the saved last query", preferences.getString("last_query", null))
         } finally {
             val editor = preferences.edit()
             if (oldHistory == null) editor.remove(RecentSearches.KEY) else editor.putString(RecentSearches.KEY, oldHistory)

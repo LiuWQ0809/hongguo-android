@@ -370,7 +370,7 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
     fun updateQuery(value: String) { mutableState.update { it.copy(query = value) } }
     fun searchRecent(query: String) { updateQuery(query); search() }
     fun clearRecentSearches() {
-        preferences.edit().remove(RecentSearches.KEY).apply()
+        preferences.edit().remove(RecentSearches.KEY).remove("last_query").apply()
         mutableState.update { it.copy(recentSearches = emptyList()) }
     }
 
