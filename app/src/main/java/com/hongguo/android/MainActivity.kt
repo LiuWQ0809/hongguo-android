@@ -60,6 +60,7 @@ import com.hongguo.account.AccountSessionStatus
 import com.hongguo.account.AccountViewModel
 
 class MainActivity : ComponentActivity() {
+    internal val playbackModel: HongguoViewModel get() = (application as HongguoApplication).playbackModel
     private var pipMode by mutableStateOf(false)
     private var pipAllowed = false
 
@@ -86,7 +87,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         applyThemeWindow(storedThemeStyle().palette())
         setContent {
-            val model: HongguoViewModel = viewModel()
+            val model = remember { playbackModel }
             val state by model.state.collectAsState()
             val snackbar = remember { SnackbarHostState() }
             // The theme in effect picks both the colors and each page's layout.
