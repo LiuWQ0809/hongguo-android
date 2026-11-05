@@ -70,6 +70,7 @@ internal fun SearchScreen(state: HongguoUiState, model: HongguoViewModel, trendi
     val list = rememberLazyListState()
     val lastVisible by remember { derivedStateOf { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
     LaunchedEffect(state.searchedQuery) { list.scrollToItem(0) }
+    LaunchedEffect(state.query) { if (state.query.isBlank()) list.scrollToItem(0) }
     LaunchedEffect(lastVisible, state.results.size, state.hasMore, state.loadingMore, state.searching, state.searchError) {
         val total = list.layoutInfo.totalItemsCount
         if (state.results.isNotEmpty() && state.hasMore && !state.loadingMore && !state.searching &&
