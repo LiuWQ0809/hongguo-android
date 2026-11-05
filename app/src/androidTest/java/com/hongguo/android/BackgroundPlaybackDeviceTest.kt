@@ -30,7 +30,7 @@ class BackgroundPlaybackDeviceTest {
     private fun startVideo(): HongguoViewModel {
         lateinit var model: HongguoViewModel
         compose.runOnIdle {
-            model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java]
+            model = compose.activity.playbackModel
             model.openDrama(DramaCard("7696083096164125721", "铁血信使", "", 0, ""))
         }
         compose.waitUntil(120_000) { !model.state.value.loadingDetail }
@@ -87,6 +87,33 @@ class BackgroundPlaybackDeviceTest {
         var value = -1L
         InstrumentationRegistry.getInstrumentation().runOnMainSync { value = player.currentPosition }
         return value
+    }
+
+    private fun assertBackgroundEpisodes(model: HongguoViewModel, instrumentation: android.app.Instrumentation) {
+        var previous: Player? = null
+        repeat(3) { index ->
+            val deadline = System.currentTimeMillis() + 120_000
+            var active: Player? = null
+            while (System.currentTimeMillis() < deadline) {
+                instrumentation.runOnMainSync {
+                    active = PlaybackSessionService.activePlayer?.takeIf { it !== previous && it.isPlaying && it.duration > 5_000 }
+                }
+                if (active != null) break
+                Thread.sleep(200)
+            }
+            val playing = requireNotNull(active) { "Background player must survive activity destruction" }
+            assertNotSame(previous, playing)
+            val start = position(playing)
+            Thread.sleep(3_000)
+            assertTrue("The episode must actually advance", position(playing) > start + 1_000)
+            assertEquals(index, model.state.value.episodePosition)
+            if (index < 2) {
+                instrumentation.runOnMainSync { playing.seekTo(playing.duration - 1_000) }
+                while (System.currentTimeMillis() < deadline && model.state.value.episodePosition <= index) Thread.sleep(200)
+                assertEquals(index + 1, model.state.value.episodePosition)
+            }
+            previous = playing
+        }
     }
 
     @Test fun backgroundStartsPreparedEpisodeWhenNoPlayerExists() {
