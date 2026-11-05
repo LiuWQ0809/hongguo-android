@@ -49,7 +49,11 @@ class BackgroundRetryDeviceTest {
                 Thread.sleep(100)
             assertFalse(activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
             var player: Player? = null
-            instrumentation.runOnMainSync { player = PlaybackSessionService.activePlayer }
+            val readyDeadline = System.currentTimeMillis() + 30_000
+            while (player == null && System.currentTimeMillis() < readyDeadline) {
+                instrumentation.runOnMainSync { player = PlaybackSessionService.activePlayer?.takeIf { it.isPlaying && it.duration > 5_000 } }
+                if (player == null) Thread.sleep(200)
+            }
             val active = requireNotNull(player)
             AppSource.setPlaybackPostForTest { _, _, _ -> throw IOException("injected failure") }
             AppSource.setPlaybackTabForTest { _, _ -> throw IOException("injected failure") }

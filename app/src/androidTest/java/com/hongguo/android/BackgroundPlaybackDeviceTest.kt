@@ -192,7 +192,13 @@ class BackgroundPlaybackDeviceTest {
         assertFalse("The activity must be stopped", activity.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED))
         assertFalse(activity.isInPictureInPictureMode)
         var player: Player? = null
-        InstrumentationRegistry.getInstrumentation().runOnMainSync { player = PlaybackSessionService.activePlayer }
+        val readyDeadline = System.currentTimeMillis() + 30_000
+        while (player == null && System.currentTimeMillis() < readyDeadline) {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                player = PlaybackSessionService.activePlayer?.takeIf { it.isPlaying && it.duration > 5_000 }
+            }
+            if (player == null) Thread.sleep(200)
+        }
         val active = requireNotNull(player)
         InstrumentationRegistry.getInstrumentation().runOnMainSync { active.seekTo(active.duration - 1_000) }
         val deadline = System.currentTimeMillis() + 90_000
@@ -296,7 +302,7 @@ class BackgroundPlaybackDeviceTest {
         val activity = compose.activity
         var player: Player? = null
         InstrumentationRegistry.getInstrumentation().runOnMainSync { player = findPlayer(activity.window.decorView) }
-        val active = requireNotNull(player)
+        var active = requireNotNull(player)
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         try {
             automation.executeShellCommand("input keyevent KEYCODE_HOME").close()
@@ -317,6 +323,15 @@ class BackgroundPlaybackDeviceTest {
             Thread.sleep(1_000)
             assertFalse("The screen must really be off", activity.getSystemService(PowerManager::class.java).isInteractive)
             assertTrue("The lock screen must be active", activity.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
+            val handoffDeadline = System.currentTimeMillis() + 20_000
+            var backgroundPlayer: Player? = null
+            while (backgroundPlayer == null && System.currentTimeMillis() < handoffDeadline) {
+                InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                    backgroundPlayer = PlaybackSessionService.activePlayer?.takeIf { it.isPlaying }
+                }
+                if (backgroundPlayer == null) Thread.sleep(200)
+            }
+            active = requireNotNull(backgroundPlayer) { "Screen-off player must remain active" }
             val lockedStart = position(active)
             Thread.sleep(3_000)
             assertTrue("Screen-off playback must advance", position(active) > lockedStart + 1_000)
