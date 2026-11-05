@@ -52,7 +52,9 @@ internal class BackgroundPlayback(
         val active = current ?: return
         if (original) { original = false; releaseOriginal() }
         else {
-            model.savePosition(video.episodeId, active.currentPosition, video.requestId, force = true)
+            val ended = active.playbackState == Player.STATE_ENDED
+            model.savePosition(video.episodeId, if (ended) 0 else active.currentPosition, video.requestId,
+                force = true, completed = ended)
             source?.cancelActiveReads()
             PlaybackSessionService.detach(active)
             active.release()
