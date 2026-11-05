@@ -129,7 +129,8 @@ class BackgroundPlaybackDeviceTest {
             assertFalse("The player sheet must disable autoplay", model.state.value.autoPlayNext)
             compose.onNodeWithTag("player_auto_next").performClick()
             assertTrue("The player sheet must re-enable autoplay", model.state.value.autoPlayNext)
-            compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
+            compose.onNodeWithTag("player_episodes_close").performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("player_next").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("player_next").performClick()
             compose.waitUntil(120_000) { model.state.value.episodePosition == 1 &&
                 (model.state.value.firstFrameRendered || model.state.value.playbackError != null) }

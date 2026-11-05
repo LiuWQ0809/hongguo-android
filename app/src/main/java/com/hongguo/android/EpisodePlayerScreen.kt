@@ -61,6 +61,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.rounded.ChevronLeft
@@ -491,7 +492,13 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
     if (showEpisodes) {
         ModalBottomSheet(onDismissRequest = { showEpisodes = false }, containerColor = Color(0xFF211E1B), contentColor = Color.White) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                Text(detail.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(detail.title, modifier = Modifier.weight(1f), fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    IconButton(onClick = { showEpisodes = false }, modifier = Modifier.testTag("player_episodes_close")) {
+                        Icon(Icons.Outlined.Close, "关闭选集", tint = Color.White)
+                    }
+                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("共 ${detail.episodes.size} 集 · 当前第 ${detail.episodes[selected].index} 集",
                         modifier = Modifier.weight(1f), color = Color.White.copy(alpha = .65f), fontSize = 12.sp)
