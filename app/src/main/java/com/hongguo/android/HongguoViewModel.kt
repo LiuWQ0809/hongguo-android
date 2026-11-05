@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -486,7 +487,10 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
 
     fun retryDetails() { state.value.selectedCard?.let { openDramaInternal(it, pendingLibrary, pendingAutoPlay) } }
 
-    fun playEpisode(position: Int, restart: Boolean = false, resumeOverrideMs: Long? = null) {
+    fun playEpisode(position: Int, restart: Boolean = false, resumeOverrideMs: Long? = null) =
+        playEpisodeInternal(position, restart, resumeOverrideMs, automatic = false)
+
+    private fun playEpisodeInternal(position: Int, restart: Boolean, resumeOverrideMs: Long?, automatic: Boolean) {
         val current = state.value
         val detail = current.detail ?: return
         val episode = detail.episodes.getOrNull(position) ?: return
@@ -510,11 +514,7 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         releaseVideo(current.video)
         mediaJob = viewModelScope.launch {
             try {
-                val prepared = warmed ?: repository.prepare(episode) { stage, done, total ->
-                    if (version == mediaVersion) mutableState.update {
-                        it.copy(preparationStage = stage, preparationDone = done, preparationTotal = total)
-                    }
-                }
+                val prepared = prepareEpisode(episode, warmed, version, automatic)
                 if (version != mediaVersion || !currentCoroutineContext().isActive) {
                     releaseVideo(prepared)
                     return@launch
@@ -526,6 +526,27 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
                 if (version == mediaVersion) mutableState.update {
                     it.copy(preparing = false, playbackError = readableFailure(error, "准备播放"), playbackStatus = "")
                 }
+            }
+        }
+    }
+
+    private suspend fun prepareEpisode(episode: Episode, warmed: PreparedVideo?, version: Int, automatic: Boolean): PreparedVideo {
+        if (warmed != null) return warmed
+        var retries = 0
+        while (true) {
+            try {
+                return repository.prepare(episode) { stage, done, total ->
+                    if (version == mediaVersion) mutableState.update {
+                        it.copy(preparationStage = stage, preparationDone = done, preparationTotal = total)
+                    }
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) {
+                if (!automatic || retries >= 2 || version != mediaVersion || !state.value.autoPlayNext) throw error
+                retries++
+                mutableState.update { it.copy(preparationStage = "retry", preparationDone = 0, preparationTotal = 0) }
+                delay(if (retries == 1) 1_500 else 4_000)
+                if (!state.value.autoPlayNext) throw error
             }
         }
     }
@@ -688,7 +709,8 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         // Local replay starts at the beginning; the cloud retains the completed episode duration.
         savePosition(episodeId, 0, requestId, completed = true)
         if (current.episodePosition < (current.detail?.episodes?.lastIndex ?: -1)) {
-            if (current.autoPlayNext) nextEpisode() else onPlaybackStatus(episodeId, requestId, "本集已播完，上滑观看下一集")
+            if (current.autoPlayNext) playEpisodeInternal(current.episodePosition + 1, false, null, automatic = true)
+            else onPlaybackStatus(episodeId, requestId, "本集已播完，上滑观看下一集")
         } else onPlaybackStatus(episodeId, requestId, "已播完最后一集")
     }
 
