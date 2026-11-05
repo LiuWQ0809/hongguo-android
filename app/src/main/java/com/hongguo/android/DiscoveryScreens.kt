@@ -82,15 +82,15 @@ internal fun HomeScreen(state: HongguoUiState, model: HongguoViewModel) {
             item(key = "home_search", span = { GridItemSpan(maxLineSpan) }) {
                 CatalogSearchEntry("搜索剧名，发现好故事", "home_search") { model.selectTab(AppTab.SEARCH) }
             }
-            state.home.items.firstOrNull()?.let { featured ->
-                item(key = "home_featured", span = { GridItemSpan(maxLineSpan) }) {
-                    WarmFeaturedBanner(featured, onOpen = { model.openDrama(featured) }, onPlay = { model.playDrama(featured) })
-                }
-            }
             if (state.history.isNotEmpty()) {
                 item(key = "home_continue", span = { GridItemSpan(maxLineSpan) }) {
                     WarmContinueRail(state.history, onOpen = model::openLibrary,
                         onHistory = { model.selectTab(AppTab.HISTORY) })
+                }
+            }
+            state.home.items.firstOrNull()?.let { featured ->
+                item(key = "home_featured", span = { GridItemSpan(maxLineSpan) }) {
+                    WarmFeaturedBanner(featured, onOpen = { model.openDrama(featured) }, onPlay = { model.playDrama(featured) })
                 }
             }
             item(key = "home_feeds", span = { GridItemSpan(maxLineSpan) }) {

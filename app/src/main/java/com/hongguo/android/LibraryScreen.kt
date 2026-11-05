@@ -123,7 +123,7 @@ private fun LibraryRow(entry: LibraryEntry, history: Boolean, index: Int, managi
                        onOpen: () -> Unit, onRemove: () -> Unit) {
     val kind = if (history) "history" else "favorite"
     val stackAction = (LocalDensity.current.fontScale >= 1.3f || LocalConfiguration.current.screenWidthDp < 360) &&
-        (managing || (index == 0 && entry.episodeId.isNotBlank()))
+        (managing || entry.episodeId.isNotBlank())
     Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).testTag("${kind}_item_$index").padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Cover(entry.card.cover, entry.card.title, Modifier.width(64.dp).height(88.dp))
@@ -145,7 +145,7 @@ private fun LibraryRowAction(entry: LibraryEntry, history: Boolean, index: Int, 
     val kind = if (history) "history" else "favorite"
     if (managing) TextButton(onClick = onRemove, modifier = Modifier.testTag("${kind}_remove_$index"),
         contentPadding = PaddingValues(horizontal = 6.dp)) { Text(if (history) "删除" else "取消收藏", fontSize = 12.sp) }
-    else if (index == 0 && entry.episodeId.isNotBlank()) Button(onClick = onOpen, shape = RoundedCornerShape(12.dp),
+    else if (entry.episodeId.isNotBlank()) Button(onClick = onOpen, shape = RoundedCornerShape(12.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) { Text("继续看", fontSize = 14.sp) }
     else IconButton(onClick = onOpen) {
         Icon(Icons.Outlined.ChevronRight, contentDescription = if (entry.episodeId.isNotBlank()) "继续观看" else "查看选集",
