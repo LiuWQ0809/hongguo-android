@@ -3,7 +3,6 @@ package com.hongguo.android
 import android.content.res.Configuration
 import android.app.KeyguardManager
 import android.os.PowerManager
-import android.os.ParcelFileDescriptor
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.geometry.Offset
@@ -89,21 +88,48 @@ class BackgroundPlaybackDeviceTest {
         return value
     }
 
-    @Test fun backgroundContinuesWhenActivityIsDestroyed() {
+    @Test fun ordinaryBackgroundPlaysNextEpisodeWithoutPictureInPicture() {
         val model = startVideo()
         val activity = compose.activity
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        val oldSetting = ParcelFileDescriptor.AutoCloseInputStream(
-            automation.executeShellCommand("settings get global always_finish_activities")).bufferedReader().use { it.readText().trim() }
-            .takeIf { it == "0" || it == "1" } ?: "null"
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { activity.updatePictureInPicture(false, 0, 0) }
+        automation.executeShellCommand("input keyevent KEYCODE_HOME").close()
+        val stopDeadline = System.currentTimeMillis() + 10_000
+        while (activity.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) && System.currentTimeMillis() < stopDeadline)
+            Thread.sleep(200)
+        assertFalse("The activity must be stopped", activity.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED))
+        assertFalse(activity.isInPictureInPictureMode)
+        var player: Player? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { player = PlaybackSessionService.activePlayer }
+        val active = requireNotNull(player)
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { active.seekTo(active.duration - 1_000) }
+        val deadline = System.currentTimeMillis() + 90_000
+        while (System.currentTimeMillis() < deadline && (model.state.value.episodePosition < 1 || model.state.value.video == null))
+            Thread.sleep(300)
+        assertEquals("Ordinary background playback must advance", 1, model.state.value.episodePosition)
+        var next: Player? = null
+        while (System.currentTimeMillis() < deadline && (next == null || next === active)) {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { next = PlaybackSessionService.activePlayer }
+            Thread.sleep(300)
+        }
+        val nextPlayer = requireNotNull(next)
+        assertNotSame(active, nextPlayer)
+        val start = position(nextPlayer)
+        Thread.sleep(4_000)
+        assertTrue("The next episode must play in the background", position(nextPlayer) > start + 1_000)
+    }
+
+    @Test fun backgroundContinuesAfterActivityRecreation() {
+        val model = startVideo()
+        compose.activityRule.scenario.recreate()
+        val activity = compose.activity
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        compose.waitUntil(30_000) { compose.runOnIdle { findPlayer(activity.window.decorView)?.isPlaying == true } }
         try {
             automation.executeShellCommand("input keyevent KEYCODE_HOME").close()
             compose.waitUntil(10_000) { activity.isInPictureInPictureMode }
-            automation.executeShellCommand("settings put global always_finish_activities 1").close()
             automation.executeShellCommand("input keyevent KEYCODE_SLEEP").close()
-            val destroyDeadline = System.currentTimeMillis() + 15_000
-            while (!activity.isDestroyed && System.currentTimeMillis() < destroyDeadline) Thread.sleep(200)
-            assertTrue("The background activity must really be destroyed", activity.isDestroyed)
+            Thread.sleep(1_000)
             assertTrue(activity.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
             var player: Player? = null
             InstrumentationRegistry.getInstrumentation().runOnMainSync { player = PlaybackSessionService.activePlayer }
@@ -124,8 +150,6 @@ class BackgroundPlaybackDeviceTest {
             Thread.sleep(4_000)
             assertTrue("The next episode must keep playing", position(nextPlayer) > start + 1_000)
         } finally {
-            automation.executeShellCommand(if (oldSetting == "null") "settings delete global always_finish_activities"
-                else "settings put global always_finish_activities $oldSetting").close()
             automation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
             automation.executeShellCommand("wm dismiss-keyguard").close()
         }
