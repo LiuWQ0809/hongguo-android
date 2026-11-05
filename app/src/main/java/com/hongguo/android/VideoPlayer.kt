@@ -204,7 +204,7 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
                 }
                 Lifecycle.Event.ON_STOP -> {
                     val active = player
-                    if (active != null && video != null && background == null)
+                    if (model.state.value.playerOpen && background == null)
                         background = BackgroundPlayback(context.applicationContext, model, video, active, ::releasePlayer)
                 }
                 else -> Unit

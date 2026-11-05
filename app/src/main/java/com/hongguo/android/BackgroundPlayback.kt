@@ -19,13 +19,13 @@ import kotlinx.coroutines.launch
 internal class BackgroundPlayback(
     private val context: Context,
     private val model: HongguoViewModel,
-    initial: PreparedVideo,
-    player: ExoPlayer,
+    initial: PreparedVideo?,
+    player: ExoPlayer?,
     private val releaseOriginal: () -> Unit,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var video = initial
-    private var original = true
+    private var original = player != null
     private var source: VideoSourceHandle? = null
     private var pinned = false
     var current: ExoPlayer? = player
@@ -35,14 +35,15 @@ internal class BackgroundPlayback(
         scope.launch {
             model.state.collect { state ->
                 val next = state.video
-                if (state.playerOpen && next != null && next.requestId != video.requestId) switchTo(next)
+                if (state.playerOpen && next != null && next.requestId != video?.requestId) switchTo(next)
             }
         }
         scope.launch {
             while (true) {
                 val active = current
-                if (!original && active != null && active.isPlaying)
-                    model.savePosition(video.episodeId, active.currentPosition, video.requestId)
+                val playing = video
+                if (!original && active != null && active.isPlaying && playing != null)
+                    model.savePosition(playing.episodeId, active.currentPosition, playing.requestId)
                 delay(2_000)
             }
         }
@@ -53,12 +54,12 @@ internal class BackgroundPlayback(
         if (original) { original = false; releaseOriginal() }
         else {
             val ended = active.playbackState == Player.STATE_ENDED
-            model.savePosition(video.episodeId, if (ended) 0 else active.currentPosition, video.requestId,
-                force = true, completed = ended)
+            video?.let { model.savePosition(it.episodeId, if (ended) 0 else active.currentPosition, it.requestId,
+                force = true, completed = ended) }
             source?.cancelActiveReads()
             PlaybackSessionService.detach(active)
             active.release()
-            if (pinned) Stream.unpin(video.path)
+            if (pinned) video?.let { Stream.unpin(it.path) }
         }
         source = null
         pinned = false
