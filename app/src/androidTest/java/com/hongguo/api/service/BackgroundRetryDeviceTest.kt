@@ -53,9 +53,9 @@ class BackgroundRetryDeviceTest {
             AppSource.setPlaybackTabForTest { _, _ -> throw IOException("injected failure") }
             instrumentation.runOnMainSync { active.seekTo(active.duration - 1_000) }
             val deadline = System.currentTimeMillis() + 90_000
-            while (System.currentTimeMillis() < deadline && (model.state.value.episodePosition != 1 || model.state.value.playbackError == null))
+            while (System.currentTimeMillis() < deadline && (model.state.value.episodePosition != 1 || model.state.value.preparationStage != "retry"))
                 Thread.sleep(50)
-            assertNotNull("The injected next-episode failure must be observed", model.state.value.playbackError)
+            assertEquals("The injected next-episode failure must trigger a retry", "retry", model.state.value.preparationStage)
             instrumentation.runOnMainSync { active.pause() }
             AppSource.setPlaybackPostForTest(null)
             AppSource.setPlaybackTabForTest(null)
