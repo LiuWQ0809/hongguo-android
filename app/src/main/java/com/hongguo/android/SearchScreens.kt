@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -39,6 +40,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +67,14 @@ import coil.request.ImageRequest
 internal fun SearchScreen(state: HongguoUiState, model: HongguoViewModel, trending: List<DramaCard> = emptyList()) {
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = LocalFocusManager.current
+    val list = rememberLazyListState()
+    val lastVisible by remember { derivedStateOf { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
+    LaunchedEffect(state.searchedQuery) { list.scrollToItem(0) }
+    LaunchedEffect(lastVisible, state.results.size, state.hasMore, state.loadingMore, state.searching, state.searchError) {
+        val total = list.layoutInfo.totalItemsCount
+        if (state.results.isNotEmpty() && state.hasMore && !state.loadingMore && !state.searching &&
+            state.searchError == null && total > 0 && lastVisible >= total - 3) model.loadMore()
+    }
     val submit = { keyboard?.hide(); focus.clearFocus(); model.search() }
     val close = { keyboard?.hide(); focus.clearFocus(); model.closeSearch() }
     BackHandler(enabled = LocalPageActive.current, onBack = close)
@@ -100,10 +113,10 @@ internal fun SearchScreen(state: HongguoUiState, model: HongguoViewModel, trendi
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("“${state.searchedQuery}”的结果", fontWeight = FontWeight.Bold, fontSize = 18.sp, lineHeight = 26.sp,
                     modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis, color = Ink)
-                Text("${state.results.size} 部", color = Muted, fontSize = 13.sp)
+                Text("已加载 ${state.results.size} 部", color = Muted, fontSize = 13.sp)
             }
         }
-        LazyColumn(Modifier.fillMaxWidth().weight(1f).testTag("search_results"),
+        LazyColumn(Modifier.fillMaxWidth().weight(1f).testTag("search_results"), state = list,
             contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (!state.searching && state.recentSearches.isNotEmpty() && (state.searchedQuery.isBlank() || state.query.isBlank())) {
                 item(key = "recent_searches") {
