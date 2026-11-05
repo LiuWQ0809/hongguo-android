@@ -17,6 +17,38 @@ import org.junit.runner.RunWith
 class LibraryFlowTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun continueWatchingIsReachableInEveryHomeStyle() {
+        val context = compose.activity.applicationContext
+        val preferences = context.getSharedPreferences("hongguo_library", Context.MODE_PRIVATE)
+        val original = preferences.getString("snapshot", null)
+        val store = LibraryStore(context)
+        lateinit var model: HongguoViewModel
+        compose.runOnIdle { model = ViewModelProvider(compose.activity)[HongguoViewModel::class.java] }
+        val style = model.state.value.themeStyle
+        val dark = model.state.value.darkFollowsSystem
+        try {
+            store.recordPlayback(DramaCard("7696083096164125721", "铁血信使", "", 75, ""),
+                "7696085244503411774", 1, 8_000)
+            compose.waitUntil(5_000) { model.state.value.history.firstOrNull()?.card?.id == "7696083096164125721" }
+            compose.runOnIdle { model.setDarkFollowsSystem(false); model.setThemeStyle(AppThemeStyle.WARM) }
+            compose.onNodeWithTag("home_continue_play").assertExists()
+            compose.runOnIdle { model.setThemeStyle(AppThemeStyle.CARDS) }
+            compose.onNodeWithTag("cards_continue").assertExists()
+            compose.runOnIdle { model.setThemeStyle(AppThemeStyle.IMMERSIVE) }
+            compose.onNodeWithTag("immersive_continue_play").performClick()
+            compose.waitUntil(120_000) { model.state.value.firstFrameRendered || model.state.value.playbackError != null }
+            assertNull("Continue must load the saved episode", model.state.value.playbackError)
+            assertEquals("7696085244503411774", model.state.value.video?.episodeId)
+            assertTrue("Continue must restore the saved position", model.state.value.resumePositionMs >= 7_000)
+        } finally {
+            compose.runOnIdle { model.closePlayer(); model.setThemeStyle(style); model.setDarkFollowsSystem(dark) }
+            val editor = preferences.edit()
+            if (original == null) editor.remove("snapshot") else editor.putString("snapshot", original)
+            assertTrue(editor.commit())
+            LibraryStore(context)
+        }
+    }
+
     @Test fun localListsPersistAndClearIndependentlyThroughUi() {
         val context = compose.activity.applicationContext
         val preferences = context.getSharedPreferences("hongguo_library", Context.MODE_PRIVATE)
