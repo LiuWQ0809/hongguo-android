@@ -102,7 +102,12 @@ class BackgroundPlaybackDeviceTest {
             compose.waitUntil(120_000) { model.state.value.video != null || model.state.value.playbackError != null }
             assertNull(model.state.value.playbackError)
             val video = requireNotNull(model.state.value.video)
-            compose.runOnIdle { owner = BackgroundPlayback(application, model, video, null) {} }
+            compose.runOnIdle {
+                owner = BackgroundPlayback(application, model, video, null, initialPlayWhenReady = false) {}
+                val preparedPlayer = requireNotNull(owner?.current)
+                assertFalse("Background takeover must preserve pause intent", preparedPlayer.playWhenReady)
+                preparedPlayer.play()
+            }
             compose.waitUntil(30_000) {
                 var playing = false
                 InstrumentationRegistry.getInstrumentation().runOnMainSync { playing = owner?.current?.isPlaying == true }
