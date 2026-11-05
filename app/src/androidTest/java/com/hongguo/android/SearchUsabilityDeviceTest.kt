@@ -1,9 +1,11 @@
 package com.hongguo.android
 
 import android.content.Context
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.ViewModelProvider
@@ -33,6 +35,14 @@ class SearchUsabilityDeviceTest {
             compose.waitUntil(120_000) { !model.state.value.searching }
             assertNull(model.state.value.searchError)
             assertTrue(model.state.value.results.isNotEmpty())
+            if (model.state.value.hasMore) {
+                val previousSize = model.state.value.results.size
+                compose.onNodeWithTag("search_results").performScrollToNode(hasTestTag("result_${previousSize - 1}"))
+                compose.waitUntil(120_000) { model.state.value.results.size > previousSize || model.state.value.searchError != null }
+                assertNull("Scrolling must load the next page", model.state.value.searchError)
+                assertTrue(model.state.value.results.size > previousSize)
+                assertEquals(model.state.value.results.size, model.state.value.results.distinctBy { it.id }.size)
+            }
             compose.onNodeWithTag("search_clear").performClick()
             compose.onNodeWithTag("recent_search_0").performClick()
             compose.waitUntil(120_000) { !model.state.value.searching }
