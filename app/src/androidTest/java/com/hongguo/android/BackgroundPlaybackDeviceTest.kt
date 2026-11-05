@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.media3.common.Player
 import androidx.media3.ui.PlayerView
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -86,6 +87,34 @@ class BackgroundPlaybackDeviceTest {
         var value = -1L
         InstrumentationRegistry.getInstrumentation().runOnMainSync { value = player.currentPosition }
         return value
+    }
+
+    @Test fun backgroundStartsPreparedEpisodeWhenNoPlayerExists() {
+        val application = compose.activity.application
+        val store = ViewModelStore()
+        val model = ViewModelProvider(store, ViewModelProvider.AndroidViewModelFactory.getInstance(application))[HongguoViewModel::class.java]
+        var owner: BackgroundPlayback? = null
+        try {
+            compose.runOnIdle { model.openDrama(DramaCard("7696083096164125721", "铁血信使", "", 0, "")) }
+            compose.waitUntil(120_000) { !model.state.value.loadingDetail }
+            assertNotNull(model.state.value.detail)
+            compose.runOnIdle { model.playEpisode(0, restart = true) }
+            compose.waitUntil(120_000) { model.state.value.video != null || model.state.value.playbackError != null }
+            assertNull(model.state.value.playbackError)
+            val video = requireNotNull(model.state.value.video)
+            compose.runOnIdle { owner = BackgroundPlayback(application, model, video, null) {} }
+            compose.waitUntil(30_000) {
+                var playing = false
+                InstrumentationRegistry.getInstrumentation().runOnMainSync { playing = owner?.current?.isPlaying == true }
+                playing
+            }
+            val active = requireNotNull(owner?.current)
+            val start = position(active)
+            Thread.sleep(3_000)
+            assertTrue("A prepared episode must advance without a previous player", position(active) > start + 1_000)
+        } finally {
+            compose.runOnIdle { owner?.stop(); store.clear() }
+        }
     }
 
     @Test fun ordinaryBackgroundPlaysNextEpisodeWithoutPictureInPicture() {
