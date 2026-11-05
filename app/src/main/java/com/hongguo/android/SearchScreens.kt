@@ -71,9 +71,9 @@ internal fun SearchScreen(state: HongguoUiState, model: HongguoViewModel, trendi
     val lastVisible by remember { derivedStateOf { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
     LaunchedEffect(state.searchedQuery) { list.scrollToItem(0) }
     LaunchedEffect(state.query) { if (state.query.isBlank()) list.scrollToItem(0) }
-    LaunchedEffect(lastVisible, state.results.size, state.hasMore, state.loadingMore, state.searching, state.searchError) {
+    LaunchedEffect(lastVisible, state.query, state.searchedQuery, state.results.size, state.hasMore, state.loadingMore, state.searching, state.searchError) {
         val total = list.layoutInfo.totalItemsCount
-        if (state.results.isNotEmpty() && state.hasMore && !state.loadingMore && !state.searching &&
+        if (state.query.trim() == state.searchedQuery && state.results.isNotEmpty() && state.hasMore && !state.loadingMore && !state.searching &&
             state.searchError == null && total > 0 && lastVisible >= total - 3) model.loadMore()
     }
     val submit = { keyboard?.hide(); focus.clearFocus(); model.search() }
