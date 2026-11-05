@@ -24,6 +24,7 @@ import com.hongguo.api.service.ProgressiveMedia
 import com.hongguo.account.AccountSessionStatus
 
 private val mediaCleanup = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+private const val AutoPlaybackRetryLimit = 2
 
 /** SETTINGS and THEME_STYLE are pages of their own (no bottom bar), opened from 我的 and closed back to where they came from. */
 enum class AppTab { HOME, CATEGORY, SEARCH, FAVORITES, MINE, HISTORY, ACCOUNT, SETTINGS, THEME_STYLE }
@@ -542,7 +543,7 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
-                if (!automatic || retries >= 2 || version != mediaVersion || !state.value.autoPlayNext) throw error
+                if (!automatic || retries >= AutoPlaybackRetryLimit || version != mediaVersion || !state.value.autoPlayNext) throw error
                 retries++
                 mutableState.update { it.copy(preparationStage = "retry", preparationDone = 0, preparationTotal = 0) }
                 delay(if (retries == 1) 1_500 else 4_000)
