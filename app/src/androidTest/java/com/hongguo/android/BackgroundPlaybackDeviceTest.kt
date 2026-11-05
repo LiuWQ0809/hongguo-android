@@ -119,6 +119,27 @@ class BackgroundPlaybackDeviceTest {
         assertTrue("The next episode must play in the background", position(nextPlayer) > start + 1_000)
     }
 
+    @Test fun playerExposesAutoplaySettingAndNextEpisode() {
+        val model = startVideo()
+        val initial = model.state.value.autoPlayNext
+        try {
+            compose.runOnIdle { model.setAutoPlayNext(true) }
+            compose.onNodeWithTag("player_episode_picker").performClick()
+            compose.onNodeWithTag("player_auto_next").performClick()
+            assertFalse("The player sheet must disable autoplay", model.state.value.autoPlayNext)
+            compose.onNodeWithTag("player_auto_next").performClick()
+            assertTrue("The player sheet must re-enable autoplay", model.state.value.autoPlayNext)
+            compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
+            compose.onNodeWithTag("player_next").performClick()
+            compose.waitUntil(120_000) { model.state.value.episodePosition == 1 &&
+                (model.state.value.firstFrameRendered || model.state.value.playbackError != null) }
+            assertNull("The next button must start the selected episode", model.state.value.playbackError)
+            assertTrue(model.state.value.firstFrameRendered)
+        } finally {
+            compose.runOnIdle { model.setAutoPlayNext(initial) }
+        }
+    }
+
     @Test fun backgroundContinuesAfterActivityRecreation() {
         val model = startVideo()
         compose.activityRule.scenario.recreate()
