@@ -35,7 +35,8 @@ internal class BackgroundPlayback(
         scope.launch {
             model.state.collect { state ->
                 val next = state.video
-                if (state.playerOpen && next != null && next.requestId != video?.requestId) switchTo(next)
+                if (state.playerOpen && next != null && state.playbackError == null &&
+                    (current == null || next.requestId != video?.requestId)) switchTo(next)
             }
         }
         scope.launch {
