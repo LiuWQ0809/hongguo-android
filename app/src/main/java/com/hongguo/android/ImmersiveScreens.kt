@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -198,6 +199,18 @@ internal fun ImmersiveHome(state: HongguoUiState, model: HongguoViewModel) {
             }
             IconButton(onClick = { model.selectTab(AppTab.SEARCH) }, modifier = Modifier.testTag("immersive_search")) {
                 Icon(Icons.Outlined.Search, "搜索", tint = Color.White)
+            }
+        }
+        state.history.firstOrNull()?.let { entry ->
+            Surface(onClick = { model.openLibrary(entry) }, enabled = LocalPageActive.current && !state.playerOpen,
+                color = Color.Black.copy(alpha = .65f), shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(start = 12.dp, top = 58.dp)
+                    .widthIn(max = 240.dp).testTag("immersive_continue_play")) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.PlayArrow, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Text("继续看 · ${entry.card.title} · 第 ${entry.episodeIndex.coerceAtLeast(1)} 集",
+                        color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }
