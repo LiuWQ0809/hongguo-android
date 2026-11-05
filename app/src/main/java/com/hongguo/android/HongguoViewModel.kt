@@ -51,6 +51,7 @@ data class HongguoUiState(
     val history: List<LibraryEntry> = emptyList(),
     val libraryCloud: Boolean = false,
     val query: String = "",
+    val recentSearches: List<String> = emptyList(),
     val searchedQuery: String = "",
     val results: List<DramaCard> = emptyList(),
     val searching: Boolean = false,
@@ -90,6 +91,7 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
     private val accounts = (application as HongguoApplication).accountRepository
     private val preferences = application.getSharedPreferences(ThemePreferences.FILE, 0)
     private val mutableState = MutableStateFlow(HongguoUiState(query = preferences.getString("last_query", "").orEmpty(),
+        recentSearches = RecentSearches.decode(preferences.getString(RecentSearches.KEY, null)),
         autoPlayNext = preferences.getBoolean("auto_play_next", true), preloadNext = preferences.getBoolean("preload_next", true),
         playbackSpeed = runCatching { preferences.getFloat("playback_speed", 1f) }.getOrDefault(1f)
             .takeIf { it in PlaybackSpeeds } ?: 1f,
@@ -365,15 +367,21 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateQuery(value: String) { mutableState.update { it.copy(query = value) } }
+    fun searchRecent(query: String) { updateQuery(query); search() }
+    fun clearRecentSearches() {
+        preferences.edit().remove(RecentSearches.KEY).apply()
+        mutableState.update { it.copy(recentSearches = emptyList()) }
+    }
 
     fun search() {
         val query = state.value.query.trim()
         if (query.isEmpty()) return
         cancelSearch()
         cancelDetailAndMedia()
-        preferences.edit().putString("last_query", query).apply()
+        val recent = RecentSearches.add(state.value.recentSearches, query)
+        preferences.edit().putString("last_query", query).putString(RecentSearches.KEY, RecentSearches.encode(recent)).apply()
         val version = ++searchVersion
-        mutableState.update { it.copy(tab = AppTab.SEARCH, query = query, searchedQuery = query,
+        mutableState.update { it.copy(tab = AppTab.SEARCH, query = query, searchedQuery = query, recentSearches = recent,
             results = emptyList(), searching = true, loadingMore = false, hasMore = false, nextOffset = 0,
             searchError = null, selectedCard = null, detail = null, video = null, preparing = false,
             playbackError = null, firstFrameRendered = false, playerOpen = false) }
