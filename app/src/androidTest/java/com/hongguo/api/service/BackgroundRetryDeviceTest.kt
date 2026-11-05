@@ -105,6 +105,11 @@ class BackgroundRetryDeviceTest {
             AppSource.setPlaybackPostForTest { _, _, _ -> entered.countDown(); unblock.await(60, TimeUnit.SECONDS); throw IOException("delayed request") }
             instrumentation.runOnMainSync { active.seekTo(active.duration - 1_000) }
             assertTrue("Next episode must begin preparing", entered.await(30, TimeUnit.SECONDS))
+            compose.waitUntil(15_000) {
+                var released = false
+                instrumentation.runOnMainSync { released = PlaybackSessionService.activePlayer == null }
+                released
+            }
             Thread.sleep(2_500)
             assertTrue(model.state.value.preparing)
             instrumentation.uiAutomation.executeShellCommand("input keyevent KEYCODE_SLEEP").close()
