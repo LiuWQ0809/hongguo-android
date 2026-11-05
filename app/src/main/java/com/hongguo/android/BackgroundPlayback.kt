@@ -71,6 +71,9 @@ internal class BackgroundPlayback(
             val active = ExoPlayer.Builder(context).build()
             current = active
             active.addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (current === active && isPlaying) model.onPlaybackStarted(next.episodeId, next.requestId)
+                }
                 override fun onPlaybackStateChanged(state: Int) {
                     if (current !== active) return
                     if (state == Player.STATE_ENDED) model.onPlaybackEnded(next.episodeId, next.requestId,

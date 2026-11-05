@@ -645,13 +645,20 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
 
     fun onFirstFrame(episodeId: String, requestId: Long) {
         if (!isCurrentVideo(episodeId, requestId)) return
-        val alreadyRendered = state.value.firstFrameRendered
         mutableState.update { it.copy(firstFrameRendered = true) }
-        accountPlaybacks[requestId]?.takeIf { it.entry.episodeId == episodeId }?.rendered = true
-        if (!alreadyRendered) resumeTargets[episodeId]?.let { target ->
+        onPlaybackStarted(episodeId, requestId)
+        prefetchNext()
+    }
+
+    /** Background audio has no video surface; record only after the player actually starts. */
+    fun onPlaybackStarted(episodeId: String, requestId: Long) {
+        if (!isCurrentVideo(episodeId, requestId)) return
+        val playback = accountPlaybacks[requestId]?.takeIf { it.entry.episodeId == episodeId } ?: return
+        if (playback.rendered) return
+        playback.rendered = true
+        resumeTargets[episodeId]?.let { target ->
             library.recordPlayback(target.card, episodeId, target.index, state.value.resumePositionMs)
         }
-        prefetchNext()
     }
 
     fun onPlaybackError(episodeId: String, requestId: Long, unsupported: Boolean) {
