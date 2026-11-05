@@ -119,6 +119,42 @@ class BackgroundPlaybackDeviceTest {
     @Test fun playbackContinuesAfterBackgroundActivityIsRecreated() = checkDestroyedActivityPlayback(false)
     @Test fun lockScreenPlaysAfterBackgroundActivityIsRecreated() = checkDestroyedActivityPlayback(true)
 
+    @Test fun returningAfterRecreationPreservesBackgroundPauseAndPosition() {
+        val model = startVideo()
+        val activity = compose.activity
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val automation = instrumentation.uiAutomation
+        try {
+            instrumentation.runOnMainSync { activity.updatePictureInPicture(false, 0, 0) }
+            automation.executeShellCommand("input keyevent KEYCODE_HOME").close()
+            val deadline = System.currentTimeMillis() + 30_000
+            while (activity.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) && System.currentTimeMillis() < deadline) Thread.sleep(100)
+            instrumentation.runOnMainSync { activity.recreate() }
+            while (!activity.isDestroyed && System.currentTimeMillis() < deadline) Thread.sleep(100)
+            assertTrue(activity.isDestroyed)
+            var background: Player? = null
+            while (background == null && System.currentTimeMillis() < deadline) {
+                instrumentation.runOnMainSync { background = PlaybackSessionService.activePlayer?.takeIf { it.isPlaying && it.duration > 15_000 } }
+                if (background == null) Thread.sleep(200)
+            }
+            val playing = requireNotNull(background)
+            instrumentation.runOnMainSync { playing.seekTo(10_000); playing.pause() }
+            automation.executeShellCommand("am start -n com.hongguo.android/.MainActivity -f 0x20000000").close()
+            var foreground: Player? = null
+            while (foreground == null && System.currentTimeMillis() < deadline) {
+                instrumentation.runOnMainSync { foreground = PlaybackSessionService.activePlayer?.takeIf { it !== playing } }
+                if (foreground == null) Thread.sleep(200)
+            }
+            val restored = requireNotNull(foreground)
+            instrumentation.runOnMainSync {
+                assertFalse("Background pause must survive returning to the player", restored.playWhenReady)
+                assertTrue("Background position must survive returning to the player", restored.currentPosition >= 9_000)
+            }
+        } finally {
+            instrumentation.runOnMainSync { model.closePlayer() }
+        }
+    }
+
     private fun checkDestroyedActivityPlayback(locked: Boolean) {
         val model = startVideo()
         val activity = compose.activity
