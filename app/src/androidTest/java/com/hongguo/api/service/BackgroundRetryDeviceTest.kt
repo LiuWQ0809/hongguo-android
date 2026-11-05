@@ -38,6 +38,40 @@ class BackgroundRetryDeviceTest {
             compose.waitUntil(120_000) { model.state.value.firstFrameRendered || model.state.value.playbackError != null }
             assertNull(model.state.value.playbackError)
             assertTrue(model.state.value.firstFrameRendered)
+            val activity = compose.activity
+            val instrumentation = InstrumentationRegistry.getInstrumentation()
+            instrumentation.runOnMainSync { activity.updatePictureInPicture(false, 0, 0) }
+            instrumentation.uiAutomation.executeShellCommand("input keyevent KEYCODE_HOME").close()
+            val stopDeadline = System.currentTimeMillis() + 10_000
+            while (activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) && System.currentTimeMillis() < stopDeadline)
+                Thread.sleep(100)
+            assertFalse(activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+            var player: Player? = null
+            instrumentation.runOnMainSync { player = PlaybackSessionService.activePlayer }
+            val active = requireNotNull(player)
+            AppSource.setPlaybackPostForTest { _, _, _ -> throw IOException("injected failure") }
+            AppSource.setPlaybackTabForTest { _, _ -> throw IOException("injected failure") }
+            instrumentation.runOnMainSync { active.seekTo(active.duration - 1_000) }
+            val deadline = System.currentTimeMillis() + 90_000
+            while (System.currentTimeMillis() < deadline && (model.state.value.episodePosition != 1 || model.state.value.playbackError == null))
+                Thread.sleep(50)
+            assertNotNull("The injected next-episode failure must be observed", model.state.value.playbackError)
+            instrumentation.runOnMainSync { active.pause() }
+            AppSource.setPlaybackPostForTest(null)
+            AppSource.setPlaybackTabForTest(null)
+            var next: Player? = null
+            while (System.currentTimeMillis() < deadline && (next == null || next === active)) {
+                instrumentation.runOnMainSync { next = PlaybackSessionService.activePlayer }
+                Thread.sleep(100)
+            }
+            val newPlayer = requireNotNull(next)
+            assertNotSame("Background retry must create the next player", active, newPlayer)
+            instrumentation.runOnMainSync {
+                assertFalse("Retry must retain a user's pause request", newPlayer.playWhenReady)
+                newPlayer.play()
+            }
+            Thread.sleep(4_000)
+            instrumentation.runOnMainSync { assertTrue("The retried episode must play", newPlayer.currentPosition > 1_000) }
         } finally {
             AppSource.setPlaybackPostForTest(null)
             AppSource.setPlaybackTabForTest(null)
