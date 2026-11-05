@@ -146,6 +146,23 @@ class BackgroundPlaybackDeviceTest {
             val nextStart = position(nextPlayer)
             Thread.sleep(4_000)
             assertTrue("The next episode must play while screen is off", position(nextPlayer) > nextStart + 1_000)
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { nextPlayer.seekTo(nextPlayer.duration - 1_000) }
+            val secondDeadline = System.currentTimeMillis() + 90_000
+            while (System.currentTimeMillis() < secondDeadline && (model.state.value.episodePosition < 2 || model.state.value.video == null))
+                Thread.sleep(300)
+            assertEquals("A second screen-off transition must advance", 2, model.state.value.episodePosition)
+            var current: Player? = null
+            while (System.currentTimeMillis() < secondDeadline && (current == null || current === nextPlayer)) {
+                InstrumentationRegistry.getInstrumentation().runOnMainSync { current = PlaybackSessionService.activePlayer }
+                if (current == null || current === nextPlayer) Thread.sleep(300)
+            }
+            val third = requireNotNull(current)
+            assertNotSame(nextPlayer, third)
+            val thirdStart = position(third)
+            Thread.sleep(4_000)
+            assertTrue("The third episode must play while screen is off", position(third) > thirdStart + 1_000)
+            assertEquals("History must follow actual background playback", 3,
+                model.state.value.history.firstOrNull { it.card.id == "7696083096164125721" }?.episodeIndex)
             val request = model.state.value.video?.requestId
             automation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
             automation.executeShellCommand("wm dismiss-keyguard").close()
