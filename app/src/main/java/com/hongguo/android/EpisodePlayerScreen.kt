@@ -146,7 +146,7 @@ internal fun EpisodePlayerScreen(state: HongguoUiState, model: HongguoViewModel,
         model.onPlayerForeground(true)
         onDispose {
             lifecycle.removeObserver(observer)
-            model.onPlayerForeground(false)
+            model.onPlayerForeground(false, keepPreparing = PlaybackSessionService.hasBackground)
             if (activity != null && originalOrientation != null) activity.requestedOrientation = originalOrientation
             controller?.let {
                 it.show(WindowInsetsCompat.Type.systemBars())

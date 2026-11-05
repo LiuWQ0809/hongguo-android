@@ -75,7 +75,6 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
     DisposableEffect(video?.requestId, lifecycle, enabled) {
         var pinned = false
         var sourceHandle: VideoSourceHandle? = null
-        var background: BackgroundPlayback? = null
         fun isCurrent(active: ExoPlayer): Boolean = enabled && player === active
         fun updateSnapshot(active: ExoPlayer) {
             if (!isCurrent(active)) return
@@ -198,21 +197,26 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> {
-                    val keptOriginal = background?.stop()
-                    background = null
-                    if (keptOriginal != true && model.state.value.video?.requestId == video?.requestId) createPlayer()
+                    if (video != null && model.state.value.video?.requestId == video.requestId) {
+                        PlaybackSessionService.takeBackground()?.let {
+                            wantedPlaying = it
+                            lastPosition = model.state.value.resumePositionMs
+                        }
+                        createPlayer()
+                    }
                 }
                 Lifecycle.Event.ON_STOP -> {
-                    val active = player
-                    if (model.state.value.playerOpen && background == null)
-                        background = BackgroundPlayback(context.applicationContext, model, video, active, wantedPlaying, ::releasePlayer)
+                    if (model.state.value.playerOpen && !PlaybackSessionService.hasBackground) {
+                        releasePlayer()
+                        val owner = BackgroundPlayback(context.applicationContext, model, video, null, wantedPlaying) {}
+                        PlaybackSessionService.holdBackground(context.applicationContext, owner)
+                    }
                 }
                 else -> Unit
             }
         }
         lifecycle.addObserver(observer)
-        createPlayer()
-        onDispose { lifecycle.removeObserver(observer); background?.stop(); releasePlayer() }
+        onDispose { lifecycle.removeObserver(observer); releasePlayer() }
     }
 
     // Updating speed must preserve the current source, position and pause intent.

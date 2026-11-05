@@ -583,13 +583,13 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         releaseVideo(previous)
     }
 
-    fun onPlayerForeground(active: Boolean) {
+    fun onPlayerForeground(active: Boolean, keepPreparing: Boolean = false) {
         if (active && !playerForeground) prefetchAttemptedFor = -1
         playerForeground = active
         if (!active) {
             state.value.video?.let { accounts.flushProgress(accountPlaybacks[it.requestId]?.owner) }
             takePrefetch(null)
-            if (state.value.playerOpen && state.value.preparing) {
+            if (!keepPreparing && state.value.playerOpen && state.value.preparing) {
                 ++mediaVersion
                 mediaJob?.cancel()
                 resumePreparationOnForeground = true
