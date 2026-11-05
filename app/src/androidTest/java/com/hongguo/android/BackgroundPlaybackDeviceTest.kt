@@ -274,6 +274,10 @@ class BackgroundPlaybackDeviceTest {
             assertTrue("The third episode must play while screen is off", position(third) > thirdStart + 1_000)
             assertEquals("History must follow actual background playback", 3,
                 model.state.value.history.firstOrNull { it.card.id == "7696083096164125721" }?.episodeIndex)
+            val detail = requireNotNull(model.state.value.detail)
+            val savedSecond = activity.getSharedPreferences(ThemePreferences.FILE, 0)
+                .getLong("${detail.id}.${detail.episodes[1].id}.position", -1)
+            assertEquals("A completed background episode must reopen at the beginning", 0L, savedSecond)
             val request = model.state.value.video?.requestId
             automation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
             automation.executeShellCommand("wm dismiss-keyguard").close()
