@@ -141,6 +141,28 @@ class BackgroundPlaybackDeviceTest {
         }
     }
 
+    @Test fun homeContinueRestoresEpisodeAndPosition() {
+        val model = startVideo()
+        val originalStyle = model.state.value.themeStyle
+        val episodeId = requireNotNull(model.state.value.video).episodeId
+        try {
+            compose.runOnIdle {
+                model.setThemeStyle(AppThemeStyle.WARM)
+                requireNotNull(findPlayer(compose.activity.window.decorView)).seekTo(8_000)
+            }
+            compose.waitUntil(30_000) { model.state.value.history.firstOrNull()?.positionMs?.let { it >= 7_000 } == true }
+            compose.runOnIdle { model.closePlayer(); model.backToSearch(); model.selectTab(AppTab.HOME) }
+            compose.onNodeWithTag("home_continue_play").performClick()
+            compose.waitUntil(120_000) { model.state.value.video != null &&
+                (model.state.value.firstFrameRendered || model.state.value.playbackError != null) }
+            assertNull(model.state.value.playbackError)
+            assertEquals("Continue must restore the saved episode", episodeId, model.state.value.video?.episodeId)
+            assertTrue("Continue must restore the saved position", model.state.value.resumePositionMs >= 7_000)
+        } finally {
+            compose.runOnIdle { model.setThemeStyle(originalStyle) }
+        }
+    }
+
     @Test fun backgroundContinuesAfterActivityRecreation() {
         val model = startVideo()
         compose.activityRule.scenario.recreate()
