@@ -88,6 +88,41 @@ class BackgroundPlaybackDeviceTest {
         return value
     }
 
+    @Test fun backgroundContinuesWhenActivityIsRecreated() {
+        val model = startVideo()
+        val activity = compose.activity
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        try {
+            automation.executeShellCommand("input keyevent KEYCODE_HOME").close()
+            compose.waitUntil(10_000) { activity.isInPictureInPictureMode }
+            automation.executeShellCommand("input keyevent KEYCODE_SLEEP").close()
+            Thread.sleep(1_000)
+            assertTrue(activity.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
+            compose.activityRule.scenario.recreate()
+            var player: Player? = null
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { player = PlaybackSessionService.activePlayer }
+            val active = requireNotNull(player) { "Recreating the activity must not release background playback" }
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { active.seekTo(active.duration - 1_000) }
+            val deadline = System.currentTimeMillis() + 90_000
+            while (System.currentTimeMillis() < deadline && (model.state.value.episodePosition < 1 || model.state.value.video == null))
+                Thread.sleep(300)
+            assertEquals("Playback must advance after activity recreation", 1, model.state.value.episodePosition)
+            var next: Player? = null
+            while (System.currentTimeMillis() < deadline && (next == null || next === active)) {
+                InstrumentationRegistry.getInstrumentation().runOnMainSync { next = PlaybackSessionService.activePlayer }
+                Thread.sleep(300)
+            }
+            val nextPlayer = requireNotNull(next)
+            assertNotSame(active, nextPlayer)
+            val start = position(nextPlayer)
+            Thread.sleep(4_000)
+            assertTrue("The next episode must keep playing", position(nextPlayer) > start + 1_000)
+        } finally {
+            automation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
+            automation.executeShellCommand("wm dismiss-keyguard").close()
+        }
+    }
+
     @Test fun pictureInPictureAndScreenOffContinuePlayback() {
         val model = startVideo()
         val activity = compose.activity
