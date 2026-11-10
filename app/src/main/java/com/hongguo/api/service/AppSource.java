@@ -192,16 +192,37 @@ public final class AppSource {
         // ---- 2. 片源模型：新版直接内联 video_list，旧版跟随 fallback_api 二次请求 ----
         List<Object> inlineList = Json.optArr(model.get("video_list"));
         boolean inline = !inlineList.isEmpty();
-        Map<String, Object> info;
+        String fallback = parseFallback(model.get("fallback_api"));
         if (inline) {
-            info = model;
-        } else {
-            info = readFallback(parseFallback(model.get("fallback_api")));
+            try { return selectTrack(model, quality, true); }
+            catch (ByteVc2Only e) {
+                Map<String, Object> info = readFallback(fallback);
+                confirmSameVideo(model, info);
+                return fallbackTrack(info, fallback, quality);
+            }
         }
-        if (info == null || info.isEmpty()) {
-            throw new IllegalStateException("App 接口未返回本集片源模型");
+        return fallbackTrack(readFallback(fallback), fallback, quality);
+    }
+
+    private static Stream.VideoTrack fallbackTrack(Map<String, Object> info, String fallback, String quality)
+            throws Exception {
+        if (info == null || info.isEmpty()) throw new IllegalStateException("App 接口未返回本集片源模型");
+        try { return selectTrack(info, quality, false); }
+        catch (ByteVc2Only original) {
+            for (String query : new String[]{"codec_type=1", "codec_type=0&force_codec=h264"}) {
+                try {
+                    Map<String, Object> other = readFallback(compatibleFallback(fallback, query));
+                    if (other == null) continue;
+                    confirmSameVideo(info, other);
+                    return selectTrack(other, quality, false);
+                } catch (java.io.InterruptedIOException e) { throw e; }
+                catch (Exception e) {
+                    if (Thread.currentThread().isInterrupted()) throw e;
+                    original.addSuppressed(e);
+                }
+            }
+            throw original;
         }
-        return selectTrack(info, quality, inline);
     }
 
     private static Stream.VideoTrack selectTrack(Map<String, Object> info, String quality, boolean inline)
@@ -537,7 +558,9 @@ public final class AppSource {
         if (Json.optInt(outer.get("Code"), 0) != 0 || Json.optInt(outer.get("code"), 0) != 0
                 || Json.optInt(outerInfo == null ? null : outerInfo.get("Code"), 0) != 0)
             throw new IllegalStateException("App 接口暂未提供本集播放信息");
-        return outerInfo == null ? null : Json.optObj(outerInfo.get("data"));
+        Map<String, Object> info = outerInfo == null ? null : Json.optObj(outerInfo.get("data"));
+        if (info == null || info.isEmpty()) throw new IllegalStateException("App 接口未返回本集片源模型");
+        return info;
     }
 
     /** fallback_api 的普通 GET：不带签名，只带 UA（与原实现一致）。 */
