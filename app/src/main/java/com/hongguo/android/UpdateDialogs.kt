@@ -88,22 +88,24 @@ internal fun UpdateDialogs(state: UpdateUiState, model: UpdateViewModel, activit
 
                 Column(Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = contentHeight).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("更新线路", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Ink)
-                    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                        listOf(listOf(UpdateSource.AUTO, UpdateSource.DIRECT),
-                            listOf(UpdateSource.PROXY_PRIMARY, UpdateSource.PROXY_BACKUP)).forEach { row ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                row.forEach { source ->
-                                    FilterChip(selected = state.source == source, enabled = !state.downloading,
-                                        onClick = { model.selectSource(source) },
-                                        label = { Text(source.label, fontSize = 12.sp) },
-                                        modifier = Modifier.weight(1f).testTag("update_source_${source.name.lowercase(Locale.ROOT)}"))
+                    if (state.sourceConfigured) {
+                        Text("更新线路", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+                        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                            listOf(listOf(UpdateSource.AUTO, UpdateSource.DIRECT),
+                                listOf(UpdateSource.PROXY_PRIMARY, UpdateSource.PROXY_BACKUP)).forEach { row ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    row.forEach { source ->
+                                        FilterChip(selected = state.source == source, enabled = !state.downloading,
+                                            onClick = { model.selectSource(source) },
+                                            label = { Text(source.label, fontSize = 12.sp) },
+                                            modifier = Modifier.weight(1f).testTag("update_source_${source.name.lowercase(Locale.ROOT)}"))
+                                    }
                                 }
                             }
                         }
+                        Text(if (state.source == UpdateSource.AUTO) "直连失败时自动尝试两条加速线路。" else "连接不畅时，可切换其他线路后重试。",
+                            color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
                     }
-                    Text(if (state.source == UpdateSource.AUTO) "直连失败时自动尝试两条加速线路。" else "连接不畅时，可切换其他线路后重试。",
-                        color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
                     state.activeSource?.let { Text("当前线路：${it.label}", color = AccentInk, fontSize = 12.sp) }
                     if (state.checking) {
                         Row(Modifier.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
