@@ -62,6 +62,7 @@ class UpdateSourceUiTest {
     @get:Rule val rules: TestRule = RuleChain.outerRule(preferenceGuard).around(compose)
 
     @Test fun proxySelectionPersistsAndBothPublicManifestRoutesWork() {
+        org.junit.Assume.assumeTrue("本地版暂未配置更新源", BuildConfig.LOCAL_UPDATE_ENABLED)
         lateinit var model: UpdateViewModel
         compose.runOnIdle { model = ViewModelProvider(compose.activity)[UpdateViewModel::class.java] }
         try {

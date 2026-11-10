@@ -13,7 +13,26 @@ import org.junit.runner.RunWith
 /** Public production constructor only; no remote response or APK download is needed. */
 @RunWith(AndroidJUnit4::class)
 class StartupUpdateWiringTest {
+    @Test fun localBuildShowsThatUpdatesAreNotConfigured() {
+        org.junit.Assume.assumeFalse("仅验证未配置更新源的本地版", BuildConfig.LOCAL_UPDATE_ENABLED)
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val application = instrumentation.targetContext.applicationContext as Application
+        instrumentation.runOnMainSync {
+            val store = ViewModelStore()
+            try {
+                val model = ViewModelProvider(store, ViewModelProvider.AndroidViewModelFactory(application))[UpdateViewModel::class.java]
+                assertFalse(model.state.value.sourceConfigured)
+                assertFalse(model.state.value.checking)
+                model.checkForUpdates()
+                assertTrue(model.state.value.visible)
+                assertFalse(model.state.value.checking)
+                assertTrue(model.state.value.status.contains("暂未配置"))
+            } finally { store.clear() }
+        }
+    }
+
     @Test fun publicFactoryStartsOnceDespiteRecentAttemptAndRespectsTheDisabledPreference() {
+        org.junit.Assume.assumeTrue("本地版暂未配置更新源", BuildConfig.LOCAL_UPDATE_ENABLED)
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val application = instrumentation.targetContext.applicationContext as Application
         val preferences = application.getSharedPreferences("app_updates", Context.MODE_PRIVATE)

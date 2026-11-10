@@ -39,10 +39,10 @@ class MyPageFlowTest {
             compose.onNodeWithTag("my_settings").performScrollTo().performClick()
             compose.onNodeWithTag("settings_autoplay").performScrollTo().performClick()
             compose.onNodeWithTag("settings_preload").performScrollTo().performClick()
-            compose.onNodeWithTag("settings_auto_update").performScrollTo().performClick()
+            if (updater.state.value.sourceConfigured) compose.onNodeWithTag("settings_auto_update").performScrollTo().performClick()
             assertEquals(!originalAutoplay, model.state.value.autoPlayNext)
             assertEquals(!originalPreload, model.state.value.preloadNext)
-            assertEquals(!originalAutomatic, updater.state.value.automaticChecksEnabled)
+            assertEquals(if (updater.state.value.sourceConfigured) !originalAutomatic else false, updater.state.value.automaticChecksEnabled)
             val app = compose.activity.application
             assertTrue(app.getSharedPreferences("hongguo_local", 0).edit().commit())
             assertTrue(app.getSharedPreferences("app_updates", 0).edit().commit())
@@ -54,7 +54,7 @@ class MyPageFlowTest {
                     val freshUpdater = ViewModelProvider(store, factory)[UpdateViewModel::class.java]
                     assertEquals(!originalAutoplay, fresh.state.value.autoPlayNext)
                     assertEquals(!originalPreload, fresh.state.value.preloadNext)
-                    assertEquals(!originalAutomatic, freshUpdater.state.value.automaticChecksEnabled)
+                    assertEquals(if (freshUpdater.state.value.sourceConfigured) !originalAutomatic else false, freshUpdater.state.value.automaticChecksEnabled)
                 }
             } finally { compose.runOnIdle { store.clear() } }
             compose.onNodeWithTag("settings_back").performScrollTo().performClick()
