@@ -113,6 +113,20 @@ public final class AppSource {
                 if (Thread.currentThread().isInterrupted()) throw alternate;
                 primary.addSuppressed(alternate);
             }
+            try {
+                PlaybackDevice.Identity fresh = PlaybackDevice.fresh();
+                try {
+                    Map<String, Object> tab = playbackTab.get(vid, fresh);
+                    if (tab != null) return parseModel(vid, tab, quality);
+                } catch (Exception alternate) {
+                    if (Thread.currentThread().isInterrupted()) throw alternate;
+                    primary.addSuppressed(alternate);
+                }
+                return fetchSigned(vid, quality, fresh);
+            } catch (Exception retry) {
+                if (Thread.currentThread().isInterrupted()) throw retry;
+                primary.addSuppressed(retry);
+            }
             throw primary;
         }
     }

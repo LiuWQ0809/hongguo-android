@@ -108,6 +108,25 @@ public class PlaybackSourceTest {
         assertNotNull(request.headers.get("x-medusa"));
     }
 
+    @Test public void retriesWithFreshIdentityWhenFirstPlaybackRoutesFail() throws Exception {
+        String vid = "7600000000000000001";
+        AtomicInteger registrations = new AtomicInteger();
+        PlaybackDevice.resetForTest((url, headers, body) -> { registrations.incrementAndGet(); return okReply(); });
+        List<PlaybackDevice.Identity> attempts = new ArrayList<>();
+        AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new IOException("temporary"); });
+        Map<String, Object> model = Json.obj();
+        List<Object> list = Json.arr();
+        list.add(item("h264", 720, 1280, "https://v1.qznovelvod.com/test.mp4", VALID_SPADE));
+        model.put("video_list", list);
+        AppSource.setPlaybackTabForTest((episode, identity) -> {
+            attempts.add(identity);
+            return attempts.size() == 1 ? null : response(episode, model);
+        });
+        assertEquals("https://v1.qznovelvod.com/test.mp4", AppSource.fetch(vid, "auto").url);
+        assertEquals(2, registrations.get());
+        assertNotSame(attempts.get(0), attempts.get(1));
+    }
+
     @Test public void byteVc2RejectsFallbackFromDifferentVideo() throws Exception {
         String vid = "7600000000000000001";
         Map<String, Object> model = Json.obj();
