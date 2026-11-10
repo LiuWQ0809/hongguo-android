@@ -187,22 +187,16 @@ public final class AppSource {
         if (inline) {
             info = model;
         } else {
-            String fallback = parseFallback(model.get("fallback_api"));
-            if (fallback == null || fallback.isEmpty()) {
-                throw new IllegalStateException("App 接口未返回本集片源地址");
-            }
-            Map<String, Object> outer = getPlain(checkedUrl(fallback, API_DOMAINS));
-            Map<String, Object> outerInfo = Json.optObj(outer.get("video_info"));
-            if (Json.optInt(outer.get("Code"), 0) != 0
-                    || Json.optInt(outer.get("code"), 0) != 0
-                    || Json.optInt(outerInfo == null ? null : outerInfo.get("Code"), 0) != 0) {
-                throw new IllegalStateException("App 接口暂未提供本集播放信息");
-            }
-            info = outerInfo == null ? null : Json.optObj(outerInfo.get("data"));
+            info = readFallback(parseFallback(model.get("fallback_api")));
         }
         if (info == null || info.isEmpty()) {
             throw new IllegalStateException("App 接口未返回本集片源模型");
         }
+        return selectTrack(info, quality, inline);
+    }
+
+    private static Stream.VideoTrack selectTrack(Map<String, Object> info, String quality, boolean inline)
+            throws Exception {
         // video_list 可能是对象 map（fallback 模型），也可能是数组（内联模型）
         List<Object> videoItems = new ArrayList<>();
         Object rawList = info.get("video_list");
@@ -491,6 +485,17 @@ public final class AppSource {
             throw new IllegalStateException("App 接口未返回播放数据");
         }
         return j;
+    }
+
+    private static Map<String, Object> readFallback(String fallback) throws Exception {
+        if (fallback == null || fallback.isEmpty())
+            throw new IllegalStateException("App 接口未返回本集片源地址");
+        Map<String, Object> outer = getPlain(checkedUrl(fallback, API_DOMAINS));
+        Map<String, Object> outerInfo = Json.optObj(outer.get("video_info"));
+        if (Json.optInt(outer.get("Code"), 0) != 0 || Json.optInt(outer.get("code"), 0) != 0
+                || Json.optInt(outerInfo == null ? null : outerInfo.get("Code"), 0) != 0)
+            throw new IllegalStateException("App 接口暂未提供本集播放信息");
+        return outerInfo == null ? null : Json.optObj(outerInfo.get("data"));
     }
 
     /** fallback_api 的普通 GET：不带签名，只带 UA（与原实现一致）。 */
