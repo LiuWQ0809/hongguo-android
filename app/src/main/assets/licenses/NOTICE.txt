@@ -54,3 +54,6 @@ https://github.com/jackotom/hongguo-drama/tree/93e694e3f4ab71b83b58846f702581911
 
 The video_tab playback model was adapted from OOIUa/hongguo-android v0.7.12 (GPL-3.0-only), commit 8f7184574925; its upstream reference is tsukiyo-zero/hongguoTV (GPL-3.0-only):
 https://github.com/OOIUa/hongguo-android/commit/8f7184574925
+
+Selected playback compatibility updates: OOIUa/hongguo-android v0.7.25, GPL-3.0-only.
+https://github.com/OOIUa/hongguo-android/releases/tag/v0.7.25

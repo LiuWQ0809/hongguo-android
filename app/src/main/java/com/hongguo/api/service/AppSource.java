@@ -220,6 +220,7 @@ public final class AppSource {
 
     private static Stream.VideoTrack fallbackTrack(Map<String, Object> info, String fallback, String quality)
             throws Exception {
+        // 参考 OOIUa/hongguo-android v0.7.25：兼容编码只用于同一分集的备用片源。
         if (info == null || info.isEmpty()) throw new IllegalStateException("App 接口未返回本集片源模型");
         try { return selectTrack(info, quality, false); }
         catch (ByteVc2Only original) {

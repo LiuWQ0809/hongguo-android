@@ -64,6 +64,8 @@ https://github.com/jackotom/hongguo-drama/tree/93e694e3f4ab71b83b58846f702581911
 The video_tab playback model was adapted from OOIUa/hongguo-android v0.7.12, GPL-3.0-only, commit `8f7184574925`, whose upstream reference is tsukiyo-zero/hongguoTV (GPL-3.0-only): https://github.com/OOIUa/hongguo-android/commit/8f7184574925
 Local integration retains signed playback as the first choice, then uses video_tab as a fallback.
 
+Selected playback identity, signed GET and ByteVC2 compatibility behavior in the local 0.7.12-local.6 build are adapted from OOIUa/hongguo-android v0.7.25 (GPL-3.0-only): https://github.com/OOIUa/hongguo-android/releases/tag/v0.7.25
+
 ## 猜你喜欢 (0.7.10)
 
 `app/src/main/java/com/hongguo/account/protocol/GuessFeed.kt` (request parameters, card parsing) is adapted from tsukiyo-zero/hongguoTV, commit `97c5b1d15dc2233e53f6152918c7e3cc3bbebb84` (2026-10-30), GPL-3.0-only — `kotlin-tv/core/.../RecommendationFeed.kt`, whose endpoint path and card shape reference Xanerix/guoapp `native/core/provider_hongguo_recommendations.go`.
