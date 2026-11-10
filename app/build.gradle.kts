@@ -20,6 +20,7 @@ android {
         versionName = providers.gradleProperty("appVersionName").orElse("0.7.12-local.5").get()
         buildConfigField("String", "UPDATE_REPOSITORY", "\"OOIUa/hongguo-android\"")
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://github.com/OOIUa/hongguo-android/releases/latest/download/update.json\"")
+        buildConfigField("boolean", "LOCAL_UPDATE_ENABLED", "false")
         testInstrumentationRunner = "com.hongguo.android.HongguoTestRunner"
     }
     signingConfigs {

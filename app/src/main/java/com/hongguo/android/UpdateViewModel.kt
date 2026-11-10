@@ -32,6 +32,7 @@ data class UpdateUiState(
     val source: UpdateSource = UpdateSource.AUTO,
     val activeSource: UpdateSource? = null,
     val automaticChecksEnabled: Boolean = true,
+    val sourceConfigured: Boolean = true,
 )
 
 class UpdateViewModel internal constructor(
@@ -40,6 +41,7 @@ class UpdateViewModel internal constructor(
     private val checkManifest: suspend (UpdateSource, (UpdateSource) -> Unit) -> AppUpdate,
     private val installedVersionCode: Long = BuildConfig.VERSION_CODE.toLong(),
     private val deviceSdk: Int = Build.VERSION.SDK_INT,
+    private val sourceConfigured: Boolean = true,
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(
         application,
@@ -47,12 +49,14 @@ class UpdateViewModel internal constructor(
         { source, onSource ->
             UpdateRepository().check(BuildConfig.UPDATE_MANIFEST_URL, BuildConfig.UPDATE_REPOSITORY, source, onSource)
         },
+        sourceConfigured = BuildConfig.LOCAL_UPDATE_ENABLED,
     )
 
     private val installer = UpdateInstaller(application)
     private val mutableState = MutableStateFlow(UpdateUiState(source = runCatching {
         UpdateSource.valueOf(preferences.getString("source", UpdateSource.AUTO.name).orEmpty())
-    }.getOrDefault(UpdateSource.AUTO), automaticChecksEnabled = preferences.getBoolean("automatic_checks", true)))
+    }.getOrDefault(UpdateSource.AUTO), sourceConfigured = sourceConfigured,
+        automaticChecksEnabled = sourceConfigured && preferences.getBoolean("automatic_checks", true)))
     val state = mutableState.asStateFlow()
     private var checkingJob: Job? = null
     private var downloadJob: Job? = null
@@ -69,6 +73,7 @@ class UpdateViewModel internal constructor(
     }
 
     fun setAutomaticChecksEnabled(enabled: Boolean) {
+        if (!sourceConfigured) return
         preferences.edit().putBoolean("automatic_checks", enabled).apply()
         if (!enabled && !state.value.visible && state.value.checking) {
             ++checkVersion
@@ -87,6 +92,7 @@ class UpdateViewModel internal constructor(
     }
 
     fun selectSource(source: UpdateSource) {
+        if (!sourceConfigured) return
         if (state.value.downloading || installJob?.isActive == true || source == state.value.source) return
         val recheck = state.value.checking || state.value.update == null
         ++checkVersion
@@ -98,6 +104,10 @@ class UpdateViewModel internal constructor(
     }
 
     private fun check(manual: Boolean) {
+        if (!sourceConfigured) {
+            if (manual) mutableState.update { it.copy(visible = true, status = "本地版本暂未配置同签名更新源") }
+            return
+        }
         if (state.value.checking) {
             // A manual tap makes the already-running startup request visible. Do not cancel
             // and race another identical request, or lose the manual result behind a silent one.
