@@ -435,11 +435,10 @@ public final class AppSource {
 
     private static Map<String, Object> getTabModel(String vid, PlaybackDevice.Identity identity) throws IOException {
         if (Thread.currentThread().isInterrupted()) throw new java.io.InterruptedIOException("播放请求已取消");
-        Http.Req req = new Http.Req(tabUrl(identity, vid, System.currentTimeMillis()))
-                .method("GET").timeout(15000);
+        SignedPlaybackRequest signed = signedTabRequest(vid, identity, System.currentTimeMillis());
+        Http.Req req = new Http.Req(signed.url).method("GET").timeout(8000);
         req.followRedirect = false;
-        req.header("User-Agent", PLAYBACK_UA);
-        req.header("Accept", "application/json; charset=utf-8");
+        for (Map.Entry<String, String> entry : signed.headers.entrySet()) req.header(entry.getKey(), entry.getValue());
         try {
             Http.Resp res = Http.send(req);
             return res.status == 200 ? parseTabResponse(vid, res.text()) : null;
@@ -465,6 +464,25 @@ public final class AppSource {
             this.url = url;
             this.headers = headers;
         }
+    }
+
+    static SignedPlaybackRequest signedTabRequest(String vid, PlaybackDevice.Identity identity, long now) {
+        long timestamp = now / 1000L;
+        for (int i = 0; i < 128; i++) {
+            long ticket = now + i;
+            String url = tabUrl(identity, vid, ticket);
+            if (PureSign.branchOf(url, null, timestamp) != 0) continue;
+            Map<String, String> headers = new LinkedHashMap<>();
+            headers.put("User-Agent", PLAYBACK_UA);
+            headers.put("Accept", "application/json; charset=utf-8,application/x-protobuf");
+            headers.put("x-ss-req-ticket", String.valueOf(ticket));
+            headers.put("sdk-version", "2");
+            headers.put("x-xs-from-web", "0");
+            headers.putAll(PureSign.sign(url, null, timestamp));
+            if (!identity.cookie.isEmpty()) headers.put("Cookie", identity.cookie);
+            return new SignedPlaybackRequest(url, headers);
+        }
+        throw new IllegalStateException("无法生成播放请求签名");
     }
 
     /** 按同一个时间戳、URL 和 body 生成完整签名；只使用上游可接受的分支。 */
