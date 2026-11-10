@@ -1,8 +1,13 @@
+import java.security.KeyStore
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+val localSigningFingerprint = "2eb75370e7dee27afc7297eb7c3ef2ddbef0e37144780414825b5f11421dcb13"
 
 android {
     namespace = "com.hongguo.android"
@@ -17,9 +22,15 @@ android {
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://github.com/OOIUa/hongguo-android/releases/latest/download/update.json\"")
         testInstrumentationRunner = "com.hongguo.android.HongguoTestRunner"
     }
+    signingConfigs {
+        getByName("debug") {
+            providers.gradleProperty("localSigningStore").orNull?.let { storeFile = file(it) }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -32,6 +43,23 @@ android {
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
     testOptions { unitTests.isReturnDefaultValues = true }
 }
+
+val verifyLocalSigning by tasks.registering {
+    doLast {
+        val config = android.signingConfigs.getByName("debug")
+        val store = config.storeFile ?: error("原签名密钥不存在，已停止构建；请找回原密钥")
+        check(store.isFile) { "原签名密钥不存在，已停止构建；请找回原密钥" }
+        val keyStore = KeyStore.getInstance("JKS")
+        store.inputStream().use { keyStore.load(it, config.storePassword?.toCharArray()) }
+        val certificate = keyStore.getCertificate(config.keyAlias)
+            ?: error("原签名证书不存在，已停止构建")
+        val digest = MessageDigest.getInstance("SHA-256").digest(certificate.encoded)
+            .joinToString("") { "%02x".format(it) }
+        check(digest == localSigningFingerprint) { "签名与已发布版本不一致，已停止构建" }
+    }
+}
+
+tasks.named("preBuild") { dependsOn(verifyLocalSigning) }
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
