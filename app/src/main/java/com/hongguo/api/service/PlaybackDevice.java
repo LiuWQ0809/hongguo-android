@@ -16,6 +16,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -85,11 +87,17 @@ public final class PlaybackDevice {
         public final String deviceId;
         public final String iid;
         public final String cdid;
+        public final String cookie;
 
         Identity(String deviceId, String iid, String cdid) {
+            this(deviceId, iid, cdid, "");
+        }
+
+        Identity(String deviceId, String iid, String cdid, String cookie) {
             this.deviceId = deviceId;
             this.iid = iid;
             this.cdid = cdid;
+            this.cookie = cookie;
         }
 
         @Override
@@ -109,10 +117,16 @@ public final class PlaybackDevice {
     static final class Reply {
         final int status;
         final String text;
+        final List<String> setCookies;
 
         Reply(int status, String text) {
+            this(status, text, Collections.emptyList());
+        }
+
+        Reply(int status, String text, List<String> setCookies) {
             this.status = status;
             this.text = text;
+            this.setCookies = setCookies;
         }
     }
 
