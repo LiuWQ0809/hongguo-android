@@ -55,12 +55,46 @@ public class PlaybackSourceTest {
         PlaybackDevice.resetForTest(null);
         AppSource.setPlaybackPostForTest(null);
         AppSource.setPlaybackTabForTest((vid, identity) -> null);
+        AppSource.setPlaybackFallbackForTest(null);
     }
 
     @After public void restore() {
         PlaybackDevice.resetForTest(null);
         AppSource.setPlaybackPostForTest(null);
         AppSource.setPlaybackTabForTest(null);
+        AppSource.setPlaybackFallbackForTest(null);
+    }
+
+    @Test public void byteVc2FallsBackToSameVideoWithCompatibleCodec() throws Exception {
+        String vid = "7600000000000000001";
+        Map<String, Object> model = Json.obj();
+        model.put("video_id", "same-video");
+        model.put("video_duration", 60);
+        model.put("fallback_api", "https://vod.snssdk.com/path?sig=a%2Bb&codec_type=4");
+        List<Object> inline = Json.arr();
+        inline.add(item("bytevc2", 720, 1280, "https://v1.qznovelvod.com/old.mp4", null));
+        model.put("video_list", inline);
+        List<String> urls = new ArrayList<>();
+        AppSource.setPlaybackFallbackForTest(url -> {
+            urls.add(url);
+            return codecReply(url.endsWith("codec_type=1") ? "h265" : "bytevc2", "same-video");
+        });
+        assertEquals("https://v1.qznovelvod.com/h265.mp4", AppSource.parseModel(vid, response(vid, model), "auto").url);
+        assertEquals(2, urls.size());
+        assertEquals("https://vod.snssdk.com/path?sig=a%2Bb&codec_type=1", urls.get(1));
+    }
+
+    private static Map<String, Object> codecReply(String codec, String videoId) {
+        Map<String, Object> track = item(codec, 720, 1280, "https://v1.qznovelvod.com/" + codec + ".mp4", null);
+        Map<String, Object> list = Json.obj();
+        list.put("video_1", track);
+        Map<String, Object> data = Json.obj();
+        data.put("video_id", videoId); data.put("video_duration", 60); data.put("video_list", list);
+        Map<String, Object> info = Json.obj();
+        info.put("data", data);
+        Map<String, Object> outer = Json.obj();
+        outer.put("video_info", info);
+        return outer;
     }
 
     // ==================== ttEncrypt 注册请求体 ====================
