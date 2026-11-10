@@ -502,6 +502,33 @@ public final class AppSource {
         return j;
     }
 
+    /** 保留原始签名参数，只替换编码请求。 */
+    static String compatibleFallback(String fallback, String codecQuery) {
+        String url = cleanUrl(fallback);
+        int q = url.indexOf('?');
+        StringBuilder out = new StringBuilder(q < 0 ? url : url.substring(0, q)).append('?');
+        if (q >= 0) for (String part : url.substring(q + 1).split("&")) {
+            String name = part.split("=", 2)[0];
+            if (!part.isEmpty() && !name.equals("codec_type") && !name.equals("force_codec")) out.append(part).append('&');
+        }
+        return out.append(codecQuery).toString();
+    }
+
+    private static void confirmSameVideo(Map<String, Object> reference, Map<String, Object> other) {
+        String id = Json.optStr(reference.get("video_id"), "").trim();
+        String otherId = Json.optStr(other.get("video_id"), "").trim();
+        double duration = seconds(reference.get("video_duration"));
+        double otherDuration = seconds(other.get("video_duration"));
+        if ((!id.isEmpty() && !otherId.isEmpty() && !id.equals(otherId))
+                || (duration > 0 && otherDuration > 0 && Math.abs(duration - otherDuration) > 0.5))
+            throw new IllegalStateException("备用片源编号或完整时长无法确认");
+    }
+
+    private static double seconds(Object value) {
+        try { return value == null ? 0 : Double.parseDouble(value.toString().trim()); }
+        catch (NumberFormatException e) { return 0; }
+    }
+
     private static Map<String, Object> readFallback(String fallback) throws Exception {
         if (fallback == null || fallback.isEmpty())
             throw new IllegalStateException("App 接口未返回本集片源地址");
