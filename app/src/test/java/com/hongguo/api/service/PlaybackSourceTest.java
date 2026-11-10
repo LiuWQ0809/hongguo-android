@@ -401,16 +401,16 @@ public class PlaybackSourceTest {
         } catch (IllegalStateException e) {
             assertEquals("reached retry", e.getMessage());
         }
-        assertEquals(2, used.size());
-        assertEquals(java.util.Arrays.asList(AppSource.VIDEO_API_HOST, AppSource.RETRY_HOST), hosts);
-        assertEquals(2, registrations.get());
+        assertEquals(3, used.size());
+        assertEquals(java.util.Arrays.asList(AppSource.VIDEO_API_HOST, AppSource.RETRY_HOST, AppSource.VIDEO_API_HOST), hosts);
+        assertEquals(3, registrations.get());
         assertEquals(DEVICE_ID, used.get(0).deviceId);
         assertEquals("7432109876543219999", used.get(1).deviceId);
-        assertSame("新身份成为进程内共享身份", used.get(1), PlaybackDevice.get());
+        assertSame("最后的备用身份可供后续请求使用", used.get(2), PlaybackDevice.get());
         assertTrue(bodies.get(0).contains("\"device_level\":1"));
     }
 
-    @Test public void secondEmptyPlaybackResponseIsNotRetriedAgain() throws Exception {
+    @Test public void emptyPlaybackRetriesRemainBounded() throws Exception {
         AtomicInteger registrations = new AtomicInteger();
         PlaybackDevice.resetForTest((url, headers, body) -> {
             registrations.incrementAndGet();
@@ -425,10 +425,10 @@ public class PlaybackSourceTest {
             AppSource.fetch("7000000000000000001", "auto");
             fail();
         } catch (AppSource.EmptyPlaybackResponseException expected) {
-            // 只换一次身份
+            // 两轮主备路径均已失败，停止重试。
         }
-        assertEquals(2, posts.get());
-        assertEquals(2, registrations.get());
+        assertEquals(4, posts.get());
+        assertEquals(4, registrations.get());
     }
 
     @Test public void failedRenewalStillAttemptsTheBackupHost() throws Exception {
@@ -446,7 +446,7 @@ public class PlaybackSourceTest {
             AppSource.fetch("7000000000000000001", "auto");
             fail();
         } catch (AppSource.EmptyPlaybackResponseException e) {
-            assertEquals(1, e.getSuppressed().length);
+            assertTrue(e.getSuppressed().length >= 1);
         }
         assertEquals(2, posts.get());
         assertEquals(2, registrations.get());

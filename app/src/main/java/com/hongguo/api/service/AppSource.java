@@ -210,6 +210,7 @@ public final class AppSource {
         if (inline) {
             try { return selectTrack(model, quality, true); }
             catch (ByteVc2Only e) {
+                if (fallback == null || fallback.isEmpty()) throw e;
                 Map<String, Object> info = readFallback(fallback);
                 confirmSameVideo(model, info);
                 return fallbackTrack(info, fallback, quality);
