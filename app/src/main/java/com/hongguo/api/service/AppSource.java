@@ -160,6 +160,15 @@ public final class AppSource {
     interface PlaybackTab { Map<String, Object> get(String vid, PlaybackDevice.Identity identity) throws Exception; }
     private static PlaybackTab playbackTab = AppSource::getTabModel;
     static void setPlaybackTabForTest(PlaybackTab tab) { playbackTab = tab == null ? AppSource::getTabModel : tab; }
+    interface PlaybackFallback { Map<String, Object> get(String url) throws Exception; }
+    private static PlaybackFallback playbackFallback = AppSource::getPlain;
+    static void setPlaybackFallbackForTest(PlaybackFallback fallback) {
+        playbackFallback = fallback == null ? AppSource::getPlain : fallback;
+    }
+
+    private static final class ByteVc2Only extends IllegalStateException {
+        ByteVc2Only() { super("本集仅提供播放器不支持的 ByteVC2 编码，当前无法播放"); }
+    }
 
     /**
      * 从播放接口响应解析出可播放轨道（包内可见，便于用离线响应做 JVM 测试）。
@@ -236,6 +245,12 @@ public final class AppSource {
                     ? a.shortSide - b.shortSide : a.codecRank - b.codecRank);
         }
         if (ok.isEmpty()) {
+            boolean compatible = false, byteVc2 = false;
+            for (Row row : rows) {
+                compatible |= row.codecRank < 2;
+                byteVc2 |= row.codec.equals("bytevc2") || row.codec.equals("bvc2");
+            }
+            if (!compatible && byteVc2) throw new ByteVc2Only();
             throw new IllegalStateException("本集暂未提供兼容的 H.264/HEVC 片源");
         }
 
@@ -490,7 +505,7 @@ public final class AppSource {
     private static Map<String, Object> readFallback(String fallback) throws Exception {
         if (fallback == null || fallback.isEmpty())
             throw new IllegalStateException("App 接口未返回本集片源地址");
-        Map<String, Object> outer = getPlain(checkedUrl(fallback, API_DOMAINS));
+        Map<String, Object> outer = playbackFallback.get(checkedUrl(fallback, API_DOMAINS));
         Map<String, Object> outerInfo = Json.optObj(outer.get("video_info"));
         if (Json.optInt(outer.get("Code"), 0) != 0 || Json.optInt(outer.get("code"), 0) != 0
                 || Json.optInt(outerInfo == null ? null : outerInfo.get("Code"), 0) != 0)
