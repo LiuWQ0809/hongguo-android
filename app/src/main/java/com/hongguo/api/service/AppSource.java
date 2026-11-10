@@ -230,7 +230,8 @@ public final class AppSource {
                     if (other == null) continue;
                     confirmSameVideo(info, other);
                     return selectTrack(other, quality, false);
-                } catch (java.io.InterruptedIOException e) { throw e; }
+                } catch (java.net.SocketTimeoutException e) { original.addSuppressed(e); }
+                catch (java.io.InterruptedIOException e) { throw e; }
                 catch (Exception e) {
                     if (Thread.currentThread().isInterrupted()) throw e;
                     original.addSuppressed(e);

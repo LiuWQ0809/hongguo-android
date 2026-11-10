@@ -140,6 +140,17 @@ public class PlaybackSourceTest {
         catch (IllegalStateException expected) { assertTrue(expected.getMessage().contains("编号")); }
     }
 
+    @Test public void compatibleCodecTimeoutStillTriesNextCodec() throws Exception {
+        String vid = "7600000000000000001";
+        Map<String, Object> model = Json.obj();
+        model.put("fallback_api", "https://vod.snssdk.com/path?codec_type=4");
+        AppSource.setPlaybackFallbackForTest(url -> {
+            if (url.endsWith("codec_type=1")) throw new java.net.SocketTimeoutException("timeout");
+            return codecReply(url.contains("force_codec=h264") ? "h264" : "bytevc2", "same-video");
+        });
+        assertEquals("https://v1.qznovelvod.com/h264.mp4", AppSource.parseModel(vid, response(vid, model), "auto").url);
+    }
+
     // ==================== ttEncrypt 注册请求体 ====================
 
     @Test public void registrationBodyDecryptsToGzipPayloadWithDigest() throws Exception {
