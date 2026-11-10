@@ -63,6 +63,25 @@ class StartupUpdateCheckTest {
                       check: suspend (UpdateSource, (UpdateSource) -> Unit) -> AppUpdate): UpdateViewModel =
         provider(preferences, check)[UpdateViewModel::class.java]
 
+    @Test fun unconfiguredLocalSourceNeverQueriesThirdPartyReleases() = runTest {
+        val preferences = MemoryPreferences()
+        preferences.edit().putBoolean("automatic_checks", true).apply()
+        var calls = 0
+        val model = UpdateViewModel(TestApplication(), preferences, { _, _ -> calls++; update() },
+            installedVersion, 36, sourceConfigured = false)
+        runCurrent()
+        assertEquals(0, calls)
+        assertFalse(model.state.value.automaticChecksEnabled)
+        model.setAutomaticChecksEnabled(true)
+        model.checkForUpdates()
+        model.selectSource(UpdateSource.DIRECT)
+        runCurrent()
+        assertEquals(0, calls)
+        assertTrue(model.state.value.visible)
+        assertTrue(model.state.value.status.contains("尚未配置") || model.state.value.status.contains("暂未配置"))
+        assertTrue("原有用户设置应保留供未来恢复", preferences.getBoolean("automatic_checks", false))
+    }
+
     @Test fun everyColdStartCanFindAReleasePublishedAfterAnEarlierCheckOnTheSameDay() = runTest {
         val preferences = MemoryPreferences()
         preferences.edit().putLong("last_attempt", System.currentTimeMillis()).apply()
