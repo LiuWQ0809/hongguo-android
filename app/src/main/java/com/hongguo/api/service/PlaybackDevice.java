@@ -198,7 +198,27 @@ public final class PlaybackDevice {
         } catch (Exception e) {
             throw new IOException("register response is not JSON");
         }
-        return parse(j, cdid);
+        Identity parsed = parse(j, cdid);
+        return new Identity(parsed.deviceId, parsed.iid, parsed.cdid, cookieHeader(res.setCookies));
+    }
+
+    /** 只保留匿名注册所需字段，不引入账号 Cookie。 */
+    static String cookieHeader(List<String> values) {
+        Map<String, String> kept = new java.util.LinkedHashMap<>();
+        List<String> allowed = Arrays.asList("install_id", "ttreq", "store-region", "store-region-src");
+        for (String line : values) {
+            String pair = line == null ? "" : line.split(";", 2)[0].trim();
+            int eq = pair.indexOf('=');
+            if (eq <= 0 || eq == pair.length() - 1 || pair.indexOf('\r') >= 0 || pair.indexOf('\n') >= 0) continue;
+            String name = pair.substring(0, eq);
+            if (allowed.contains(name)) kept.put(name, pair.substring(eq + 1));
+        }
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, String> entry : kept.entrySet()) {
+            if (out.length() > 0) out.append("; ");
+            out.append(entry.getKey()).append('=').append(entry.getValue());
+        }
+        return out.toString();
     }
 
     // ==================== 请求构造 ====================
@@ -350,7 +370,11 @@ public final class PlaybackDevice {
         for (Map.Entry<String, String> e : headers.entrySet()) req.header(e.getKey(), e.getValue());
         req.body(body);
         Http.Resp res = Http.send(req);
-        return new Reply(res.status, res.text());
+        List<String> cookies = new java.util.ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : res.headers.entrySet()) {
+            if ("Set-Cookie".equalsIgnoreCase(entry.getKey()) && entry.getValue() != null) cookies.addAll(entry.getValue());
+        }
+        return new Reply(res.status, res.text(), cookies);
     }
 
     private static byte[] gzip(byte[] data) throws IOException {
