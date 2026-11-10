@@ -101,7 +101,7 @@ public final class AppSource {
             throw new IllegalArgumentException("分集编号无效");
         }
 
-        PlaybackDevice.Identity identity = PlaybackDevice.get();
+        PlaybackDevice.Identity identity = PlaybackDevice.fresh();
         try {
             return fetchSigned(vid, quality, identity);
         } catch (Exception primary) {
@@ -387,6 +387,9 @@ public final class AppSource {
         q.put("device_id", identity.deviceId);
         q.put("iid", identity.iid);
         q.put("cdid", identity.cdid);
+        for (String name : new String[]{"version_code", "manifest_version_code", "update_version_code", "pv_player"})
+            q.put(name, "73932");
+        q.put("version_name", "7.3.9.32");
         if (timestamp != null) q.put("ts", String.valueOf(timestamp));
         q.put("_rticket", String.valueOf(rticket));
         StringBuilder qs = new StringBuilder();
@@ -485,6 +488,8 @@ public final class AppSource {
             headers.put("x-tt-dt", "");
             headers.put("x-tt-store-region", "cn");
             headers.put("x-tt-store-region-src", "did");
+            headers.put("x-ss-stub", Crypto.md5HexUpper(body));
+            if (!identity.cookie.isEmpty()) headers.put("Cookie", identity.cookie);
             return new SignedPlaybackRequest(url, headers);
         }
         throw new IllegalStateException("无法生成播放请求签名");
