@@ -97,6 +97,30 @@ public class PlaybackSourceTest {
         return outer;
     }
 
+    @Test public void signedTabUsesFinalUrlAndAnonymousCookieOnly() {
+        String cookie = PlaybackDevice.cookieHeader(Arrays.asList("install_id=1; Path=/", "sessionid=private; Path=/", "ttreq=ok; Secure"));
+        assertEquals("install_id=1; ttreq=ok", cookie);
+        PlaybackDevice.Identity id = new PlaybackDevice.Identity(DEVICE_ID, INSTALL_ID, "cdid", cookie);
+        long now = 1_793_000_000_123L;
+        AppSource.SignedPlaybackRequest request = AppSource.signedTabRequest("7600000000000000001", id, now);
+        assertEquals(cookie, request.headers.get("Cookie"));
+        assertEquals(0, com.hongguo.api.core.PureSign.branchOf(request.url, null, now / 1000));
+        assertNotNull(request.headers.get("x-medusa"));
+    }
+
+    @Test public void byteVc2RejectsFallbackFromDifferentVideo() throws Exception {
+        String vid = "7600000000000000001";
+        Map<String, Object> model = Json.obj();
+        model.put("video_id", "original");
+        model.put("fallback_api", "https://vod.snssdk.com/path?codec_type=4");
+        List<Object> inline = Json.arr();
+        inline.add(item("bytevc2", 720, 1280, "https://v1.qznovelvod.com/old.mp4", null));
+        model.put("video_list", inline);
+        AppSource.setPlaybackFallbackForTest(url -> codecReply("h265", "different-video"));
+        try { AppSource.parseModel(vid, response(vid, model), "auto"); fail("不得播放其他分集"); }
+        catch (IllegalStateException expected) { assertTrue(expected.getMessage().contains("编号")); }
+    }
+
     // ==================== ttEncrypt 注册请求体 ====================
 
     @Test public void registrationBodyDecryptsToGzipPayloadWithDigest() throws Exception {
