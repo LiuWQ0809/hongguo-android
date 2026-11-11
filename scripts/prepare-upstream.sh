@@ -26,4 +26,7 @@ if (( lines > 40 )); then echo '上游改动超过单次自动整合上限，需
 git diff --binary "$base" "$latest" -- "${paths[@]}" > "$output/upstream.patch"
 git apply --3way --index "$output/upstream.patch"
 printf '%s\n' "$latest" > .github/upstream-base.txt
+python3 scripts/bump-local-version.py
+git add .github/upstream-base.txt app/build.gradle.kts
+git diff --cached --binary > "$output/candidate.patch"
 echo 'true' > "$output/changed"
