@@ -118,4 +118,25 @@ public final class PlayerSign {
         }
         return data;
     }
+
+    static String argus(String query, byte[] body, long timestamp, String deviceId, byte[] nonce) {
+        try {
+            byte[] key = Crypto.unhex("ac1adaae95a7af94a5114ab3b3a97dd80050aa0a39314c40528caec95256c28c");
+            byte[] xor = Crypto.unhex("d04ffdffd04ffdff");
+            byte[] data = argusTransform(argusMessage(query, body, timestamp, deviceId, nonce), key);
+            for (int i = 0; i < data.length; i++) data[i] ^= xor[i % xor.length];
+            data = join(xor, data);
+            for (int left = 0, right = data.length - 1; left < right; left++, right--) {
+                byte swap = data[left]; data[left] = data[right]; data[right] = swap;
+            }
+            byte[] container = pad(join(Crypto.unhex("a6e783ee7001100918"), data, Crypto.unhex("567b")));
+            javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AES/CBC/NoPadding");
+            cipher.init(javax.crypto.Cipher.ENCRYPT_MODE,
+                    new javax.crypto.spec.SecretKeySpec(Crypto.md5(Arrays.copyOfRange(key, 0, 16)), "AES"),
+                    new javax.crypto.spec.IvParameterSpec(Crypto.md5(Arrays.copyOfRange(key, 16, 32))));
+            return java.util.Base64.getEncoder().encodeToString(join(Crypto.unhex("3ccc"), cipher.doFinal(container)));
+        } catch (java.security.GeneralSecurityException error) {
+            throw new IllegalStateException("无法生成播放器签名", error);
+        }
+    }
 }
