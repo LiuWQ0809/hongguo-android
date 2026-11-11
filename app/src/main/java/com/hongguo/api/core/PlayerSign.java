@@ -36,4 +36,21 @@ public final class PlayerSign {
         return result;
     }
     private static ByteBuffer little(byte[] data) { return ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN); }
+
+    static String gorgon(String query, byte[] body, long timestamp) {
+        byte[] data = new byte[20];
+        System.arraycopy(Crypto.md5(utf8(query)), 0, data, 0, 4);
+        if (body != null) System.arraycopy(Crypto.md5(body), 0, data, 4, 4);
+        System.arraycopy(new byte[]{0, 6, 11, 28}, 0, data, 12, 4);
+        ByteBuffer.wrap(data, 16, 4).putInt((int) timestamp);
+        byte[] key = Crypto.unhex("44b9b9d9a4aef9fca493aa757ca3c2c4a496938f");
+        for (int i = 0; i < data.length; i++) data[i] ^= key[i];
+        for (int i = 0; i < data.length; i++) {
+            int current = data[i] & 255;
+            int mixed = ((current << 4) | (current >>> 4)) & 255;
+            mixed ^= data[(i + 1) % data.length] & 255;
+            data[i] = (byte) ((Integer.reverse(mixed) >>> 24) ^ 255 ^ data.length);
+        }
+        return Crypto.hex(join(Crypto.unhex("8404401c0000"), data));
+    }
 }
