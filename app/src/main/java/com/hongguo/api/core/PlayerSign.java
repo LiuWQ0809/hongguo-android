@@ -79,4 +79,19 @@ public final class PlayerSign {
         }
         return java.util.Base64.getEncoder().encodeToString(join(prefix, data));
     }
+
+    private static byte[] argusMessage(String query, byte[] body, long timestamp, String deviceId, byte[] nonce) {
+        byte[] bodyHash = Sm3.hash(body == null ? new byte[16] : Crypto.md5(body));
+        byte[] queryHash = Sm3.hash(utf8(query));
+        byte[] counters = join(number(1, 1), number(2, 1), number(3, 1), number(7, 3348294860L));
+        byte[] environment = join(text(1, "25053RT47C"), text(2, "16"), text(3, "update_64"),
+                number(4, 2147483648L));
+        return join(number(1, 0x20200929L * 2), number(2, 2),
+                number(3, little(nonce).getInt(6) & 0x7fffffffL), text(4, "8662"), text(5, deviceId),
+                text(6, "1611921764"), text(7, "7.3.5.32"), text(8, "v04.07.01-ml-android"),
+                number(9, 135135744), field(10, new byte[8]), number(11, 0), number(12, timestamp * 2),
+                field(13, Arrays.copyOf(bodyHash, 6)), field(14, Arrays.copyOf(queryHash, 6)),
+                field(15, counters), field(16, new byte[0]), text(20, "none"), number(21, 738),
+                field(23, environment), number(25, 2));
+    }
 }
