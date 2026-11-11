@@ -54,3 +54,32 @@ jobs:
             --out "$RUNNER_TEMP/hongguo.apk" "$RUNNER_TEMP/unsigned/app-release-unsigned.apk"
           "$signer" verify --print-certs "$RUNNER_TEMP/hongguo.apk" | grep -Fq \
             'Signer #1 certificate SHA-256 digest: 2eb75370e7dee27afc7297eb7c3ef2ddbef0e37144780414825b5f11421dcb13'
+      - name: 发布安装包和更新清单
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$GH_REPO" = 'LiuWQ0809/hongguo-android'
+          aapt="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          badging=$("$aapt" dump badging "$RUNNER_TEMP/hongguo.apk")
+          package=$(printf '%s\n' "$badging" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+          code=$(printf '%s\n' "$badging" | sed -n "s/^package: .*versionCode='\([^']*\)'.*/\1/p")
+          version=$(printf '%s\n' "$badging" | sed -n "s/^package: .*versionName='\([^']*\)'.*/\1/p")
+          sdk=$(printf '%s\n' "$badging" | sed -n "s/^sdkVersion:'\([^']*\)'.*/\1/p")
+          test "$package" = 'com.hongguo.android' && [[ "$code" =~ ^[0-9]+$ ]]
+          [[ "$version" =~ ^[0-9A-Za-z][0-9A-Za-z.-]*$ ]] && [[ "$sdk" =~ ^[0-9]+$ ]]
+          tag="v$version"
+          apk="hongguo-android-$version.apk"
+          mv "$RUNNER_TEMP/hongguo.apk" "$RUNNER_TEMP/$apk"
+          sha=$(sha256sum "$RUNNER_TEMP/$apk" | cut -d' ' -f1)
+          size=$(stat -c '%s' "$RUNNER_TEMP/$apk")
+          previous=$(gh release list --limit 1 --json tagName --jq '.[0].tagName // ""')
+          if [[ -n "$previous" ]]; then
+            mkdir -p "$RUNNER_TEMP/previous"
+            gh release download "$previous" --pattern update.json --dir "$RUNNER_TEMP/previous"
+            python3 -c 'import json,sys; assert int(sys.argv[2]) > json.load(open(sys.argv[1]))["versionCode"], "versionCode 必须递增"' "$RUNNER_TEMP/previous/update.json" "$code"
+          fi
+          python3 -c 'import json,sys; r,t,a,c,v,s,n,p=sys.argv[1:]; d={"schemaVersion":1,"applicationId":"com.hongguo.android","versionCode":int(c),"versionName":v,"apkUrl":f"https://github.com/{r}/releases/download/{t}/{a}","sha256":s,"sizeBytes":int(n),"minSdk":int(p),"notes":"本地同签名版本更新"}; json.dump(d,open("update.json","w"),ensure_ascii=False,indent=2)' "$GH_REPO" "$tag" "$apk" "$code" "$version" "$sha" "$size" "$sdk"
+          gh release create "$tag" "$RUNNER_TEMP/$apk" update.json --title "$version" --notes '本地同签名版本更新。' --latest
