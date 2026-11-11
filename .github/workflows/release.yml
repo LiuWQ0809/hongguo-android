@@ -1,8 +1,6 @@
 name: 构建并发布同签名版本
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '47 */4 * * *'
 permissions:
   contents: read
 concurrency:
