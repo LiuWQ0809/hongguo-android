@@ -1,5 +1,6 @@
 package com.hongguo.android
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.app.PictureInPictureParams
 import android.content.pm.PackageManager
@@ -61,6 +62,7 @@ import com.hongguo.account.AccountViewModel
 
 class MainActivity : ComponentActivity() {
     internal val playbackModel: HongguoViewModel get() = (application as HongguoApplication).playbackModel
+    private var updateRequest by mutableStateOf(0)
     private var pipMode by mutableStateOf(false)
     private var pipAllowed = false
 
@@ -85,6 +87,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent?.action == UpdateNotifications.ACTION_CHECK) updateRequest++
         applyThemeWindow(storedThemeStyle().palette())
         setContent {
             val model = remember { playbackModel }
@@ -99,6 +102,7 @@ class MainActivity : ComponentActivity() {
                 val accountState by accountModel.state.collectAsStateWithLifecycle()
                 val updateModel: UpdateViewModel = viewModel()
                 val updateState by updateModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(updateRequest) { if (updateRequest > 0) updateModel.checkForUpdates() }
                 BackHandler(enabled = state.playerOpen || state.selectedCard != null || state.tab != AppTab.HOME) {
                     when {
                         state.playerOpen -> model.closePlayer()
@@ -244,6 +248,12 @@ class MainActivity : ComponentActivity() {
                 UpdateDialogs(updateState, updateModel, this@MainActivity, deferred = state.themeOnboardingPending)
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.action == UpdateNotifications.ACTION_CHECK) updateRequest++
     }
 }
 
