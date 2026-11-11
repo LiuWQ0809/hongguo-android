@@ -467,6 +467,25 @@ public final class AppSource {
         return result;
     }
 
+    /** 单集接口将模型放在 data.video_model；不使用其他分集的结果。 */
+    static Map<String, Object> parseSingleResponse(String vid, String text) {
+        Map<String, Object> root = parsePlaybackResponse(text);
+        Object code = root.containsKey("code") ? root.get("code") : root.get("Code");
+        if (code == null || Json.optInt(code, -1) != 0) throw new IllegalStateException("单集接口暂未提供播放信息");
+        Map<String, Object> data = Json.optObj(root.get("data"));
+        Object raw = data == null ? null : data.get("video_model");
+        if (raw instanceof String && !((String) raw).trim().startsWith("{")) {
+            try { raw = new String(Crypto.base64Decode((String) raw), StandardCharsets.UTF_8); }
+            catch (Exception ignored) { throw new IllegalStateException("单集播放信息格式无效"); }
+        }
+        Map<String, Object> model = asObject(raw);
+        if (model.isEmpty()) throw new IllegalStateException("单集接口未返回播放模型");
+        Map<String, Object> entry = Json.obj(); entry.put("video_model", model);
+        Map<String, Object> episodes = Json.obj(); episodes.put(vid, entry);
+        Map<String, Object> result = Json.obj(); result.put("code", 0L); result.put("data", episodes);
+        return result;
+    }
+
     private static Map<String, Object> getTabModel(String vid, PlaybackDevice.Identity identity) throws IOException {
         if (Thread.currentThread().isInterrupted()) throw new java.io.InterruptedIOException("播放请求已取消");
         SignedPlaybackRequest signed = signedTabRequest(vid, identity, System.currentTimeMillis());
