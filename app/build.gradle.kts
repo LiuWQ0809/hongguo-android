@@ -63,7 +63,7 @@ val verifyLocalSigning by tasks.registering {
 }
 
 tasks.named("preBuild") { if (!ciUnsigned) dependsOn(verifyLocalSigning) }
-if (ciUnsigned) tasks.matching { it.name.startsWith("packageDebug") }.configureEach {
+if (ciUnsigned) tasks.matching { it.name in setOf("packageDebug", "packageDebugBundle", "packageDebugAndroidTest") }.configureEach {
     doFirst { error("无签名验证模式不能生成 debug 安装包") }
 }
 
