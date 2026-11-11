@@ -351,6 +351,17 @@ public class PlaybackSourceTest {
         assertNull(AppSource.parseTabResponse(vid, ""));
     }
 
+    @Test public void singlePlaybackSucceedsWithoutCallingLegacyPaths() throws Exception {
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        AtomicInteger legacy = new AtomicInteger();
+        Stream.VideoTrack track = new Stream.VideoTrack();
+        track.url = "https://v1.qznovelvod.com/single.mp4";
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> track);
+        AppSource.setPlaybackPostForTest((body, identity, host) -> { legacy.incrementAndGet(); throw new IOException(); });
+        assertSame(track, AppSource.fetch("7600000000000000001", "auto"));
+        assertEquals(0, legacy.get());
+    }
+
     @Test public void tabFallbackRunsOnlyAfterSignedPlaybackFails() throws Exception {
         String vid = "7600000000000000001";
         PlaybackDevice.resetForTest((url, headers, body) -> okReply());
