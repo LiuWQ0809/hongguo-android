@@ -8,6 +8,7 @@ plugins {
 }
 
 val localSigningFingerprint = "2eb75370e7dee27afc7297eb7c3ef2ddbef0e37144780414825b5f11421dcb13"
+val ciUnsigned = providers.gradleProperty("ciUnsigned").map { it.toBooleanStrict() }.orElse(false).get()
 
 android {
     namespace = "com.hongguo.android"
@@ -16,11 +17,11 @@ android {
         applicationId = "com.hongguo.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = providers.gradleProperty("appVersionCode").orElse("37").get().toInt()
-        versionName = providers.gradleProperty("appVersionName").orElse("0.7.12-local.6").get()
-        buildConfigField("String", "UPDATE_REPOSITORY", "\"OOIUa/hongguo-android\"")
-        buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://github.com/OOIUa/hongguo-android/releases/latest/download/update.json\"")
-        buildConfigField("boolean", "LOCAL_UPDATE_ENABLED", "false")
+        versionCode = providers.gradleProperty("appVersionCode").orElse("38").get().toInt()
+        versionName = providers.gradleProperty("appVersionName").orElse("0.7.12-local.7").get()
+        buildConfigField("String", "UPDATE_REPOSITORY", "\"LiuWQ0809/hongguo-android\"")
+        buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://github.com/LiuWQ0809/hongguo-android/releases/latest/download/update.json\"")
+        buildConfigField("boolean", "LOCAL_UPDATE_ENABLED", "true")
         testInstrumentationRunner = "com.hongguo.android.HongguoTestRunner"
     }
     signingConfigs {
@@ -29,9 +30,10 @@ android {
         }
     }
     buildTypes {
+        debug { if (ciUnsigned) signingConfig = null }
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            if (!ciUnsigned) signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -60,7 +62,10 @@ val verifyLocalSigning by tasks.registering {
     }
 }
 
-tasks.named("preBuild") { dependsOn(verifyLocalSigning) }
+tasks.named("preBuild") { if (!ciUnsigned) dependsOn(verifyLocalSigning) }
+if (ciUnsigned) tasks.matching { it.name.startsWith("packageDebug") }.configureEach {
+    doFirst { error("无签名验证模式不能生成 debug 安装包") }
+}
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
