@@ -1,13 +1,39 @@
 name: 构建并发布同签名版本
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '47 */4 * * *'
 permissions:
   contents: read
 concurrency:
   group: hongguo-release
   cancel-in-progress: false
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.check.outputs.needed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: 检查是否存在待发布版本
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          code=$(sed -n 's/.*versionCode = .*orElse("\([0-9]*\)").*/\1/p' app/build.gradle.kts)
+          [[ "$code" =~ ^[0-9]+$ ]]
+          previous=$(gh release list --limit 1 --json tagName --jq '.[0].tagName // ""')
+          if [[ -z "$previous" ]]; then echo 'needed=true' >> "$GITHUB_OUTPUT"; exit 0; fi
+          mkdir -p "$RUNNER_TEMP/previous"
+          gh release download "$previous" --pattern update.json --dir "$RUNNER_TEMP/previous"
+          python3 -c 'import json,sys; n=int(sys.argv[2]); p=json.load(open(sys.argv[1]))["versionCode"]; assert n>=p,"禁止降级"; print("needed=" + str(n>p).lower())' "$RUNNER_TEMP/previous/update.json" "$code" >> "$GITHUB_OUTPUT"
   build:
+    needs: gate
+    if: needs.gate.outputs.needed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
