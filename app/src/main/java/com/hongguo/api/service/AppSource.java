@@ -2,6 +2,7 @@ package com.hongguo.api.service;
 
 import com.hongguo.api.core.Spade;
 import com.hongguo.api.core.PureSign;
+import com.hongguo.api.core.PlayerSign;
 import com.hongguo.api.util.Crypto;
 import com.hongguo.api.util.Http;
 import com.hongguo.api.util.Json;
@@ -499,6 +500,28 @@ public final class AppSource {
             if (Thread.currentThread().isInterrupted()) throw e;
             return null;
         }
+    }
+
+    private static Stream.VideoTrack fetchSingle(String vid, String quality, PlaybackDevice.Identity identity)
+            throws Exception {
+        Map<String, Object> biz = Json.obj();
+        biz.put("need_all_video_definition", true); biz.put("video_platform", 3);
+        Map<String, Object> payload = Json.obj();
+        payload.put("video_id", vid); payload.put("content_type", 1); payload.put("biz_param", biz);
+        byte[] body = Json.stringify(payload).getBytes(StandardCharsets.UTF_8);
+        long now = System.currentTimeMillis();
+        String url = singleUrl(identity, now);
+        Http.Req request = new Http.Req(url).method("POST").timeout(15000);
+        request.followRedirect = false;
+        request.header("User-Agent", VIDEO_UA.replace("71332", "73532"));
+        request.header("Accept", "application/json");
+        request.header("Content-Type", "application/json; charset=utf-8");
+        request.header("x-xs-from-web", "0"); request.header("sdk-version", "2");
+        for (Map.Entry<String, String> header : PlayerSign.headers(URI.create(url).getRawQuery(), body, now, identity.deviceId).entrySet())
+            request.header(header.getKey(), header.getValue());
+        Http.Resp response = Http.send(request.body(body));
+        if (response.status != 200) throw new IllegalStateException("单集接口 HTTP " + response.status);
+        return parseModel(vid, parseSingleResponse(vid, response.text()), quality);
     }
 
     /** 播放请求的基础请求头，签名字段由 signedPlaybackRequest 添加。 */
