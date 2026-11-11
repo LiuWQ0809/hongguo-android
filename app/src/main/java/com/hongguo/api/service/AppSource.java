@@ -218,8 +218,9 @@ public final class AppSource {
         }
 
         // ---- 2. 片源模型：新版直接内联 video_list，旧版跟随 fallback_api 二次请求 ----
-        List<Object> inlineList = Json.optArr(model.get("video_list"));
-        boolean inline = !inlineList.isEmpty();
+        Object videoList = model.get("video_list");
+        boolean inline = videoList instanceof List && !((List<?>) videoList).isEmpty()
+                || videoList instanceof Map && !((Map<?, ?>) videoList).isEmpty();
         String fallback = parseFallback(model.get("fallback_api"));
         if (inline) {
             try { return selectTrack(model, quality, true); }

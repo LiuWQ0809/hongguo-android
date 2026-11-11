@@ -351,6 +351,14 @@ public class PlaybackSourceTest {
         assertNull(AppSource.parseTabResponse(vid, ""));
     }
 
+    @Test public void inlineMapDoesNotRequireFallbackUrl() throws Exception {
+        String vid = "7600000000000000001";
+        Map<String, Object> list = Json.obj();
+        list.put("video_1", item("h264", 720, 1280, "https://v1.qznovelvod.com/test.mp4", VALID_SPADE));
+        Map<String, Object> model = Json.obj(); model.put("video_list", list);
+        assertEquals("https://v1.qznovelvod.com/test.mp4", AppSource.parseModel(vid, response(vid, model), "auto").url);
+    }
+
     @Test public void singlePlaybackSucceedsWithoutCallingLegacyPaths() throws Exception {
         PlaybackDevice.resetForTest((url, headers, body) -> okReply());
         AtomicInteger legacy = new AtomicInteger();
