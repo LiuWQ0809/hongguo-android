@@ -88,6 +88,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           test "$GH_REPO" = 'LiuWQ0809/hongguo-android'
@@ -111,4 +112,6 @@ jobs:
             python3 -c 'import json,sys; assert int(sys.argv[2]) > json.load(open(sys.argv[1]))["versionCode"], "versionCode 必须递增"' "$RUNNER_TEMP/previous/update.json" "$code"
           fi
           python3 -c 'import json,sys; r,t,a,c,v,s,n,p=sys.argv[1:]; d={"schemaVersion":1,"applicationId":"com.hongguo.android","versionCode":int(c),"versionName":v,"apkUrl":f"https://github.com/{r}/releases/download/{t}/{a}","sha256":s,"sizeBytes":int(n),"minSdk":int(p),"notes":"本地同签名版本更新"}; json.dump(d,open("update.json","w"),ensure_ascii=False,indent=2)' "$GH_REPO" "$tag" "$apk" "$code" "$version" "$sha" "$size" "$sdk"
-          gh release create "$tag" "$RUNNER_TEMP/$apk" update.json --title "$version" --notes '本地同签名版本更新。' --latest
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          gh release create "$tag" "$RUNNER_TEMP/$apk" update.json --target "$SOURCE_SHA" \
+            --title "$version" --notes "本地同签名版本更新。源码提交：$SOURCE_SHA" --latest
