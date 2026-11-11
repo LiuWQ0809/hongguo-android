@@ -23,11 +23,14 @@ class BackgroundUpdateNotificationDeviceTest {
         val app = compose.activity.application
         val preferences = app.getSharedPreferences("app_updates", Context.MODE_PRIVATE)
         val oldAutomatic = preferences.getBoolean("automatic_checks", true)
+        val oldSource = preferences.getString("source", null)
         val hadNotified = preferences.contains("notified_version")
         val oldNotified = preferences.getLong("notified_version", 0)
         val manager = app.getSystemService(NotificationManager::class.java)
         try {
-            preferences.edit().putBoolean("automatic_checks", true).remove("notified_version").commit()
+            manager.cancel(UpdateNotifications.NOTIFICATION_ID)
+            preferences.edit().putBoolean("automatic_checks", true).putString("source", UpdateSource.PROXY_PRIMARY.name)
+                .remove("notified_version").commit()
             UpdateSchedule.sync(app, true)
             assertNotNull(app.getSystemService(JobScheduler::class.java).getPendingJob(UpdateSchedule.JOB_ID))
             val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
@@ -41,6 +44,7 @@ class BackgroundUpdateNotificationDeviceTest {
         } finally {
             manager.cancel(UpdateNotifications.NOTIFICATION_ID)
             val edit = preferences.edit().putBoolean("automatic_checks", oldAutomatic)
+            if (oldSource == null) edit.remove("source") else edit.putString("source", oldSource)
             if (hadNotified) edit.putLong("notified_version", oldNotified) else edit.remove("notified_version")
             edit.commit()
             UpdateSchedule.sync(app, oldAutomatic)

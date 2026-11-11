@@ -2,6 +2,7 @@ package com.hongguo.android
 
 import android.app.job.JobInfo
 import android.app.job.JobScheduler
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import java.util.concurrent.TimeUnit
@@ -13,6 +14,7 @@ internal object UpdateSchedule {
         val scheduler = context.getSystemService(JobScheduler::class.java)
         if (!enabled || !BuildConfig.LOCAL_UPDATE_ENABLED) {
             scheduler.cancel(JOB_ID)
+            context.getSystemService(NotificationManager::class.java).cancel(UpdateNotifications.NOTIFICATION_ID)
             return
         }
         if (scheduler.getPendingJob(JOB_ID) != null) return
