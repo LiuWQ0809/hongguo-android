@@ -389,6 +389,23 @@ public final class AppSource {
         return d;
     }
 
+    /** 单集接口使用 7.3.5.32 播放器身份，查询串按最终发送顺序签名。 */
+    static String singleUrl(PlaybackDevice.Identity identity, long now) {
+        Map<String, Object> q = new java.util.TreeMap<>(deviceBase());
+        for (String name : new String[]{"host_abi", "dragon_device_type", "pv_player", "compliance_status",
+                "need_personal_recommend", "player_so_load", "is_android_pad_screen"}) q.remove(name);
+        for (String name : new String[]{"version_code", "manifest_version_code", "update_version_code"})
+            q.put(name, "73532");
+        q.put("version_name", "7.3.5.32");
+        q.put("device_id", identity.deviceId); q.put("iid", identity.iid); q.put("_rticket", now);
+        StringBuilder query = new StringBuilder();
+        for (Map.Entry<String, Object> entry : q.entrySet()) {
+            if (query.length() > 0) query.append('&');
+            query.append(Http.urlencode(entry.getKey())).append('=').append(Http.urlencode(String.valueOf(entry.getValue())));
+        }
+        return "https://" + VIDEO_API_HOST + "/novel/player/video_model/v1/?" + query;
+    }
+
     /**
      * 播放请求 URL：基础参数后依次追加注册身份的 device_id / iid / cdid 与 _rticket。
      *
