@@ -45,3 +45,33 @@ jobs:
           name: upstream-candidate
           path: ${{ runner.temp }}/update/candidate.patch
           if-no-files-found: error
+  apply:
+    needs: prepare
+    if: needs.prepare.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: upstream-candidate
+          path: ${{ runner.temp }}/update
+      - name: 校验并提交已测试候选
+        env:
+          UPSTREAM_TAG: ${{ needs.prepare.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git show HEAD:scripts/check-staged-update.py > "$RUNNER_TEMP/check-staged-update.py"
+          git apply --index "$RUNNER_TEMP/update/candidate.patch"
+          python3 "$RUNNER_TEMP/check-staged-update.py" "$UPSTREAM_TAG"
+          git diff --cached --numstat
+          git config user.name '红果自动更新'
+          git config user.email 'liuwanqiang0809@163.com'
+          git commit -m "自动同步上游版本 $UPSTREAM_TAG"
+          git push origin HEAD:main
+          gh workflow run release.yml --ref main
