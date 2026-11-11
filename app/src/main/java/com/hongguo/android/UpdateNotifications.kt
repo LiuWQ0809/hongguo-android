@@ -17,6 +17,7 @@ internal object UpdateNotifications {
     private const val CHANNEL = "app_updates"
 
     fun post(context: Context, update: AppUpdate): Boolean {
+        if (update.versionCode <= BuildConfig.VERSION_CODE) return false
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED) return false
         val preferences = context.getSharedPreferences("app_updates", Context.MODE_PRIVATE)
