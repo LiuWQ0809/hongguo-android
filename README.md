@@ -4,30 +4,28 @@
 
 # 红果独立版
 
-本地适配版：已同步上游 v0.7.12 的原生取流备用接口和备用线路，保留完整签名主线路，并补充搜索分季和详情页相关作品。此版本使用本机测试签名，不能覆盖原作者签名的安装包。
+个人维护版：基于上游，保留后台连播优化，并选择性合入 v0.7.25 播放修复。此版本使用独立签名，不能覆盖上游作者签名的安装包。
 
 **在手机上发现好剧，随时接着看。**
 
 基于 Kotlin、Jetpack Compose 与 Media3 构建的原生 Android 短剧客户端。<br>请求、媒体处理、缓存与播放均在本机完成，无需部署服务器或配置 API key。
 
-[![Release](https://img.shields.io/github/v/release/OOIUa/hongguo-android?label=Release&color=F15A2B)](https://github.com/OOIUa/hongguo-android/releases/latest) [![Android](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)](#下载与安装) [![UI](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4)](#功能一览) [![License](https://img.shields.io/badge/License-GPL--3.0--only-blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/LiuWQ0809/hongguo-android?label=Release&color=F15A2B)](https://github.com/LiuWQ0809/hongguo-android/releases/latest) [![Android](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)](#下载与安装) [![UI](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4)](#功能一览) [![License](https://img.shields.io/badge/License-GPL--3.0--only-blue)](LICENSE)
 
-[**下载 APK**](https://github.com/OOIUa/hongguo-android/releases/latest) · [界面预览](#界面预览) · [使用说明](#快速上手) · [源码构建](#源码构建) · [反馈问题](https://github.com/OOIUa/hongguo-android/issues)
+[**下载 APK**](https://github.com/LiuWQ0809/hongguo-android/releases/latest) · [界面预览](#界面预览) · [使用说明](#快速上手) · [源码构建](#源码构建) · [上游项目](https://github.com/OOIUa/hongguo-android)
 
 </div>
 
 ## 下载与安装
 
-当前发布版本：**v0.7.11**（versionCode 22）· Android **8.0 / API 26** 及以上。
+当前本地版本：**0.7.12-local.7**（versionCode 38）· Android **8.0 / API 26** 及以上。
 
 本版沉浸暗场首页改为抖音式刷剧：停在哪一部就直接播放它的第 1 集，点画面暂停或继续，按住左侧临时 2 倍速（带震动反馈），点「立即播放」从试看位置接着看；第 1 集看完后按钮变为「继续播放」直接看第 2 集。首页「推荐」改为进入应用后的第一个标签（原热度列表改名「热度」），沉浸暗场去掉了页码。完整播放器长按 2 倍速也增加了震动反馈。0.7.10 起首页新增「猜你喜欢」（现名「推荐」）：读取红果 App 书城的猜你喜欢推荐流，未登录时为匿名推荐，登录红果账号后携带本人账号身份请求，登录、退出或切换账号后自动刷新；本应用不上报浏览或点击行为，结果是否与官方 App 完全一致仍需本人核对。同时同步上游播放修复：播放请求改用 device_level=1，避免部分剧集只剩无法解码的 1080P；播放接口返回空响应时自动换一个匿名播放设备重试一次。0.7.9 起账号头像与昵称的获取规则与 iOS 端一致：优先使用红果 App 账号资料中的昵称和头像，缺少时改用官网账号的昵称（screen_name 等）与头像，头像只加载 HTTPS 图片；「我的」与账号页显示头像，官网已登录但云账号未接通时也显示官网昵称和头像。同时修复底栏按住拖动无法切到「我的」的问题（从设置等页面回到「我的」后再拖回「我的」不生效）。0.7.8 起底栏支持按住左右拖动切换（仿 iOS：悬浮玻璃的选中胶囊跟随手指放大，经过每个 Tab 轻微震动，松手弹到目标 Tab，快速一甩多走一格；经典底栏同样可拖动）；「设置」与「主题样式」改为独立页面，切换 Tab 后再回到「我的」不再停留在设置页；沉浸暗场的首页推荐流和详情封面延伸到透明状态栏下方；顶部标签点击时不再闪现白色底色。0.7.7 起换用简约版红果图标（自适应启动图标，Android 13 起支持主题图标），首页标题旁同步使用新 logo；并补齐过渡动画：播放页上下滑动切集时当前画面随手指滑走、下一集带集数滑入，自动连播与选集跳转也以滑动切换，画面首帧淡入；进入详情、搜索与账号页从右侧滑入，返回时滑出，底栏切换淡入淡出，播放器打开时上滑出现、关闭时淡出。0.7.6 起播放页不再在视频后方显示半透明剧集封面，加载和切集时为纯黑背景；并新增「我的 › 设置 › 底栏样式」，可在经典底栏与悬浮玻璃胶囊之间切换：悬浮玻璃让页面在半透明胶囊下滚动，Android 12 及以上有模糊效果，Android 13 及以上带玻璃边缘折射；澎湃OS（小米、红米、POCO）默认悬浮玻璃，其他手机默认经典底栏。0.7.5 修正了竖屏播放被系统当作全屏的问题：竖屏看剧时保留状态栏与导航栏（透明背景、白色图标），时间、电量和通知照常显示，下拉通知栏与返回手势一次即可；横屏时仍为全屏播放。0.7.4 起三套主题各自拥有完整的页面布局：暖白精修是经典浅色布局，沉浸暗场首页可竖屏上下滑动刷剧，内容卡片提供频道切换、热度榜和双列瀑布流，可在「我的 › 设置 › 主题样式」随时切换。原有播放、倍速、续播、筛选和账号能力继续保留。实际账号片单与同步结果仍请用本人账号核对，详情见 [接入说明](docs/ACCOUNT_INTEGRATION.md)。
 
 | 下载方式 | 链接 |
 | --- | --- |
-| GitHub 直连 | [下载 v0.7.11 APK](https://github.com/OOIUa/hongguo-android/releases/download/v0.7.11/hongguo-android-0.7.11.apk) |
-| 加速线路 1 | [通过 gh-proxy.com 下载](https://gh-proxy.com/https://github.com/OOIUa/hongguo-android/releases/download/v0.7.11/hongguo-android-0.7.11.apk) |
-| 加速线路 2 | [通过 ghfast.top 下载](https://ghfast.top/https://github.com/OOIUa/hongguo-android/releases/download/v0.7.11/hongguo-android-0.7.11.apk) |
-| 发布说明与源码 | [全部版本](https://github.com/OOIUa/hongguo-android/releases) · [v0.7.11 完整源码](https://github.com/OOIUa/hongguo-android/releases/download/v0.7.11/hongguo-android-0.7.11-source.zip) · [SHA-256 校验文件](https://github.com/OOIUa/hongguo-android/releases/download/v0.7.11/SHA256SUMS-0.7.11.txt) |
+| GitHub 直连 | [下载本仓库最新 APK](https://github.com/LiuWQ0809/hongguo-android/releases/latest) |
+| 发布说明与源码 | [全部版本](https://github.com/LiuWQ0809/hongguo-android/releases) · 本仓库源码 |
 
 下载后打开 APK，按 Android 系统提示完成安装。GitHub 连接不畅时可尝试加速线路，公共代理的可用性取决于网络与服务状态。
 
@@ -94,7 +92,7 @@
 
 更新窗口可选择「自动切换」「GitHub 直连」「加速线路 1」「加速线路 2」，选择保存在本机。自动模式依次尝试三条线路；取消下载会停止本次任务。安装包使用相同的完整性与签名校验。
 
-发布源为本仓库的 [GitHub Releases](https://github.com/OOIUa/hongguo-android/releases)，更新清单为 [update.json](https://github.com/OOIUa/hongguo-android/releases/latest/download/update.json)。只有更高的 `versionCode` 才会提示更新。下载与安装均由用户操作确认。
+发布源为本仓库的 [GitHub Releases](https://github.com/LiuWQ0809/hongguo-android/releases)，更新清单为 [update.json](https://github.com/LiuWQ0809/hongguo-android/releases/latest/download/update.json)。只有更高的 `versionCode` 才会提示更新。下载与安装均由用户操作确认。
 
 ## 播放、缓存与本机数据
 
@@ -121,7 +119,7 @@
 - 仓库已包含 **Gradle Wrapper**；首次构建需要联网下载 Gradle 与依赖。也可使用 Android Studio 打开项目。
 
 ```bash
-git clone https://github.com/OOIUa/hongguo-android.git
+git clone https://github.com/LiuWQ0809/hongguo-android.git
 cd hongguo-android
 ```
 
@@ -195,7 +193,7 @@ scripts/prepare-release.ps1       # 发布资产生成脚本
 
 **如何反馈问题？**
 
-请在 [Issues](https://github.com/OOIUa/hongguo-android/issues) 提供应用版本、Android 版本、手机型号、复现步骤与错误截图。播放问题可补充剧名和集数，方便定位。
+请在 [Issues](https://github.com/LiuWQ0809/hongguo-android/issues) 提供应用版本、Android 版本、手机型号、复现步骤与错误截图。播放问题可补充剧名和集数，方便定位。
 
 ## 来源与许可证
 
