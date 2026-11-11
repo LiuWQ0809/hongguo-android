@@ -53,4 +53,30 @@ public final class PlayerSign {
         }
         return Crypto.hex(join(Crypto.unhex("8404401c0000"), data));
     }
+
+    static String ladon(long timestamp, byte[] prefix) {
+        byte[] digest = utf8(Crypto.hex(Crypto.md5(join(prefix, utf8("8662")))));
+        ByteBuffer bytes = little(digest);
+        long left = bytes.getLong(0), right = bytes.getLong(8);
+        long[] queue = new long[36], keys = new long[34];
+        queue[0] = bytes.getLong(16); queue[1] = bytes.getLong(24);
+        for (int i = 0; i < keys.length; i++) {
+            keys[i] = left;
+            long mixed = (Long.rotateRight(right, 8) + left) ^ i;
+            queue[i + 2] = mixed;
+            left = mixed ^ Long.rotateLeft(left, 3);
+            right = queue[i];
+        }
+        byte[] data = pad(utf8(timestamp + "-1611921764-8662"));
+        ByteBuffer buffer = little(data);
+        for (int offset = 0; offset < data.length; offset += 16) {
+            left = buffer.getLong(offset); right = buffer.getLong(offset + 8);
+            for (long key : keys) {
+                right = key ^ (left + Long.rotateRight(right, 8));
+                left = right ^ Long.rotateLeft(left, 3);
+            }
+            buffer.putLong(offset, left); buffer.putLong(offset + 8, right);
+        }
+        return java.util.Base64.getEncoder().encodeToString(join(prefix, data));
+    }
 }
