@@ -94,4 +94,28 @@ public final class PlayerSign {
                 field(15, counters), field(16, new byte[0]), text(20, "none"), number(21, 738),
                 field(23, environment), number(25, 2));
     }
+
+    private static byte[] argusTransform(byte[] message, byte[] key) {
+        byte[] seed = join(key, Crypto.unhex("3ccc567b"), key);
+        ByteBuffer derived = little(Sm3.hash(seed));
+        long[] rounds = new long[72];
+        for (int i = 0; i < 4; i++) rounds[i] = derived.getLong(i * 8);
+        for (int i = 4; i < rounds.length; i++) {
+            long mixed = Long.rotateRight(rounds[i - 1], 3) ^ rounds[i - 3];
+            mixed ^= Long.rotateRight(mixed, 1);
+            rounds[i] = ~rounds[i - 4] ^ mixed ^ ((0x3dc94c3a046d678bL >>> ((i - 4) % 62)) & 1) ^ 3;
+        }
+        byte[] data = pad(message);
+        ByteBuffer buffer = little(data);
+        for (int offset = 0; offset < data.length; offset += 16) {
+            long left = buffer.getLong(offset), right = buffer.getLong(offset + 8);
+            for (long round : rounds) {
+                long next = left ^ (Long.rotateLeft(right, 1) & Long.rotateLeft(right, 8))
+                        ^ Long.rotateLeft(right, 2) ^ round;
+                left = right; right = next;
+            }
+            buffer.putLong(offset, left); buffer.putLong(offset + 8, right);
+        }
+        return data;
+    }
 }
