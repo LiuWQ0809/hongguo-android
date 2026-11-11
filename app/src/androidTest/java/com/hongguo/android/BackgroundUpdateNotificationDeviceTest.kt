@@ -46,7 +46,12 @@ class BackgroundUpdateNotificationDeviceTest {
             assertFalse("同一版本不应重复提醒", UpdateNotifications.post(app, AppUpdate(
                 preferences.getLong("notified_version", 0), "test", "", "", 1, 26, "")))
             InstrumentationRegistry.getInstrumentation().runOnMainSync { model.dismiss() }
-            notification!!.notification.contentIntent.send()
+            automation.executeShellCommand("cmd statusbar expand-notifications").close()
+            Thread.sleep(1_000)
+            val title = automation.rootInActiveWindow.findAccessibilityNodeInfosByText("红果独立版有新版本").firstOrNull()
+            var clickable = title
+            while (clickable != null && !clickable.isClickable) clickable = clickable.parent
+            assertTrue("必须能从系统通知打开更新页面", clickable?.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) == true)
             compose.waitUntil(30_000) { model.state.value.visible }
         } finally {
             manager.cancel(UpdateNotifications.NOTIFICATION_ID)
