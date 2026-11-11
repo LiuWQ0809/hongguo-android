@@ -103,10 +103,18 @@ public final class AppSource {
         }
 
         PlaybackDevice.Identity identity = PlaybackDevice.fresh();
+        Exception singleFailure;
+        try {
+            return singlePlayback.get(vid, quality, identity);
+        } catch (Exception failure) {
+            if (Thread.currentThread().isInterrupted()) throw failure;
+            singleFailure = failure;
+        }
         try {
             return fetchSigned(vid, quality, identity);
         } catch (Exception primary) {
             if (Thread.currentThread().isInterrupted()) throw primary;
+            primary.addSuppressed(singleFailure);
             try {
                 Map<String, Object> tab = playbackTab.get(vid, identity);
                 if (tab != null) return parseModel(vid, tab, quality);
