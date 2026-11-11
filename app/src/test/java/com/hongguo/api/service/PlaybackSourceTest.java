@@ -289,6 +289,27 @@ public class PlaybackSourceTest {
         assertEquals(2, calls.get());
     }
 
+    @Test public void cancelledRegistrationDoesNotPoisonNextRequest() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        PlaybackDevice.resetForTest((url, headers, body) -> {
+            if (calls.getAndIncrement() == 0) throw new java.io.InterruptedIOException("cancelled");
+            return okReply();
+        });
+        try { PlaybackDevice.get(); fail("cancelled registration must fail"); }
+        catch (java.io.InterruptedIOException expected) { assertFalse(Thread.currentThread().isInterrupted()); }
+        assertEquals(DEVICE_ID, PlaybackDevice.get().deviceId);
+        assertEquals(2, calls.get());
+    }
+
+    @Test public void timedOutRegistrationStillUsesCooldown() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        PlaybackDevice.resetForTest((url, headers, body) -> {
+            calls.incrementAndGet(); throw new java.net.SocketTimeoutException("timeout");
+        });
+        expectRegistrationFailure(); expectRegistrationFailure();
+        assertEquals(1, calls.get());
+    }
+
     @Test public void emptyOrNonJsonRegistrationIsFailure() throws Exception {
         PlaybackDevice.resetForTest((url, headers, body) -> new PlaybackDevice.Reply(200, ""));
         expectRegistrationFailure();

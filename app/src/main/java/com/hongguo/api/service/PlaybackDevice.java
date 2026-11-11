@@ -11,6 +11,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.net.SocketTimeoutException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -163,7 +164,7 @@ public final class PlaybackDevice {
         } catch (InterruptedIOException e) {
             // 线程被取消（离开播放页、切集）不是注册失败：不进入冷却，下次播放立即重试。
             // 超时也是 InterruptedIOException 的子类，但线程未被中断，按失败处理。
-            if (Thread.currentThread().isInterrupted()) throw e;
+            if (!(e instanceof SocketTimeoutException) || Thread.currentThread().isInterrupted()) throw e;
             lastFailure = new RegistrationException(e);
             lastFailureAt = now;
             throw lastFailure;
