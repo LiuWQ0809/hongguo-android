@@ -1,5 +1,6 @@
 package com.hongguo.android
 
+import android.Manifest
 import android.content.Intent
 import android.content.res.Configuration
 import android.app.PictureInPictureParams
@@ -10,6 +11,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.Image
@@ -103,6 +107,17 @@ class MainActivity : ComponentActivity() {
                 val updateModel: UpdateViewModel = viewModel()
                 val updateState by updateModel.state.collectAsStateWithLifecycle()
                 LaunchedEffect(updateRequest) { if (updateRequest > 0) updateModel.checkForUpdates() }
+                val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+                LaunchedEffect(state.themeOnboardingPending, updateState.visible, updateState.automaticChecksEnabled) {
+                    if (Build.VERSION.SDK_INT >= 33 && !state.themeOnboardingPending && !updateState.visible && updateState.automaticChecksEnabled) {
+                        val prefs = getSharedPreferences("app_updates", MODE_PRIVATE)
+                        if (!prefs.getBoolean("notification_permission_requested", false) &&
+                            ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                            prefs.edit().putBoolean("notification_permission_requested", true).apply()
+                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                }
                 BackHandler(enabled = state.playerOpen || state.selectedCard != null || state.tab != AppTab.HOME) {
                     when {
                         state.playerOpen -> model.closePlayer()

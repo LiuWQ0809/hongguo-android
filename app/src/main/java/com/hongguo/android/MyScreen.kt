@@ -233,7 +233,7 @@ internal fun SystemSettingsScreen(state: HongguoUiState, model: HongguoViewModel
             Text("软件更新", color = Muted, fontSize = 14.sp)
             Surface(shape = RoundedCornerShape(16.dp), color = CardSurface, modifier = Modifier.padding(top = 12.dp)) {
                 if (updateState.sourceConfigured)
-                    SettingSwitch("启动时检查更新", "每次重新启动应用时检查，下载和安装仍需确认", updateState.automaticChecksEnabled,
+                    SettingSwitch("自动检查更新", "启动和后台检查；请允许通知，安装仍需确认", updateState.automaticChecksEnabled,
                         "settings_auto_update", updateModel::setAutomaticChecksEnabled)
                 else Text("同签名更新源尚未配置，暂不自动检查更新。", Modifier.padding(16.dp), color = Muted, fontSize = 13.sp)
             }
