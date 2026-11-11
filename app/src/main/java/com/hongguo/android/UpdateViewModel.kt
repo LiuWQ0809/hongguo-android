@@ -42,6 +42,7 @@ class UpdateViewModel internal constructor(
     private val installedVersionCode: Long = BuildConfig.VERSION_CODE.toLong(),
     private val deviceSdk: Int = Build.VERSION.SDK_INT,
     private val sourceConfigured: Boolean = true,
+    private val updateSchedule: (Boolean) -> Unit = {},
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(
         application,
@@ -50,6 +51,7 @@ class UpdateViewModel internal constructor(
             UpdateRepository().check(BuildConfig.UPDATE_MANIFEST_URL, BuildConfig.UPDATE_REPOSITORY, source, onSource)
         },
         sourceConfigured = BuildConfig.LOCAL_UPDATE_ENABLED,
+        updateSchedule = { UpdateSchedule.sync(application, it) },
     )
 
     private val installer = UpdateInstaller(application)
@@ -75,6 +77,7 @@ class UpdateViewModel internal constructor(
     fun setAutomaticChecksEnabled(enabled: Boolean) {
         if (!sourceConfigured) return
         preferences.edit().putBoolean("automatic_checks", enabled).apply()
+        updateSchedule(enabled)
         if (!enabled && !state.value.visible && state.value.checking) {
             ++checkVersion
             checkingJob?.cancel()

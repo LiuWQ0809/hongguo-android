@@ -25,5 +25,6 @@ class HongguoApplication : Application() {
         }
         val config = assets.open("upstream.json").bufferedReader().use { it.readText() }
         Config.initialize(config, cacheDir.resolve("media").absolutePath, deviceId)
+        UpdateSchedule.sync(this, getSharedPreferences("app_updates", MODE_PRIVATE).getBoolean("automatic_checks", true))
     }
 }
