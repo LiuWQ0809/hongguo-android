@@ -9,6 +9,7 @@ if [[ "$base" == "$latest" ]]; then echo 'false' > "$output/changed"; exit 0; fi
 git fetch --no-tags https://github.com/OOIUa/hongguo-android.git \
   "refs/tags/$base:refs/tags/$base" "refs/tags/$latest:refs/tags/$latest"
 git merge-base --is-ancestor "$base" "$latest" || { echo '上游版本不是已知基线的后续版本' >&2; exit 1; }
+python3 scripts/check-upstream-build.py "$base" "$latest"
 if [[ -n "$(git diff --name-only "$base" "$latest" -- app/src/main/AndroidManifest.xml gradle/ build.gradle.kts settings.gradle.kts)" ]]; then
   echo '上游修改了构建或权限配置，需要人工整合' >&2; exit 1
 fi
