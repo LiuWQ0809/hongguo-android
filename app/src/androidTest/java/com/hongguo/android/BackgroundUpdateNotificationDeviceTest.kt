@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.app.job.JobScheduler
 import android.content.Context
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
@@ -27,6 +28,7 @@ class BackgroundUpdateNotificationDeviceTest {
         val hadNotified = preferences.contains("notified_version")
         val oldNotified = preferences.getLong("notified_version", 0)
         val manager = app.getSystemService(NotificationManager::class.java)
+        val model = ViewModelProvider(compose.activity)[UpdateViewModel::class.java]
         try {
             manager.cancel(UpdateNotifications.NOTIFICATION_ID)
             preferences.edit().putBoolean("automatic_checks", true).putString("source", UpdateSource.PROXY_PRIMARY.name)
@@ -41,6 +43,11 @@ class BackgroundUpdateNotificationDeviceTest {
             val notification = manager.activeNotifications.firstOrNull { it.id == UpdateNotifications.NOTIFICATION_ID }
             assertNotNull("后台检查必须产生更新通知", notification)
             assertTrue(preferences.getLong("notified_version", 0) > BuildConfig.VERSION_CODE)
+            assertFalse("同一版本不应重复提醒", UpdateNotifications.post(app, AppUpdate(
+                preferences.getLong("notified_version", 0), "test", "", "", 1, 26, "")))
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { model.dismiss() }
+            notification!!.notification.contentIntent.send()
+            compose.waitUntil(30_000) { model.state.value.visible }
         } finally {
             manager.cancel(UpdateNotifications.NOTIFICATION_ID)
             val edit = preferences.edit().putBoolean("automatic_checks", oldAutomatic)
