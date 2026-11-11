@@ -11,6 +11,22 @@ import java.util.Arrays;
 /** 播放签名参考 Xanerix/guoapp ad8dc125（GPL-3.0）。 */
 public final class PlayerSign {
     private PlayerSign() {}
+    private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+
+    public static java.util.Map<String, String> headers(String query, byte[] body, long now, String deviceId) {
+        if (query == null || body == null || deviceId == null || !deviceId.matches("[0-9]{1,30}"))
+            throw new IllegalArgumentException("播放器签名参数无效");
+        long timestamp = now / 1000;
+        byte[] nonce = new byte[11]; RANDOM.nextBytes(nonce);
+        java.util.Map<String, String> headers = new java.util.LinkedHashMap<>();
+        headers.put("x-khronos", String.valueOf(timestamp));
+        headers.put("x-ss-req-ticket", String.valueOf(now));
+        headers.put("x-ss-stub", Crypto.md5HexUpper(body));
+        headers.put("x-gorgon", gorgon(query, body, timestamp));
+        headers.put("x-argus", argus(query, body, timestamp, deviceId, nonce));
+        headers.put("x-ladon", ladon(timestamp, Arrays.copyOfRange(nonce, 2, 6)));
+        return headers;
+    }
 
     private static byte[] utf8(String value) { return value.getBytes(StandardCharsets.UTF_8); }
     private static byte[] join(byte[]... values) {
