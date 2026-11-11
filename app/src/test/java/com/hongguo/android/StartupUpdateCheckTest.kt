@@ -82,6 +82,17 @@ class StartupUpdateCheckTest {
         assertTrue("原有用户设置应保留供未来恢复", preferences.getBoolean("automatic_checks", false))
     }
 
+    @Test fun automaticCheckPreferenceControlsBackgroundScheduling() = runTest {
+        val preferences = MemoryPreferences()
+        preferences.edit().putBoolean("automatic_checks", false).apply()
+        val scheduled = mutableListOf<Boolean>()
+        val model = UpdateViewModel(TestApplication(), preferences, { _, _ -> update() },
+            installedVersion, 36, updateSchedule = { scheduled.add(it) })
+        model.setAutomaticChecksEnabled(true)
+        model.setAutomaticChecksEnabled(false)
+        assertEquals(listOf(true, false), scheduled)
+    }
+
     @Test fun everyColdStartCanFindAReleasePublishedAfterAnEarlierCheckOnTheSameDay() = runTest {
         val preferences = MemoryPreferences()
         preferences.edit().putLong("last_attempt", System.currentTimeMillis()).apply()
