@@ -23,3 +23,34 @@ jobs:
           name: unsigned-apk
           path: app/build/outputs/apk/release/*-unsigned.apk
           if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: unsigned-apk
+          path: ${{ runner.temp }}/unsigned
+      - name: 检查密钥并签名
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.HONGGUO_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.HONGGUO_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.HONGGUO_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64" && test -n "$STORE_PASSWORD" && test -n "$KEY_PASSWORD"
+          key="$RUNNER_TEMP/hongguo.jks"
+          trap 'rm -f "$key"' EXIT
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$key"
+          chmod 600 "$key"
+          unset KEYSTORE_B64
+          signer="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$signer" sign --ks "$key" --ks-key-alias androiddebugkey \
+            --ks-pass env:STORE_PASSWORD --key-pass env:KEY_PASSWORD \
+            --out "$RUNNER_TEMP/hongguo.apk" "$RUNNER_TEMP/unsigned/app-release-unsigned.apk"
+          "$signer" verify --print-certs "$RUNNER_TEMP/hongguo.apk" | grep -Fq \
+            'Signer #1 certificate SHA-256 digest: 2eb75370e7dee27afc7297eb7c3ef2ddbef0e37144780414825b5f11421dcb13'
