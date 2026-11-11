@@ -55,6 +55,7 @@ class BackgroundRetryDeviceTest {
                 if (player == null) Thread.sleep(200)
             }
             val active = requireNotNull(player)
+            AppSource.setSinglePlaybackForTest { _, _, _ -> throw IOException("injected failure") }
             AppSource.setPlaybackPostForTest { _, _, _ -> throw IOException("injected failure") }
             AppSource.setPlaybackTabForTest { _, _ -> throw IOException("injected failure") }
             instrumentation.runOnMainSync { active.seekTo(active.duration - 1_000) }
@@ -63,6 +64,7 @@ class BackgroundRetryDeviceTest {
                 Thread.sleep(50)
             assertEquals("The injected next-episode failure must trigger a retry", "retry", model.state.value.preparationStage)
             instrumentation.runOnMainSync { active.pause() }
+            AppSource.setSinglePlaybackForTest(null)
             AppSource.setPlaybackPostForTest(null)
             AppSource.setPlaybackTabForTest(null)
             var next: Player? = null
@@ -79,6 +81,7 @@ class BackgroundRetryDeviceTest {
             Thread.sleep(4_000)
             instrumentation.runOnMainSync { assertTrue("The retried episode must play", newPlayer.currentPosition > 1_000) }
         } finally {
+            AppSource.setSinglePlaybackForTest(null)
             AppSource.setPlaybackPostForTest(null)
             AppSource.setPlaybackTabForTest(null)
             compose.runOnIdle { model.setPreloadNext(preload); model.setAutoPlayNext(autoplay) }
@@ -107,7 +110,7 @@ class BackgroundRetryDeviceTest {
             var first: Player? = null
             instrumentation.runOnMainSync { first = PlaybackSessionService.activePlayer }
             val active = requireNotNull(first)
-            AppSource.setPlaybackPostForTest { _, _, _ -> entered.countDown(); unblock.await(60, TimeUnit.SECONDS); throw IOException("delayed request") }
+            AppSource.setSinglePlaybackForTest { _, _, _ -> entered.countDown(); unblock.await(60, TimeUnit.SECONDS); throw IOException("delayed request") }
             instrumentation.runOnMainSync { active.seekTo(active.duration - 1_000) }
             assertTrue("Next episode must begin preparing", entered.await(30, TimeUnit.SECONDS))
             compose.waitUntil(15_000) {
@@ -124,7 +127,7 @@ class BackgroundRetryDeviceTest {
             while (!activity.isDestroyed && System.currentTimeMillis() < destroyDeadline) Thread.sleep(100)
             assertTrue("The activity must be destroyed while the next episode is preparing", activity.isDestroyed)
             Thread.sleep(15_000) // Past Android's short post-interaction background-start grace period.
-            AppSource.setPlaybackPostForTest(null); unblock.countDown()
+            AppSource.setSinglePlaybackForTest(null); unblock.countDown()
             val deadline = System.currentTimeMillis() + 90_000
             var next: Player? = null
             while (System.currentTimeMillis() < deadline && (next == null || next === active)) {
@@ -136,7 +139,7 @@ class BackgroundRetryDeviceTest {
             Thread.sleep(4_000)
             instrumentation.runOnMainSync { assertTrue(nextPlayer.currentPosition > 1_000) }
         } finally {
-            unblock.countDown(); AppSource.setPlaybackPostForTest(null)
+            unblock.countDown(); AppSource.setSinglePlaybackForTest(null)
             instrumentation.uiAutomation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
             instrumentation.uiAutomation.executeShellCommand("wm dismiss-keyguard").close()
             instrumentation.runOnMainSync { model.setPreloadNext(preload); model.setAutoPlayNext(autoplay) }
