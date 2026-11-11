@@ -23,4 +23,7 @@ public class SinglePlaybackResponseTest {
     @Test(expected = IllegalStateException.class) public void rejectsEmptyModel() {
         AppSource.parseSingleResponse("123", "{\"code\":0,\"data\":{}}");
     }
+    @Test(expected = IllegalArgumentException.class) public void rejectsInvalidEpisodeId() {
+        AppSource.parseSingleResponse("not-an-id", "{\"code\":0,\"data\":{}}");
+    }
 }

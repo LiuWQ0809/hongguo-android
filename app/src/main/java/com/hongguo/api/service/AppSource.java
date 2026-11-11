@@ -484,6 +484,7 @@ public final class AppSource {
 
     /** 单集接口将模型放在 data.video_model；不使用其他分集的结果。 */
     static Map<String, Object> parseSingleResponse(String vid, String text) {
+        if (vid == null || !vid.matches("\\d{1,30}")) throw new IllegalArgumentException("分集编号无效");
         Map<String, Object> root = parsePlaybackResponse(text);
         Object code = root.containsKey("code") ? root.get("code") : root.get("Code");
         if (code == null || Json.optInt(code, -1) != 0) throw new IllegalStateException("单集接口暂未提供播放信息");
