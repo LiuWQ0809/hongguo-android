@@ -14,7 +14,7 @@ class LocalUpdateDeviceTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
     @Test fun olderBootstrapFindsAndVerifiesPublishedUpdate() {
-        assumeTrue("仅在更新测试专用旧版本运行", BuildConfig.VERSION_CODE < 39)
+        assumeTrue("仅在更新测试专用旧版本运行", BuildConfig.VERSION_CODE == 37)
         lateinit var model: UpdateViewModel
         compose.runOnIdle {
             model = ViewModelProvider(compose.activity)[UpdateViewModel::class.java]
@@ -23,7 +23,7 @@ class LocalUpdateDeviceTest {
         }
         compose.waitUntil(90_000) { !model.state.value.checking && (model.state.value.update != null || model.state.value.error != null) }
         assertNull("检查自有更新源失败", model.state.value.error)
-        assertTrue("发布版本必须高于测试版本", model.state.value.update!!.versionCode > BuildConfig.VERSION_CODE)
+        assertEquals(38L, model.state.value.update?.versionCode)
         assertTrue(model.state.value.update!!.apkUrl.contains("github.com/LiuWQ0809/hongguo-android/"))
         compose.runOnIdle { model.downloadUpdate() }
         compose.waitUntil(240_000) { !model.state.value.downloading }

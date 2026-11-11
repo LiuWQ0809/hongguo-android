@@ -89,7 +89,6 @@ internal fun UpdateDialogs(state: UpdateUiState, model: UpdateViewModel, activit
                 Column(Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = contentHeight).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (state.sourceConfigured) {
-                        Text("更新来源：本仓库 GitHub Releases", color = Muted, fontSize = 12.sp)
                         Text("更新线路", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Ink)
                         Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                             listOf(listOf(UpdateSource.AUTO, UpdateSource.DIRECT),
