@@ -55,6 +55,7 @@ public class PlaybackSourceTest {
         PlaybackDevice.resetForTest(null);
         AppSource.setPlaybackPostForTest(null);
         AppSource.setPlaybackTabForTest((vid, identity) -> null);
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> { throw new IOException("offline fixture"); });
         AppSource.setPlaybackFallbackForTest(null);
     }
 
@@ -62,6 +63,7 @@ public class PlaybackSourceTest {
         PlaybackDevice.resetForTest(null);
         AppSource.setPlaybackPostForTest(null);
         AppSource.setPlaybackTabForTest(null);
+        AppSource.setSinglePlaybackForTest(null);
         AppSource.setPlaybackFallbackForTest(null);
     }
 

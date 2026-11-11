@@ -175,6 +175,11 @@ public final class AppSource {
     interface PlaybackTab { Map<String, Object> get(String vid, PlaybackDevice.Identity identity) throws Exception; }
     private static PlaybackTab playbackTab = AppSource::getTabModel;
     static void setPlaybackTabForTest(PlaybackTab tab) { playbackTab = tab == null ? AppSource::getTabModel : tab; }
+    interface SinglePlayback { Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity) throws Exception; }
+    private static SinglePlayback singlePlayback = AppSource::fetchSingle;
+    static void setSinglePlaybackForTest(SinglePlayback playback) {
+        singlePlayback = playback == null ? AppSource::fetchSingle : playback;
+    }
     interface PlaybackFallback { Map<String, Object> get(String url) throws Exception; }
     private static PlaybackFallback playbackFallback = AppSource::getPlain;
     static void setPlaybackFallbackForTest(PlaybackFallback fallback) {
