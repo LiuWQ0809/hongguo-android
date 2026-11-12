@@ -208,6 +208,31 @@ class PlayerHoldSpeedGestureTest {
         }
     }
 
+    @Test fun sidewaysOpeningStillChangesPagerPage() {
+        val holds = mutableListOf<Boolean>()
+        var taps = 0
+        lateinit var pager: PagerState
+        compose.setContent {
+            pager = rememberPagerState { 3 }
+            VerticalPager(pager, Modifier.fillMaxSize()) { page ->
+                PlayerInteractionLayer(Modifier.testTag("gesture_layer_$page"), onTap = { taps++ }, onHoldSpeedChange = holds::add)
+            }
+        }
+        compose.onNodeWithTag("gesture_layer_0").performTouchInput {
+            val slop = viewConfiguration.touchSlop
+            val start = Offset(width * .4f, height * .8f)
+            down(start)
+            for (step in 1..4) moveTo(start + Offset(slop * .8f * step, -slop * .1f * step))
+            for (step in 1..12) moveTo(start + Offset(slop * 3.5f, -height * .05f * step))
+            up()
+        }
+        compose.runOnIdle {
+            assertEquals(1, pager.currentPage)
+            assertEquals(0, taps)
+            assertFalse(holds.any { it })
+        }
+    }
+
     @Test fun verticalSwipeBeforeLongPressTimeoutStillChangesPagerPage() {
         val changes = mutableListOf<Boolean>()
         var taps = 0
