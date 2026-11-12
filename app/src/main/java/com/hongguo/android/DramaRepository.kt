@@ -193,6 +193,7 @@ fun readableFailure(error: Throwable, action: String): String {
         hint.contains("no space") || hint.contains("enospc") -> "设备存储空间不足，请清理空间后重试。"
         hint.contains("上游未返回数据") -> "内容服务暂未返回数据，请稍后重试。"
         hint.contains("empty_episodes") -> "暂时没有获取到可播放剧集，请稍后重试。"
+        hint.contains("bytevc2") || hint.contains("bvc2") -> "该集暂时只有不支持的视频编码，可选择其他集。"
         hint.contains("风控") || hint.contains("risk") || hint.contains("429") -> "片源服务暂时限制访问，请稍后重试。"
         hint.contains("无直链") || hint.contains("video_model") || hint.contains("片源") -> "该集片源暂时不可用，可重试或选择其他集。"
         hint.contains("解密") || hint.contains("cenc") || hint.contains("decrypt") ||

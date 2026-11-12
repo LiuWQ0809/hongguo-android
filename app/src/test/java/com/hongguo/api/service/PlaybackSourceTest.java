@@ -380,6 +380,18 @@ public class PlaybackSourceTest {
         assertEquals("https://v1.qznovelvod.com/test.mp4", AppSource.parseModel(vid, response(vid, model), "auto").url);
     }
 
+    @Test public void unsupportedSingleCodecSurvivesEmptyLegacyResponses() throws Exception {
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> { throw new AppSource.ByteVc2Only(); });
+        AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AppSource.EmptyPlaybackResponseException(); });
+        try {
+            AppSource.fetch("7600000000000000001", "auto");
+            fail("unsupported codec must be reported");
+        } catch (AppSource.ByteVc2Only expected) {
+            assertTrue(expected.getMessage().contains("ByteVC2"));
+        }
+    }
+
     @Test public void singlePlaybackSucceedsWithoutCallingLegacyPaths() throws Exception {
         PlaybackDevice.resetForTest((url, headers, body) -> okReply());
         AtomicInteger legacy = new AtomicInteger();

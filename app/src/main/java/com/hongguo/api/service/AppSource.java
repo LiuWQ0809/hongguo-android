@@ -136,6 +136,7 @@ public final class AppSource {
                 if (Thread.currentThread().isInterrupted()) throw retry;
                 primary.addSuppressed(retry);
             }
+            if (singleFailure instanceof ByteVc2Only) throw singleFailure;
             throw primary;
         }
     }
@@ -194,7 +195,7 @@ public final class AppSource {
         playbackFallback = fallback == null ? AppSource::getPlain : fallback;
     }
 
-    private static final class ByteVc2Only extends IllegalStateException {
+    static final class ByteVc2Only extends IllegalStateException {
         ByteVc2Only() { super("本集仅提供播放器不支持的 ByteVC2 编码，当前无法播放"); }
     }
 
