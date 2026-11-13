@@ -1,5 +1,10 @@
 # Sources and notices
 
+Cloud favorites reads prefer the light video shelf and fall back to the legacy shelf, adapted from
+OOIUa/hongguo-android v0.7.27 (`a8d1b342a9a824784cf45070f15541f073cdddcb`), GPL-3.0-only.
+The local variant preserves account-session checks and handles detail-read failures without dropping IDs.
+https://github.com/OOIUa/hongguo-android/releases/tag/v0.7.27
+
 This Android application is distributed under GPL-3.0-only. See LICENSE.
 
 The protocol and media core are adapted from sunnysky123/hongguo-web:

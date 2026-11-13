@@ -67,4 +67,10 @@ class CloudFavoritesTest {
         val row = client().favorites(credentials).single()
         assertEquals("701", row.series.id); assertEquals("剧集 701", row.series.title)
     }
+
+    @Test fun invalidIdentifierDoesNotReplaceCachedFavorites() {
+        replies[list] = """{"code":0,"data":{"video_shelf_info":[{"series_id":"0000"}]}}"""
+        replies[info] = """{"code":0,"data":null}"""
+        assertThrows(java.io.IOException::class.java) { client().favorites(credentials) }
+    }
 }

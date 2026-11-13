@@ -1,6 +1,7 @@
 package com.hongguo.api.service
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import kotlinx.coroutines.Dispatchers
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.media3.common.Player
@@ -19,8 +20,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
+@OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
 class BackgroundRetryDeviceTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    @get:Rule val compose = createAndroidComposeRule<MainActivity>(effectContext = Dispatchers.Main.immediate)
 
     @Test fun failedNextEpisodeRetriesAndPreservesPauseIntent() {
         lateinit var model: HongguoViewModel

@@ -306,7 +306,7 @@ class CloudAccountClient internal constructor(http: OkHttpClient, private val ap
                 ?: throw IOException("账户收藏列表格式已变化")
             val result=rows.objects().mapNotNull { row ->
                 val id=row.str("series_id").ifBlank { row.str("book_id") }
-                if(!id.matches(Regex("[0-9]{1,30}"))) return@mapNotNull null
+                if(!validIdentifier(id)) return@mapNotNull null
                 val stamp=(row.optLong("collect_time").takeIf { it>0 } ?: row.optLong("last_operate_time")).coerceAtLeast(0)
                     .let { if(it in 1..9999999999L) it*1000 else it }
                 CloudFavorite(Series(id,"剧集 $id"),stamp)
