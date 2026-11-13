@@ -209,9 +209,21 @@ class CloudAccountClient internal constructor(http: OkHttpClient, private val ap
         }
         return progress.map { it.copy(series=series[it.series.id] ?: it.series.copy(title="剧集 ${it.series.id}")) }
     }
-    /** Read-only video shelf. Protocol reference: charlie901208/HGTV AccountParser.favorites. */
-    fun favorites(credentials: AccountCredentials): List<CloudFavorite> =
-        parseFavorites(json(credentials,"/reading/bookapi/bookshelf/video/info/v1/"))
+    /** 新版书架优先；旧账号继续回退 video/info（参考上游 v0.7.27）。 */
+    fun favorites(credentials: AccountCredentials): List<CloudFavorite> {
+        val light = try { parseFavoriteList(json(credentials,"/reading/bookapi/bookshelf/video/list/v1/")) }
+            catch (problem: AccountProtocolException) { if(problem.requiresLogin) throw problem; null }
+            catch (cancelled: java.io.InterruptedIOException) { throw cancelled }
+            catch (_: IOException) { null }
+        if(light==null) return parseFavorites(json(credentials,"/reading/bookapi/bookshelf/video/info/v1/"))
+        if(light.isEmpty()) return try { parseFavorites(json(credentials,"/reading/bookapi/bookshelf/video/info/v1/")) }
+            catch (problem: AccountProtocolException) { if(problem.requiresLogin) throw problem; emptyList() }
+            catch (cancelled: java.io.InterruptedIOException) { throw cancelled }
+            catch (_: IOException) { emptyList() }
+        val details=light.take(200).map { it.series.id }.chunked(50)
+            .fold(emptyMap<String,JSONObject>()) { all, ids -> all + favoriteDetails(credentials,ids) }
+        return light.map { it.copy(series=favoriteSeries(details[it.series.id],it.series)) }
+    }
 
     private fun favoriteDetails(credentials: AccountCredentials, ids: List<String>): Map<String,JSONObject> {
         if(ids.isEmpty()) return emptyMap()
