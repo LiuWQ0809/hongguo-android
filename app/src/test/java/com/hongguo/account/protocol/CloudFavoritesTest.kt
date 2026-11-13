@@ -40,4 +40,31 @@ class CloudFavoritesTest {
         assertEquals("全 80 集", row.series.badge); assertEquals(1762000000000L, row.collectedAt)
         assertEquals(listOf(list, detail), paths())
     }
+
+    @Test fun emptyLightListFallsBackToLegacy() {
+        replies[list] = """{"code":0,"data":{"video_shelf_info":[]}}"""
+        replies[info] = """{"code":0,"data":{"video_shelf_info":[{"video_data":{"series_id":"701","title":"甲"},"collect_time":5}]}}"""
+        assertEquals(listOf("701"), client().favorites(credentials).map { it.series.id })
+        assertEquals(listOf(list, info), paths())
+    }
+
+    @Test fun failedLightListUsesLegacyWithoutMaskingInvalidData() {
+        replies[list] = """{"code":4}"""
+        replies[info] = """{"code":0,"data":null}"""
+        assertThrows(java.io.IOException::class.java) { client().favorites(credentials) }
+        assertEquals(listOf(list, info), paths())
+    }
+
+    @Test fun expiredLoginDoesNotFallBack() {
+        replies[list] = """{"code":1003}"""
+        val error = assertThrows(AccountProtocolException::class.java) { client().favorites(credentials) }
+        assertTrue(error.requiresLogin); assertEquals(listOf(list), paths())
+    }
+
+    @Test fun detailFailurePreservesIdentifiers() {
+        replies[list] = """{"code":0,"data":{"video_shelf_info":[{"series_id":"701","collect_time":1}]}}"""
+        replies[detail] = """{"code":4}"""
+        val row = client().favorites(credentials).single()
+        assertEquals("701", row.series.id); assertEquals("剧集 701", row.series.title)
+    }
 }
