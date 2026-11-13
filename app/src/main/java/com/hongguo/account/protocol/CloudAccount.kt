@@ -268,6 +268,22 @@ class CloudAccountClient internal constructor(http: OkHttpClient, private val ap
         json(credentials,"/reading/bookapi/read_progress/upload/v1/",body=body)
     }
     companion object {
+        /** 新版轻量书架返回剧集编号与时间，不包含标题。 */
+        internal fun parseFavoriteList(raw: JSONObject): List<CloudFavorite> {
+            val data=raw.optJSONObject("data") ?: throw IOException("账户收藏数据格式已变化")
+            if(!data.has("video_shelf_info")) throw IOException("账户收藏列表格式已变化")
+            val rows=if(data.isNull("video_shelf_info")) JSONArray() else data.optJSONArray("video_shelf_info")
+                ?: throw IOException("账户收藏列表格式已变化")
+            val result=rows.objects().mapNotNull { row ->
+                val id=row.str("series_id").ifBlank { row.str("book_id") }
+                if(!id.matches(Regex("[0-9]{1,30}"))) return@mapNotNull null
+                val stamp=(row.optLong("collect_time").takeIf { it>0 } ?: row.optLong("last_operate_time")).coerceAtLeast(0)
+                    .let { if(it in 1..9999999999L) it*1000 else it }
+                CloudFavorite(Series(id,"剧集 $id"),stamp)
+            }
+            if(rows.length()>0 && result.isEmpty()) throw IOException("账户收藏条目格式已变化")
+            return result.sortedByDescending { it.collectedAt }.distinctBy { it.series.id }
+        }
         private fun episodeBadge(row: JSONObject): String {
             val count=listOf("episode_cnt","episode_count","drama_chapter_number").map { row.optInt(it) }.firstOrNull { it>0 } ?: 0
             return if(count>0) "全 $count 集" else ""
