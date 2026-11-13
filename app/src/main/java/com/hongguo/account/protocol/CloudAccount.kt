@@ -212,6 +212,24 @@ class CloudAccountClient internal constructor(http: OkHttpClient, private val ap
     /** Read-only video shelf. Protocol reference: charlie901208/HGTV AccountParser.favorites. */
     fun favorites(credentials: AccountCredentials): List<CloudFavorite> =
         parseFavorites(json(credentials,"/reading/bookapi/bookshelf/video/info/v1/"))
+
+    private fun favoriteDetails(credentials: AccountCredentials, ids: List<String>): Map<String,JSONObject> {
+        if(ids.isEmpty()) return emptyMap()
+        return try {
+            json(credentials,"/reading/bookapi/multi-detail/v1/",mapOf("book_id" to ids.joinToString(","),"book_type" to "2"))
+                .optJSONArray("data")?.objects().orEmpty().associateBy { it.str("book_id") }
+        } catch (problem: AccountProtocolException) { if(problem.requiresLogin) throw problem; emptyMap() }
+          catch (cancelled: java.io.InterruptedIOException) { throw cancelled }
+          catch (_: IOException) { emptyMap() }
+    }
+
+    private fun favoriteSeries(row: JSONObject?, fallback: Series): Series {
+        if(row==null) return fallback
+        return fallback.copy(title=row.str("book_name").ifBlank { fallback.title },
+            cover=cleanUrl(row.str("thumb_url")).ifBlank { fallback.cover },
+            description=row.str("abstract").ifBlank { fallback.description },
+            badge=episodeBadge(row).ifBlank { fallback.badge })
+    }
     /** Video shelf only (novel bookshelf/add can acknowledge without changing video favorites).
      * Protocol reference: HGTV videoShelf public request model.
      * No automatic retry: callers must read the shelf back before reporting success.
