@@ -451,6 +451,21 @@ public class PlaybackSourceTest {
         assertNotSame(used.get(1), used.get(2));
     }
 
+    @Test public void explicitRejectionDoesNotRetryOrUseLegacyRoutes() throws Exception {
+        AtomicInteger registrations = new AtomicInteger(), attempts = new AtomicInteger(), legacy = new AtomicInteger();
+        PlaybackDevice.resetForTest((url, headers, body) -> { registrations.incrementAndGet(); return okReply(); });
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
+            if (attempts.getAndIncrement() == 1) throw new AppSource.PlaybackRejectedException(429);
+            return new Stream.VideoTrack();
+        });
+        AppSource.setPlaybackPostForTest((body, identity, host) -> { legacy.incrementAndGet(); throw new IOException(); });
+        AppSource.fetch("7600000000000000001", "auto");
+        try { AppSource.fetch("7600000000000000002", "auto"); fail(); }
+        catch (AppSource.PlaybackRejectedException expected) { assertTrue(expected.getMessage().contains("429")); }
+        AppSource.fetch("7600000000000000003", "auto");
+        assertEquals(3, attempts.get()); assertEquals(2, registrations.get()); assertEquals(0, legacy.get());
+    }
+
     @Test public void singlePlaybackSucceedsWithoutCallingLegacyPaths() throws Exception {
         PlaybackDevice.resetForTest((url, headers, body) -> okReply());
         AtomicInteger legacy = new AtomicInteger();
