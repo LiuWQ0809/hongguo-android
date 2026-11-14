@@ -105,9 +105,11 @@ public final class AppSource {
         PlaybackDevice.Identity identity = PlaybackDevice.fresh();
         Exception singleFailure;
         try {
-            return singlePlayback.get(vid, quality, identity);
+            return fetchSingleWithRetry(vid, quality, identity);
         } catch (Exception failure) {
             if (Thread.currentThread().isInterrupted()) throw failure;
+            if (failure instanceof java.io.InterruptedIOException && !(failure instanceof java.net.SocketTimeoutException))
+                throw failure;
             singleFailure = failure;
         }
         try {
