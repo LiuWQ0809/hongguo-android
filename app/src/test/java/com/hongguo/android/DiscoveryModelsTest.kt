@@ -77,5 +77,7 @@ class DiscoveryModelsTest {
     @Test fun emptyUpstreamResponseHasContentServiceMessageOnHomepage() {
         assertEquals("内容服务暂未返回数据，请稍后重试。", readableFailure(IOException("上游未返回数据"), "首页加载"))
         assertEquals("该集暂时只有不支持的视频编码，可选择其他集。", readableFailure(IOException("ByteVC2"), "准备播放"))
+        assertEquals("片源服务暂未返回播放地址，请稍后重试。", readableFailure(IOException("播放接口返回空响应"), "准备播放"))
+        assertEquals("片源服务暂时拒绝访问，请稍后重试。", readableFailure(IOException("播放服务拒绝请求（HTTP 403）"), "准备播放"))
     }
 }
