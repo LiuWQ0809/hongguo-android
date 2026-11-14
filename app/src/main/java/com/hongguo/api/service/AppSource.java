@@ -56,6 +56,9 @@ import java.util.Map;
 public final class AppSource {
 
     private AppSource() {}
+    /** 仅在进程内保留已经成功取址的匿名身份；被拒时按引用清除。 */
+    private static final java.util.concurrent.atomic.AtomicReference<PlaybackDevice.Identity> PLAYBACK_IDENTITY =
+            new java.util.concurrent.atomic.AtomicReference<>();
 
     /** 接口地址（尾斜杠照抄原实现，签名与路由都以它为准）。 */
     private static final String VIDEO_API =
@@ -102,7 +105,8 @@ public final class AppSource {
             throw new IllegalArgumentException("分集编号无效");
         }
 
-        PlaybackDevice.Identity identity = PlaybackDevice.fresh();
+        PlaybackDevice.Identity identity = PLAYBACK_IDENTITY.get();
+        if (identity == null) identity = PlaybackDevice.fresh();
         Exception singleFailure;
         try {
             return fetchSingleWithRetry(vid, quality, identity);
@@ -169,8 +173,13 @@ public final class AppSource {
     private static Stream.VideoTrack fetchSingleWithRetry(String vid, String quality, PlaybackDevice.Identity identity)
             throws Exception {
         for (int attempt = 0; attempt < 3; attempt++) {
-            try { return singlePlayback.get(vid, quality, identity); }
+            try {
+                Stream.VideoTrack track = singlePlayback.get(vid, quality, identity);
+                PLAYBACK_IDENTITY.set(identity);
+                return track;
+            }
             catch (EmptyPlaybackResponseException empty) {
+                PLAYBACK_IDENTITY.compareAndSet(identity, null);
                 if (attempt == 2 || Thread.currentThread().isInterrupted()) throw empty;
                 try { Thread.sleep(300); }
                 catch (InterruptedException cancelled) {
@@ -207,6 +216,7 @@ public final class AppSource {
     interface SinglePlayback { Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity) throws Exception; }
     private static SinglePlayback singlePlayback = AppSource::fetchSingle;
     static void setSinglePlaybackForTest(SinglePlayback playback) {
+        PLAYBACK_IDENTITY.set(null);
         singlePlayback = playback == null ? AppSource::fetchSingle : playback;
     }
     interface PlaybackFallback { Map<String, Object> get(String url) throws Exception; }
