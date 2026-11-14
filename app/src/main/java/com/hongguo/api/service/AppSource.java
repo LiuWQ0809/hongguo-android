@@ -112,6 +112,10 @@ public final class AppSource {
             return fetchSingleWithRetry(vid, quality, identity);
         } catch (Exception failure) {
             if (Thread.currentThread().isInterrupted()) throw failure;
+            if (failure instanceof PlaybackRejectedException) {
+                PLAYBACK_IDENTITY.compareAndSet(identity, null);
+                throw failure;
+            }
             if (failure instanceof java.io.InterruptedIOException && !(failure instanceof java.net.SocketTimeoutException))
                 throw failure;
             singleFailure = failure;
@@ -192,7 +196,12 @@ public final class AppSource {
         throw new IllegalStateException("播放请求未执行");
     }
 
-    /** 播放接口返回空响应：疑似匿名身份被拒，fetch 会换新身份重试一次。 */
+    /** 明确拒绝时停止，避免继续请求其他线路。 */
+    static final class PlaybackRejectedException extends IOException {
+        PlaybackRejectedException(int status) { super("播放服务拒绝请求（HTTP " + status + "）"); }
+    }
+
+    /** 播放接口返回空响应：疑似匿名身份被拒，fetch 会换新身份重试。 */
     static final class EmptyPlaybackResponseException extends IllegalStateException {
         EmptyPlaybackResponseException() {
             super("播放接口返回空响应，请稍后重试");
@@ -566,6 +575,7 @@ public final class AppSource {
         for (Map.Entry<String, String> header : PlayerSign.headers(URI.create(url).getRawQuery(), body, now, identity.deviceId).entrySet())
             request.header(header.getKey(), header.getValue());
         Http.Resp response = Http.send(request.body(body));
+        if (response.status == 403 || response.status == 429) throw new PlaybackRejectedException(response.status);
         if (response.status != 200) throw new IllegalStateException("单集接口 HTTP " + response.status);
         return parseModel(vid, parseSingleResponse(vid, response.text()), quality);
     }
