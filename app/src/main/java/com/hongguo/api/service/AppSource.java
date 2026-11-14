@@ -163,6 +163,24 @@ public final class AppSource {
         return parseModel(vid, j, quality);
     }
 
+    /** 空响应时换新身份有限重试，明确拒绝和格式错误不重复请求。 */
+    private static Stream.VideoTrack fetchSingleWithRetry(String vid, String quality, PlaybackDevice.Identity identity)
+            throws Exception {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try { return singlePlayback.get(vid, quality, identity); }
+            catch (EmptyPlaybackResponseException empty) {
+                if (attempt == 2 || Thread.currentThread().isInterrupted()) throw empty;
+                try { Thread.sleep(300); }
+                catch (InterruptedException cancelled) {
+                    Thread.currentThread().interrupt();
+                    throw new java.io.InterruptedIOException("播放请求已取消");
+                }
+                identity = PlaybackDevice.fresh();
+            }
+        }
+        throw new IllegalStateException("播放请求未执行");
+    }
+
     /** 播放接口返回空响应：疑似匿名身份被拒，fetch 会换新身份重试一次。 */
     static final class EmptyPlaybackResponseException extends IllegalStateException {
         EmptyPlaybackResponseException() {
