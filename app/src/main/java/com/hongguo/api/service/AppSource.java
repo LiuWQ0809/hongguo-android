@@ -176,7 +176,7 @@ public final class AppSource {
     /** 空响应时换新身份有限重试，明确拒绝和格式错误不重复请求。 */
     private static Stream.VideoTrack fetchSingleWithRetry(String vid, String quality, PlaybackDevice.Identity identity)
             throws Exception {
-        for (int attempt = 0; attempt < 3; attempt++) {
+        for (int attempt = 0; attempt < 5; attempt++) {
             try {
                 Stream.VideoTrack track = singlePlayback.get(vid, quality, identity);
                 PLAYBACK_IDENTITY.set(identity);
@@ -184,7 +184,7 @@ public final class AppSource {
             }
             catch (EmptyPlaybackResponseException empty) {
                 PLAYBACK_IDENTITY.compareAndSet(identity, null);
-                if (attempt == 2 || Thread.currentThread().isInterrupted()) throw empty;
+                if (attempt == 4 || Thread.currentThread().isInterrupted()) throw empty;
                 try { Thread.sleep(300); }
                 catch (InterruptedException cancelled) {
                     Thread.currentThread().interrupt();

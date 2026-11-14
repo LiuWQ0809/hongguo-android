@@ -413,7 +413,7 @@ public class PlaybackSourceTest {
         });
         AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new IOException("offline"); });
         try { AppSource.fetch("7600000000000000001", "auto"); fail(); }
-        catch (IOException expected) { assertEquals(3, attempts.get()); }
+        catch (IOException expected) { assertEquals(5, attempts.get()); }
     }
 
     @Test public void interruptedSingleRequestDoesNotStartFallback() throws Exception {
