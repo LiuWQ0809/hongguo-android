@@ -425,6 +425,32 @@ public class PlaybackSourceTest {
         catch (java.io.InterruptedIOException expected) { assertEquals(0, legacy.get()); }
     }
 
+    @Test public void successfulSingleIdentityIsReusedAcrossEpisodes() throws Exception {
+        AtomicInteger registrations = new AtomicInteger();
+        PlaybackDevice.resetForTest((url, headers, body) -> { registrations.incrementAndGet(); return okReply(); });
+        List<PlaybackDevice.Identity> used = new ArrayList<>();
+        Stream.VideoTrack track = new Stream.VideoTrack();
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> { used.add(identity); return track; });
+        AppSource.fetch("7600000000000000001", "auto");
+        AppSource.fetch("7600000000000000002", "auto");
+        assertEquals(1, registrations.get()); assertSame(used.get(0), used.get(1));
+    }
+
+    @Test public void rejectedCachedIdentityIsReplaced() throws Exception {
+        AtomicInteger registrations = new AtomicInteger(), attempts = new AtomicInteger();
+        PlaybackDevice.resetForTest((url, headers, body) -> { registrations.incrementAndGet(); return okReply(); });
+        List<PlaybackDevice.Identity> used = new ArrayList<>();
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
+            used.add(identity);
+            if (attempts.getAndIncrement() == 1) throw new AppSource.EmptyPlaybackResponseException();
+            return new Stream.VideoTrack();
+        });
+        AppSource.fetch("7600000000000000001", "auto");
+        AppSource.fetch("7600000000000000002", "auto");
+        assertEquals(2, registrations.get()); assertSame(used.get(0), used.get(1));
+        assertNotSame(used.get(1), used.get(2));
+    }
+
     @Test public void singlePlaybackSucceedsWithoutCallingLegacyPaths() throws Exception {
         PlaybackDevice.resetForTest((url, headers, body) -> okReply());
         AtomicInteger legacy = new AtomicInteger();
