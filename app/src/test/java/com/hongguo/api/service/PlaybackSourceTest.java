@@ -392,6 +392,39 @@ public class PlaybackSourceTest {
         }
     }
 
+    @Test public void emptySingleResponseRenewsIdentityAndRetries() throws Exception {
+        AtomicInteger registrations = new AtomicInteger(), attempts = new AtomicInteger();
+        PlaybackDevice.resetForTest((url, headers, body) -> { registrations.incrementAndGet(); return okReply(); });
+        Stream.VideoTrack track = new Stream.VideoTrack();
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
+            if (attempts.getAndIncrement() == 0) throw new AppSource.EmptyPlaybackResponseException();
+            return track;
+        });
+        AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AssertionError("旧接口不应调用"); });
+        assertSame(track, AppSource.fetch("7600000000000000001", "auto"));
+        assertEquals(2, attempts.get()); assertEquals(2, registrations.get());
+    }
+
+    @Test public void singleEmptyResponseRetriesAreBounded() throws Exception {
+        AtomicInteger attempts = new AtomicInteger();
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
+            attempts.incrementAndGet(); throw new AppSource.EmptyPlaybackResponseException();
+        });
+        AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new IOException("offline"); });
+        try { AppSource.fetch("7600000000000000001", "auto"); fail(); }
+        catch (IOException expected) { assertEquals(3, attempts.get()); }
+    }
+
+    @Test public void interruptedSingleRequestDoesNotStartFallback() throws Exception {
+        AtomicInteger legacy = new AtomicInteger();
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> { throw new java.io.InterruptedIOException("cancelled"); });
+        AppSource.setPlaybackPostForTest((body, identity, host) -> { legacy.incrementAndGet(); throw new IOException(); });
+        try { AppSource.fetch("7600000000000000001", "auto"); fail(); }
+        catch (java.io.InterruptedIOException expected) { assertEquals(0, legacy.get()); }
+    }
+
     @Test public void singlePlaybackSucceedsWithoutCallingLegacyPaths() throws Exception {
         PlaybackDevice.resetForTest((url, headers, body) -> okReply());
         AtomicInteger legacy = new AtomicInteger();
