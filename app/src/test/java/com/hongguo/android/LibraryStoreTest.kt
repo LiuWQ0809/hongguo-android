@@ -42,5 +42,24 @@ class LibraryStoreTest {
         assertNotNull(store.state.value.storageError)
         assertEquals("{damaged", preferences.raw)
         assertEquals(0, preferences.writes)
+        assertNotNull(LibraryStore(preferences).state.value.storageError)
+        assertEquals("{damaged", preferences.raw)
+        preferences.raw = LibraryCodec.encode(LibrarySnapshot())
+        store.reload()
+        assertNull(store.state.value.storageError)
+        store.toggleFavorite(card)
+        assertEquals("1", LibraryStore(preferences).state.value.favorites.single().card.id)
+        assertEquals(1, preferences.writes)
+    }
+
+    @Test fun failedReloadPreservesTheLastSuccessfullyReadLists() {
+        val entry = LibraryEntry(DramaCard("1", "测试", "", 5, ""))
+        val preferences = Preferences(LibraryCodec.encode(LibrarySnapshot(favorites = listOf(entry))))
+        val store = LibraryStore(preferences)
+        preferences.raw = "not-json"
+        store.reload()
+        assertEquals(listOf(entry), store.state.value.favorites)
+        assertNotNull(store.state.value.storageError)
+        assertEquals("not-json", preferences.raw)
     }
 }
