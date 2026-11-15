@@ -50,6 +50,7 @@ data class HongguoUiState(
     val filtersLoading: Boolean = false,
     val filtersError: String? = null,
     val favorites: List<LibraryEntry> = emptyList(),
+    val libraryError: String? = null,
     val history: List<LibraryEntry> = emptyList(),
     val libraryCloud: Boolean = false,
     val query: String = "",
@@ -152,10 +153,10 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
     fun selectLibrarySource(cloud: Boolean) { mutableState.update { it.copy(libraryCloud = cloud) } }
 
     init {
-        mutableState.update { it.copy(favorites = library.state.value.favorites, history = library.state.value.history) }
+        mutableState.update { it.copy(favorites = library.state.value.favorites, history = library.state.value.history, libraryError = library.state.value.storageError) }
         viewModelScope.launch {
             library.state.collect { snapshot -> mutableState.update {
-                it.copy(favorites = snapshot.favorites, history = snapshot.history)
+                it.copy(favorites = snapshot.favorites, history = snapshot.history, libraryError = snapshot.storageError)
             } }
         }
         viewModelScope.launch {
@@ -321,6 +322,7 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         val detail = state.value.detail?.takeIf { it.id == card.id }
         library.toggleFavorite(if (detail == null) card else cardFor(detail))
     }
+    fun reloadLibrary() = library.reload()
     fun removeHistory(id: String) = library.deleteHistory(id)
     fun clearFavorites() = library.clearFavorites()
     fun clearHistory() = library.clearHistory()
