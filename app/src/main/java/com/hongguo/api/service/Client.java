@@ -954,13 +954,21 @@ public final class Client {
         }
     }
 
+    /** cell/change ignores offset; continue with filter_ids (hongguo-web 1b00f06, MIT). */
     public static RankPage rankPage(String board, int limit, int offsetArg) throws Exception {
         int size = Math.max(1, Math.min(limit <= 0 ? 30 : limit, 100));
         int start = Math.max(0, offsetArg);
-        DiscoveryAccumulator page = new DiscoveryAccumulator(start, size, null, false);
+        String key = Safeguards.cacheKey("rank-round-v3", board);
+        RankRound round;
+        synchronized (RANK_LOCK) {
+            Object cached = Safeguards.cacheGet(key);
+            if (start == 0) round = new RankRound();
+            else if (cached instanceof RankRound) round = (RankRound) cached;
+            else throw new IOException("漫剧榜单分页已过期，请刷新");
+            Safeguards.cacheSet(key, round, 600);
+        }
         String session = UUID.randomUUID().toString();
-        for (int requests = 0; requests < 4; requests++) {
-            if (Thread.currentThread().isInterrupted()) throw new java.io.InterruptedIOException("请求已取消");
+        return round.page(start, size, filters -> {
             Map<String, Object> query = Json.obj();
             query.put("cell_id", COMIC_RANK_CELL);
             query.put("tab_type", "26");
@@ -970,16 +978,11 @@ public final class Client {
             query.put("selected_items", "comic_series_rank");
             query.put("sub_selected_items", RANK_BOARDS.getOrDefault(board, board));
             query.put("session_uuid", session);
-            if (page.cursor != 0) query.put("offset", String.valueOf(page.cursor));
+            query.put("filter_ids", String.join(",", filters));
             Map<String, Object> response = api("GET", "/reading/bookapi/bookmall/cell/change/v",
                     null, query, 2, SIGN_LIST);
-            Map<String, Object> data = Json.optObj(response.get("data"));
-            Map<String, Object> cellView = data == null ? null : Json.optObj(data.get("cell_view"));
-            if (!page.consume(rankData(cellView))) break;
-        }
-        Page result = page.result();
-        for (int i = 0; i < result.items.size(); i++) Json.optObj(result.items.get(i)).put("rank", start + i + 1);
-        return new RankPage(result.items, result.hasMore, result.nextSkip);
+            return Json.optObj(Json.optObj(response.get("data")).get("cell_view"));
+        });
     }
 
     private static final Object RANK_LOCK = new Object();
