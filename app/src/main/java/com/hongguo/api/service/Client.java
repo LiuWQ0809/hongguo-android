@@ -954,26 +954,9 @@ public final class Client {
         }
     }
 
-    /**
-     * 取漫剧榜单的一页。
-     *
-     * offset 为 0 时行为与从前一致（从头累积抓够 limit 条）；offset>0 时只抓
-     * 本页，不会从头重复遍历 —— 无限滚动必须走这条路径，否则每次触底都会把
-     * 前面的页重跑一遍。
-     */
     public static RankPage rankPage(String board, int limit, int offsetArg) throws Exception {
         int size = Math.max(1, Math.min(limit <= 0 ? 30 : limit, 100));
         int start = Math.max(0, offsetArg);
-        String cacheKey = Safeguards.cacheKey("rankp-v2", board, size, start);
-        Object cached = Safeguards.cacheGet(cacheKey);
-        if (cached instanceof Object[]) {
-            Object[] fields = (Object[]) cached;
-            if (fields.length == 3 && fields[0] instanceof List) {
-                List<Object> rows = new ArrayList<>(castList(fields[0]));
-                int next = Math.max(start, Json.optInt(fields[2], start));
-                return new RankPage(rows, Boolean.TRUE.equals(fields[1]) && !rows.isEmpty() && next > start, next);
-            }
-        }
         DiscoveryAccumulator page = new DiscoveryAccumulator(start, size, null, false);
         String session = UUID.randomUUID().toString();
         for (int requests = 0; requests < 4; requests++) {
@@ -996,7 +979,6 @@ public final class Client {
         }
         Page result = page.result();
         for (int i = 0; i < result.items.size(); i++) Json.optObj(result.items.get(i)).put("rank", start + i + 1);
-        Safeguards.cacheSet(cacheKey, new Object[]{new ArrayList<>(result.items), result.hasMore, result.nextSkip}, 1800);
         return new RankPage(result.items, result.hasMore, result.nextSkip);
     }
 
