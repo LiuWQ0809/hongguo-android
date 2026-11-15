@@ -30,7 +30,7 @@ class LibraryFlowTest {
             store.recordPlayback(DramaCard("7696083096164125721", "铁血信使", "", 75, ""),
                 "7696085244503411774", 1, 8_000)
             compose.waitUntil(5_000) { model.state.value.history.firstOrNull()?.card?.id == "7696083096164125721" }
-            compose.runOnIdle { model.setDarkFollowsSystem(false); model.setThemeStyle(AppThemeStyle.WARM) }
+            compose.runOnIdle { model.selectTab(AppTab.HOME); model.setDarkFollowsSystem(false); model.setThemeStyle(AppThemeStyle.WARM) }
             compose.onNodeWithTag("home_continue_play").assertExists()
             compose.runOnIdle { model.setThemeStyle(AppThemeStyle.CARDS) }
             compose.onNodeWithTag("cards_continue").assertExists()

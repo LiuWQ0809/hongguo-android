@@ -18,7 +18,7 @@ class DiscoveryFlowTest {
     @Test fun recommendationsAndCategoryFiltersUseLiveData() {
         lateinit var model: HongguoViewModel
         compose.runOnIdle { model = compose.activity.playbackModel }
-        compose.onNodeWithTag("nav_home").performClick()
+        compose.runOnIdle { model.setThemeStyle(AppThemeStyle.WARM); model.selectTab(AppTab.HOME) }
         compose.waitUntil(120_000) { model.state.value.home.loaded && !model.state.value.home.loading }
         assertNull(model.state.value.home.error)
         assertTrue("Home recommendations must contain live short dramas", model.state.value.home.items.isNotEmpty())

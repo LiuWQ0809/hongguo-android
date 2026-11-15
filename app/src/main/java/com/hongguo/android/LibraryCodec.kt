@@ -35,7 +35,11 @@ object LibraryCodec {
         require(version == null || nonNegativeLong(version, -1) == 1L)
         if (strictLists) {
             require(root.containsKey("favorites") || root.containsKey("history"))
-            for (key in listOf("favorites", "history")) require(!root.containsKey(key) || root[key] is List<*>)
+            for (key in listOf("favorites", "history")) {
+                require(!root.containsKey(key) || root[key] is List<*>)
+                val rows = Json.optArr(root[key])
+                require(readEntries(rows).size == rows.size)
+            }
         }
         return normalize(LibrarySnapshot(readEntries(root["favorites"]), readEntries(root["history"])))
     }
