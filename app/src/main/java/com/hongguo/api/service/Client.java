@@ -1000,6 +1000,38 @@ public final class Client {
         return new RankPage(result.items, result.hasMore, result.nextSkip);
     }
 
+    private static final Object RANK_LOCK = new Object();
+    interface RankFetch { Map<String, Object> read(List<String> filters) throws Exception; }
+
+    static final class RankRound {
+        final List<Object> rows = new ArrayList<>();
+        final Set<String> seen = new LinkedHashSet<>();
+        boolean hasMore = true;
+
+        synchronized RankPage page(int start, int size, RankFetch fetch) throws Exception {
+            if (start < 0 || start > rows.size() || start > 600) throw new IOException("漫剧榜单分页已变化，请刷新");
+            for (int attempt = 0; attempt < 4 && hasMore && rows.size() < start + size; attempt++) {
+                if (Thread.currentThread().isInterrupted()) throw new java.io.InterruptedIOException("请求已取消");
+                List<String> filters = new ArrayList<>(seen);
+                filters = new ArrayList<>(filters.subList(Math.max(0, filters.size() - 200), filters.size()));
+                Map<String, Object> cell = fetch.read(filters);
+                if (Thread.currentThread().isInterrupted()) throw new java.io.InterruptedIOException("请求已取消");
+                DiscoveryAccumulator batch = new DiscoveryAccumulator(0, 120, null, false);
+                batch.consume(rankData(cell));
+                int added = 0;
+                for (Object value : batch.result().items) {
+                    Map<String, Object> row = Json.optObj(value);
+                    if (!seen.add(Json.optStr(row.get("series_id"), ""))) continue;
+                    row.put("rank", rows.size() + 1);
+                    rows.add(row); added++;
+                }
+                hasMore = added > 0 && rows.size() < 600 && cell != null && Json.optBool(cell.get("has_more"), false);
+            }
+            int end = Math.min(rows.size(), start + size);
+            return new RankPage(new ArrayList<>(rows.subList(start, end)), end < rows.size() || hasMore, end);
+        }
+    }
+
     /** Retain every raw ranking cell position even if its video payload is missing. */
     static Map<String, Object> rankData(Map<String, Object> cellView) {
         Map<String, Object> normalized = Json.obj();
