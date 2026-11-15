@@ -340,7 +340,8 @@ internal fun CardsLibrary(state: HongguoUiState, model: HongguoViewModel, accoun
                     }
                 }
             }
-            if (entries.isEmpty()) item {
+            state.libraryError?.let { error -> item { FailurePanel(error, model::reloadLibrary, "library_storage_retry") } }
+            if (entries.isEmpty() && state.libraryError == null) item {
                 EmptyPrompt(if (history) "还没有观看记录" else "还没有收藏的剧集",
                     if (history) "开始播放后，这里会记住集数和进度。" else "在剧集详情中收藏，喜欢的故事就会留在这里。")
             }

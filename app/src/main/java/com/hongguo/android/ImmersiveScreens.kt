@@ -496,12 +496,13 @@ internal fun ImmersiveLibrary(state: HongguoUiState, model: HongguoViewModel, ac
         }
         LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = 24.dp).plusNavClearance(),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            state.libraryError?.let { error -> item { FailurePanel(error, model::reloadLibrary, "library_storage_retry") } }
             item {
                 SectionTitle("继续看", if (canManage) (if (managing) "完成" else "管理") else null,
                     "immersive_manage") { managing = !managing }
             }
             item {
-                if (state.history.isEmpty()) Text("开始播放后，这里会记住看到哪一集。", color = Muted, fontSize = 13.sp,
+                if (state.history.isEmpty() && state.libraryError == null) Text("开始播放后，这里会记住看到哪一集。", color = Muted, fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 16.dp))
                 else LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(state.history, key = { it.card.id }) { entry ->
@@ -526,7 +527,7 @@ internal fun ImmersiveLibrary(state: HongguoUiState, model: HongguoViewModel, ac
                 }
             }
             item { SectionTitle("我的追剧", null, "") {} }
-            if (state.favorites.isEmpty()) item {
+            if (state.favorites.isEmpty() && state.libraryError == null) item {
                 Text("在推荐流或详情里点“追剧”，喜欢的故事就会留在这里。", color = Muted, fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 16.dp))
             }
