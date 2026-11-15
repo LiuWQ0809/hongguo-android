@@ -77,3 +77,7 @@ Selected playback identity, signed GET and ByteVC2 compatibility behavior in the
   https://github.com/tsukiyo-zero/hongguoTV/tree/97c5b1d15dc2233e53f6152918c7e3cc3bbebb84/kotlin-tv
 
 Local changes: signed out, the feed is requested anonymously without any cookie or account device; signed in (verified app account only), it carries the account cookie and that account's registered device_id / iid. The request uses the account transport (no redirects, no cookie jar), so the cookie cannot be forwarded to another host. The server session and offset are kept in memory per browse round and discarded on login, logout or account switch. No exposure, click or completion events are reported, and whether the signed-in results match the official App's 猜你喜欢 for the same account has not been verified on a real account.
+
+## 漫剧榜单续页修复（2026-11-14）
+
+参考 [sunnysky123/hongguo-web `1b00f06`](https://github.com/sunnysky123/hongguo-web/commit/1b00f06)（MIT）及 OOIUa/hongguo-android v0.7.28（GPL-3.0-only）：使用 `filter_ids` 排除已展示作品。
