@@ -43,3 +43,48 @@ internal class AesV3(key: ByteArray, timestamp: Int, private val v5: Boolean = f
             (xor(le32(initial) + le32(initial) + le32(initial) + le32(initial), key) +
                     ByteArray(32))
                 .map { it.u() }
+                .toIntArray()
+        var rounds = 8
+        for (i in 4 until 12) {
+            val at = 4 * (i - 1)
+            var a = expanded[at]
+            var b = expanded[at + 1]
+            var c = expanded[at + 2]
+            var d = expanded[at + 3]
+            if (i and 3 == 0) {
+                val t = ((initial shr (rounds and 24)) xor box[b]) and 255
+                b = box[c]
+                c = box[d]
+                d = box[a]
+                a = t
+            }
+            rounds += 2
+            expanded[at + 4] = a xor expanded[at - 12]
+            expanded[at + 5] = b xor expanded[at - 11]
+            expanded[at + 6] = c xor expanded[at - 10]
+            expanded[at + 7] = d xor expanded[at - 9]
+        }
+        keys = Array(12) { expanded.copyOfRange(it * 4, it * 4 + 4) }
+    }
+
+    private fun block(value: ByteArray): ByteArray {
+        val rows = Array(4) { i -> IntArray(4) { j -> value[i * 4 + j].u() } }
+        fun addCon(offset: Int) {
+            for (i in 0..3) for (j in 0..3) rows[i][j] = rows[i][j] xor keys[offset + i][con[j]]
+        }
+        addCon(0)
+        for (round in 1..2) {
+            for (i in 0..3) for (j in 0..3) rows[i][j] = box[rows[i][j]]
+            val before = rows.map { it.copyOf() }
+            for (i in 0..3) rows[i] = before[con[i]].copyOf()
+            val flat = rows.flatMap { it.toList() }
+            for (i in 0..15) rows[i / 4][i % 4] = flat[order[i]]
+            if (round == 1) {
+                for (i in 0..3) {
+                    val old = rows[i].copyOf()
+                    rows[i] = IntArray(4) { old[con[it]] }
+                }
+                fun xt(x: Int) = ((x shl 1) xor (if (x and 128 != 0) 0x1b else 0)) and 255
+                for (i in 0..3) {
+                    val t = rows[0][i] xor rows[1][i] xor rows[2][i] xor rows[3][i]
+                    val u = rows[0][i]
