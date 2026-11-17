@@ -448,3 +448,48 @@ internal class Signer(
     /**
      * 生成带完整签名头的请求。
      *
+     * `identity` 是播放接口的注册设备身份：除进入 query 外，还必须写进 medusa 明文
+     * （服务端核对两者一致性）。`playback` 切换官方播放器的头集合：不携带
+     * `x-tt-request-tag` / `passport-sdk-version` / `x-ss-stub`，改带
+     * `x-tt-store-region(-src)`（对齐 jackotom/hongguo-drama 的 playbackRequest）。
+     *
+     * 注意：该形态 2026-11-05 实测可通过播放接口，但 2026-11-06 `--signmatrix` 复测
+     * 0/12 被拒（补 version_code 73932 也不恢复）；当日对照实测服务端要求完整官方
+     * 形态（Cookie 与 x-ss-stub 缺一即拒）。此形态仅作头形态基线保留，勿用于线上。
+     */
+    fun sign(
+        base: String,
+        values: Map<String, String>,
+        body: ByteArray? = null,
+        identity: Map<String, String>? = null,
+        playback: Boolean = false,
+    ): Request {
+        val now = clock()
+        val ts = (now / 1000).toInt()
+        var ticket = now
+        var query: String
+        for (offset in 0..127) {
+            ticket = now + offset
+            query = encode(values + mapOf("ts" to ts.toString(), "_rticket" to ticket.toString()))
+            if (branch(query, body, ts) == 0) {
+                val url = "$base?$query"
+                val random = (random() * 65536).toInt()
+                val headers =
+                    linkedMapOf(
+                        "User-Agent" to
+                            when {
+                                playback -> VendorConstants.PLAYER_UA
+                                body != null -> VendorConstants.VIDEO_UA
+                                else -> VendorConstants.APP_UA
+                            },
+                        "Accept" to "application/json; charset=utf-8,application/x-protobuf",
+                        "x-ss-req-ticket" to ticket.toString(),
+                    )
+                if (!playback) {
+                    headers["x-tt-request-tag"] = "t=0;n=0"
+                    headers["passport-sdk-version"] = "50561"
+                }
+                headers["sdk-version"] = "2"
+                headers["x-xs-from-web"] = "0"
+                headers["x-khronos"] = ts.toString()
+                headers["x-ladon"] = be32(ts).base64()
