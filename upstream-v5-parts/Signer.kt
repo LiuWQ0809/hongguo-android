@@ -493,3 +493,48 @@ internal class Signer(
                 headers["x-xs-from-web"] = "0"
                 headers["x-khronos"] = ts.toString()
                 headers["x-ladon"] = be32(ts).base64()
+                headers["x-argus"] = le32(ts).base64()
+                headers["x-gorgon"] = gorgon(query, body, ts, random)
+                headers["x-helios"] = helios(ts)
+                headers["x-medusa"] = medusa(url, body, ts, identity)
+                headers["x-tt-dt"] = ""
+                if (playback) {
+                    headers["x-tt-store-region"] = "cn"
+                    headers["x-tt-store-region-src"] = "did"
+                }
+                if (body != null) {
+                    headers["Content-Type"] = "application/json; charset=UTF-8"
+                    if (!playback) {
+                        headers["x-vc-bdturing-sdk-version"] = "3.7.2.cn"
+                        headers["x-ss-stub"] = digest("MD5", body).hex().uppercase()
+                    }
+                }
+                return Request(url, headers, body)
+            }
+        }
+        error("无法生成请求签名")
+    }
+
+    /** Playback uses the registered profile, no legacy ts query parameter, and branch 0.
+     * Keep the existing branch-0 signing algorithm for deterministic compatibility.
+     */
+    fun signPlayback(
+        base: String,
+        values: Map<String, String>,
+        body: ByteArray? = null,
+        now: Long = clock(),
+    ): Request {
+        val ts = (now / 1000).toInt()
+        for (offset in 0..1023) {
+            val ticket = now + offset
+            val query = encode(values + ("_rticket" to ticket.toString()))
+            if (branch(query, body, ts) != 0) continue
+            val url = "$base?$query"
+            val headers = linkedMapOf(
+                "User-Agent" to VendorConstants.PLAYER_UA,
+                "Accept" to "application/json; charset=utf-8,application/x-protobuf",
+                "x-ss-req-ticket" to ticket.toString(), "sdk-version" to "2",
+                "x-xs-from-web" to "0", "x-khronos" to ts.toString(),
+                "x-ladon" to be32(ts).base64(), "x-argus" to le32(ts).base64(),
+                "x-gorgon" to gorgon(query, body, ts, (random() * 65536).toInt()),
+                "x-helios" to helios(ts), "x-medusa" to medusa(url, body, ts, if (mobileV5) values else null),
