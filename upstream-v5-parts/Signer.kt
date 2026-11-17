@@ -88,3 +88,48 @@ internal class Signer(
     private fun iv(query: ByteArray, body: ByteArray, ts: Int) =
         getIv(getIv(getIv(0x20230928, query), body), le32(ts))
 
+    fun branch(query: String, body: ByteArray?, ts: Int): Int =
+        (iv(sm3(query.toByteArray()), body?.let { digest("MD5", it) } ?: ByteArray(16), ts) and 15)
+            .let { if (mobileV5) { if (it == 12) 0 else 1 } else it % 3 }
+
+    private fun sumMd5(data: ByteArray): Int {
+        var check = 0x20220420
+        for (i in 0 until 12) {
+            val temp = (check ushr (if (i and 1 == 0) 3 else 5)) xor check
+            check =
+                if (i and 1 == 0) data[i].u() xor (check shl 7)
+                else (data[i].u() or (check shl 11)).inv()
+            check = check xor temp
+        }
+        return (check or 4) xor 0x1000000
+    }
+
+    fun hashF13(query: ByteArray, body: ByteArray, ts: Int): ByteArray {
+        val index = (iv(query, body, ts) and 15) / 3
+        require(if (mobileV5) (iv(query, body, ts) and 15) == 12
+            else (iv(query, body, ts) and 15) % 3 == 0) { "Unsupported hash branch" }
+        val ivV1 =
+            if (mobileV5) 0x9d4a97c2.toInt() else intArrayOf(
+                0xc4a78580.toInt(),
+                0xb3c0fd39.toInt(),
+                0xc58c5686.toInt(),
+                0xc9aa3ba7.toInt(),
+                0xf5a7adf2.toInt(),
+                0x963c2ed1.toInt(),
+            )[index]
+        val count = ivV1 + ts
+        val tt = VendorConstants.hashTable.map { ror(it, (count + 1) and 255) }
+        val shift = (count + 2) and 7
+        val pad =
+            intArrayOf(0xfa, 0x45, 0x61, 0xd7)
+                .map { ((it or (it shl 8)) shr shift).toByte() }
+                .toByteArray()
+        val data = query + body + le32(ts) + pad + hex("00000000000001a0")
+        val di = (data.indices step 4).map { data.i32(it) }.toMutableList()
+        for (i in 0 until 112) {
+            val x = di[i + 1]
+            val y = di[i + 14]
+            di.add(
+                di[i] +
+                    di[i + 9] +
+                    (rol(x, 14) xor rol(x, 25) xor (x ushr 3)) +
