@@ -509,6 +509,16 @@ public class PlaybackSourceTest {
         }
     }
 
+    @Test public void rejectedFallbackStopsFurtherRequests() throws Exception {
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        AtomicInteger tabCalls = new AtomicInteger();
+        AppSource.setPlaybackTabForTest((vid, identity) -> { tabCalls.incrementAndGet(); return null; });
+        AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AppSource.PlaybackRejectedException(429); });
+        try { AppSource.fetch("7000000000000000001", "auto"); fail("拒绝后仍然继续请求"); }
+        catch (AppSource.PlaybackRejectedException expected) { assertTrue(expected.getMessage().contains("429")); }
+        assertEquals(0, tabCalls.get());
+    }
+
     @Test public void emptyPlaybackResponseRetriesOnceWithRenewedIdentity() throws Exception {
         AtomicInteger registrations = new AtomicInteger();
         PlaybackDevice.resetForTest((url, headers, body) -> registrations.incrementAndGet() == 1
