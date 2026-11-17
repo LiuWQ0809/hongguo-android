@@ -132,13 +132,13 @@ public final class AppSource {
         try {
             return fetchSigned(vid, quality, identity);
         } catch (Exception primary) {
-            if (Thread.currentThread().isInterrupted()) throw primary;
+            if (Thread.currentThread().isInterrupted() || primary instanceof PlaybackRejectedException) throw primary;
             primary.addSuppressed(singleFailure);
             try {
                 Map<String, Object> tab = playbackTab.get(vid, identity);
                 if (tab != null) return parseModel(vid, tab, quality);
             } catch (Exception alternate) {
-                if (Thread.currentThread().isInterrupted()) throw alternate;
+                if (Thread.currentThread().isInterrupted() || alternate instanceof PlaybackRejectedException) throw alternate;
                 primary.addSuppressed(alternate);
             }
             try {
@@ -147,12 +147,12 @@ public final class AppSource {
                     Map<String, Object> tab = playbackTab.get(vid, fresh);
                     if (tab != null) return parseModel(vid, tab, quality);
                 } catch (Exception alternate) {
-                    if (Thread.currentThread().isInterrupted()) throw alternate;
+                    if (Thread.currentThread().isInterrupted() || alternate instanceof PlaybackRejectedException) throw alternate;
                     primary.addSuppressed(alternate);
                 }
                 return fetchSigned(vid, quality, fresh);
             } catch (Exception retry) {
-                if (Thread.currentThread().isInterrupted()) throw retry;
+                if (Thread.currentThread().isInterrupted() || retry instanceof PlaybackRejectedException) throw retry;
                 primary.addSuppressed(retry);
             }
             if (singleFailure instanceof ByteVc2Only) throw singleFailure;
@@ -562,9 +562,10 @@ public final class AppSource {
         for (Map.Entry<String, String> entry : signed.headers.entrySet()) req.header(entry.getKey(), entry.getValue());
         try {
             Http.Resp res = Http.send(req);
+            if (res.status == 403 || res.status == 429) throw new PlaybackRejectedException(res.status);
             return res.status == 200 ? parseTabResponse(vid, res.text()) : null;
         } catch (IOException e) {
-            if (Thread.currentThread().isInterrupted()) throw e;
+            if (Thread.currentThread().isInterrupted() || e instanceof PlaybackRejectedException) throw e;
             return null;
         }
     }
@@ -703,6 +704,7 @@ public final class AppSource {
         }
         req.body(body);
         Http.Resp res = Http.send(req);
+        if (res.status == 403 || res.status == 429) throw new PlaybackRejectedException(res.status);
         if (res.status != 200) {
             throw new IllegalStateException("App 接口 HTTP " + res.status);
         }
