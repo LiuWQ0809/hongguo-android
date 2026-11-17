@@ -178,3 +178,48 @@ internal class Signer(
 
     fun gorgon(query: String, body: ByteArray?, ts: Int, random: Int): String {
         val input =
+            digest("MD5", query.toByteArray()).copyOf(4) +
+                (body?.let { digest("MD5", it).copyOf(4) } ?: ByteArray(4)) +
+                ByteArray(4) +
+                le32(67503104) +
+                be32(ts)
+        val key =
+            intArrayOf(0x4a, 0x40, 0x16, (random shr 8) and 255, 0x47, 0x6c, 1, random and 255)
+        val s = IntArray(256) { it }
+        var j = 0
+        for (i in 0..255) {
+            j = (j + s[i] + key[i % 8]) and 255
+            s[i] = s[j]
+        }
+        j = 0
+        val out =
+            ByteArray(input.size) { n ->
+                val i = n + 1
+                j += s[i]
+                val y = s[j and 255]
+                s[i] = y
+                (input[n].u() xor s[(y + y) and 255]).toByte()
+            }
+        for (i in out.indices) {
+            val value = ((out[i].u() shr 4) or (out[i].u() shl 4)) and 255
+            val next = out[if (i + 1 < out.size) i + 1 else 0].u()
+            val reversed = Integer.reverse((next xor value) and 255) ushr 24
+            out[i] = (reversed xor 20).inv().toByte()
+        }
+        return (hex("8404") + byteArrayOf(random.toByte(), (random shr 8).toByte(), 0x40, 1) + out)
+            .hex()
+    }
+
+    // medusa 内嵌的设备身份必须与 query 中的注册身份一致（服务端核对 medusa 明文里的
+    // device_id 与请求参数）；identity 为空时沿用构造时的静态占位身份。
+    private fun deviceProto(identity: Map<String, String>? = null) =
+        proto(
+            f(1, 1, "sint"),
+            f(2, 2, "sint"),
+            f(3, "8662"),
+            f(4, (identity ?: device).getValue("device_id")),
+            f(5, processNonce),
+            f(6, "!noperm!"),
+            f(7, -888888, "sint"),
+            f(8, -888888, "sint"),
+            f(9, 3, "sint"),
