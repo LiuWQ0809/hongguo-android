@@ -403,3 +403,48 @@ internal class Signer(
         val transformed = (flags + xmxor(message, hash)).reversedArray()
         for (i in transformed.indices) transformed[i] =
             (transformed[i].u() xor seed[i.inv() and 3].u()).toByte()
+        val check = 0x18000001 or ((query[0].u() and 63) shl 14) or ((f13[0].u() and 63) shl 8)
+        val packed = byteArrayOf(0xca.toByte()) + le32(rand()) + le32(check) + transformed +
+            byteArrayOf((nonce ushr 16).toByte(), (nonce ushr 24).toByte())
+        val encrypted = AesV3(digest("MD5", key.copyOfRange(0, 16)), ts, v5 = true)
+            .encrypt(packed, digest("MD5", key.copyOfRange(16, 32)))
+        val prefix = le32(5) + V5Constants.magic
+        for (i in prefix.indices) prefix[i] = (prefix[i].u() xor le32(ts)[i and 3].u()).toByte()
+        return (prefix + byteArrayOf(nonce.toByte(), (nonce ushr 8).toByte(), 0, 1) + encrypted).base64()
+    }
+
+    fun helios(ts: Int): String {
+        val random = rand()
+        val ascii = digest("MD5", le32(random) + "8662".toByteArray()).hex().toByteArray()
+        val words = (0..3).map { ascii.i64(it * 8, true) }.toMutableList()
+        val table = mutableListOf(words[0])
+        var b0 = words.removeAt(0)
+        var b8 = words.removeAt(0)
+        for (i in 0 until 34) {
+            var x8 = (java.lang.Long.rotateRight(b8, 8) + b0) xor i.toLong()
+            words.add(x8)
+            x8 = x8 xor java.lang.Long.rotateRight(b0, 61)
+            table.add(x8)
+            b0 = x8
+            b8 = words.removeAt(0)
+        }
+        val license = if (mobileV5) V5Constants.license else "1588093228"
+        val text = "$ts-$license-8662".toByteArray()
+        val padding = 16 - text.size % 16
+        val data = text + ByteArray(padding) { padding.toByte() }
+        var output = le32(random)
+        for (at in data.indices step 16) {
+            var a = data.i64(at, true)
+            var b = data.i64(at + 8, true)
+            for (i in 0 until 34) {
+                b = table[i] xor (a + java.lang.Long.rotateRight(b, 8))
+                a = b xor java.lang.Long.rotateRight(a, 61)
+            }
+            output += le64(a) + le64(b)
+        }
+        return output.base64()
+    }
+
+    /**
+     * 生成带完整签名头的请求。
+     *
