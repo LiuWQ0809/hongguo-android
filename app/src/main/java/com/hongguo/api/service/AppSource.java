@@ -208,6 +208,7 @@ public final class AppSource {
     /** 明确拒绝时停止，避免继续请求其他线路。 */
     static final class PlaybackRejectedException extends IOException {
         PlaybackRejectedException(int status) { super("播放服务拒绝请求（HTTP " + status + "）"); }
+        PlaybackRejectedException(String message) { super(message); }
     }
 
     /** 播放接口返回空响应：疑似匿名身份被拒，fetch 会换新身份重试。 */
@@ -583,7 +584,14 @@ public final class AppSource {
         return parseModel(vid, parseMobileResponse(vid, response.text()), quality);
     }
 
-    static Map<String, Object> parseMobileResponse(String vid, String text) {
+    static Map<String, Object> parseMobileResponse(String vid, String text) throws PlaybackRejectedException {
+        Map<String, Object> raw = null;
+        try { raw = Json.parseObject(text); } catch (Exception ignored) { }
+        if (raw != null) {
+            int refusal = Json.optInt(raw.containsKey("code") ? raw.get("code") : raw.get("Code"), 0);
+            if (refusal == 1003 || refusal == 101144 || refusal == 110001 || refusal == 110002)
+                throw new PlaybackRejectedException("播放服务拒绝请求（错误码 " + refusal + "）");
+        }
         Map<String, Object> root = parsePlaybackResponse(text);
         Object code = root.containsKey("code") ? root.get("code") : root.get("Code");
         if (code == null || Json.optInt(code, -1) != 0) throw new IllegalStateException("播放接口暂未提供播放信息");
