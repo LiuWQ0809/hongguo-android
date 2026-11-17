@@ -43,3 +43,10 @@ class SignerV5Test {
             first.filterKeys { it != "_rticket" }.forEach { (k,v) -> assertEquals(v, url.queryParameter(k)) }
             assertEquals(0, signer.branch(url.encodedQuery!!, body, ts))
             assertEquals(ts.toString(), request.headers["x-khronos"])
+            assertEquals(digest("MD5", body).hex().uppercase(), request.headers["x-ss-stub"])
+            assertArrayEquals(body, request.body)
+            assertEquals(signer.medusa(request.url, body, ts, first), request.headers["x-medusa"])
+            assertNotEquals(signer.medusa(request.url, body, ts, first + ("device_id" to "789")), request.headers["x-medusa"])
+        }
+    }
+}
