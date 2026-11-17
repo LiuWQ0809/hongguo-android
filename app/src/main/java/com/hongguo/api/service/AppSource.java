@@ -188,7 +188,7 @@ public final class AppSource {
         for (int attempt = 0; attempt < 5; attempt++) {
             try {
                 Stream.VideoTrack track = singlePlayback.get(vid, quality, identity);
-                PLAYBACK_IDENTITY.set(identity);
+                PLAYBACK_IDENTITY.compareAndSet(null, identity);
                 return track;
             }
             catch (EmptyPlaybackResponseException empty) {
