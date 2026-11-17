@@ -358,3 +358,48 @@ internal class Signer(
         val packed =
             byteArrayOf(0x35) +
                 le32(rand()) +
+                le32(check) +
+                transformed +
+                byteArrayOf((r shr 16).toByte(), (r shr 24).toByte())
+        val encrypted =
+            AesV3(hex("f1593376766ea98d34f31b057a9d5be4"), ts)
+                .encrypt(packed, hex("1fe109a4125283f418de9e051a969e12"))
+        val versionBytes = hex("03000000f7e85ffad7d7dc3bd62ac87057cf6118")
+        val prefix =
+            (0 until 20 step 4).fold(byteArrayOf()) { a, i ->
+                a + le32(versionBytes.i32(i, true) xor ts)
+            }
+        return (prefix + byteArrayOf(r.toByte(), (r shr 8).toByte(), 0, 1) + encrypted).base64()
+    }
+
+    private fun medusaV5(url: String, body: ByteArray?, ts: Int, who: Map<String, String>): String {
+        val query = sm3(url.substringAfter('?').toByteArray(Charsets.UTF_8))
+        val f13 = hashF13(query, body?.let { digest("MD5", it) } ?: ByteArray(16), ts)
+        val flags = ByteArray(8)
+        val version = who.getValue("version_name")
+        val deviceInfo = proto(
+            f(1, 1, "sint"), f(2, 2, "sint"), f(3, "8662"), f(4, who.getValue("device_id")),
+            f(5, processNonce), f(6, "!noperm!"), f(12, "Asia/Shanghai,8"), f(13, "zh_CN"),
+            f(22, who.getValue("os_version")), f(25, processStarted, "sint"),
+            f(30, who.getValue("device_type")), f(31, "HONOR"),
+            f(32, who.getValue("device_type")), f(34, "HONOR"),
+        )
+        val env = proto(f(6, "v04.10.03.04-bugfix"), f(8, who.getValue("channel")),
+            f(12, deviceInfo), f(14, version))
+        val message = proto(
+            f(1, V5Constants.magic), f(2, 5, "sint"), f(3, unsigned(rand()), "sint"),
+            f(4, "8662"), f(5, who.getValue("device_id")), f(6, V5Constants.license),
+            f(7, version), f(8, "v04.10.03-ml-android"), f(9, 0x040a0300, "sint"),
+            f(10, flags), f(12, ts, "sint"), f(13, f13), f(14, query.copyOf(6)),
+            f(15, proto(f(1, 1, "sint"), f(2, 1, "sint"), f(3, 1, "sint"), f(5, 1, "sint"))),
+            f(17, ts, "sint"), f(20, "none"), f(21, 377, "sint"), f(23, env),
+            f(24, """{"cmr":16777216,"cmr2":16777216,"un_h":11,"vpn":0,"kd":0,"dyn":"","do":1,"tk":true}"""),
+        )
+        val nonce = rand()
+        val key = V5Constants.signKey
+        val hash = sm3(key + le32(nonce) + key)
+        val high = (nonce ushr 16) and 255
+        val seed = le32((((high shl 11) or (nonce ushr 24)) xor (high ushr 5) xor high).inv())
+        val transformed = (flags + xmxor(message, hash)).reversedArray()
+        for (i in transformed.indices) transformed[i] =
+            (transformed[i].u() xor seed[i.inv() and 3].u()).toByte()
