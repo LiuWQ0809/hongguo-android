@@ -43,3 +43,48 @@ internal class Signer(
     private data class Field(val tag: Int, val value: Any, val type: String = "string")
 
     private fun f(tag: Int, value: Any, type: String = "string") = Field(tag, value, type)
+
+    private fun proto(vararg fields: Field): ByteArray =
+        ByteArrayOutputStream()
+            .apply {
+                for ((tag, value, type) in fields) {
+                    when (type) {
+                        "sint" -> {
+                            val n = (value as Number).toLong()
+                            write(varint(tag.toLong() shl 3))
+                            write(varint(if (n < 0) -n * 2 - 1 else n * 2))
+                        }
+                        "float" -> {
+                            write(varint((tag.toLong() shl 3) or 5))
+                            write(
+                                ByteBuffer.allocate(4)
+                                    .order(ByteOrder.LITTLE_ENDIAN)
+                                    .putFloat((value as Number).toFloat())
+                                    .array()
+                            )
+                        }
+                        else -> {
+                            val bytes =
+                                if (value is ByteArray) value else value.toString().toByteArray()
+                            if (bytes.isNotEmpty()) {
+                                write(varint((tag.toLong() shl 3) or 2))
+                                write(varint(bytes.size.toLong()))
+                                write(bytes)
+                            }
+                        }
+                    }
+                }
+            }
+            .toByteArray()
+
+    private fun getIv(initial: Int, data: ByteArray): Int {
+        var value = initial
+        for (i in data.indices) value =
+            if (i and 1 == 0) (value ushr 4) xor value xor (value shl 6) xor data[i].u()
+            else ((value ushr 7) xor value xor (data[i].u() or (value shl 12))).inv()
+        return value
+    }
+
+    private fun iv(query: ByteArray, body: ByteArray, ts: Int) =
+        getIv(getIv(getIv(0x20230928, query), body), le32(ts))
+
