@@ -538,3 +538,22 @@ internal class Signer(
                 "x-ladon" to be32(ts).base64(), "x-argus" to le32(ts).base64(),
                 "x-gorgon" to gorgon(query, body, ts, (random() * 65536).toInt()),
                 "x-helios" to helios(ts), "x-medusa" to medusa(url, body, ts, if (mobileV5) values else null),
+            )
+            if (mobileV5) headers.keys.retainAll(setOf("x-khronos", "x-helios", "x-medusa"))
+            if (body != null) {
+                headers["Content-Type"] = "application/json; charset=utf-8"
+                headers["x-ss-stub"] = digest("MD5", body).hex().uppercase()
+            }
+            return Request(url, headers, body)
+        }
+        error("无法生成播放签名")
+    }
+
+    companion object {
+        fun encode(values: Map<String, String>) =
+            values.entries.joinToString("&") { (k, v) -> "${encode(k)}=${encode(v)}" }
+
+        fun encode(value: String): String =
+            URLEncoder.encode(value, "UTF-8").replace("+", "%20").replace("%7E", "~")
+    }
+}
