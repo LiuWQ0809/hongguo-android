@@ -557,6 +557,33 @@ public final class AppSource {
         }
     }
 
+    /** 新版移动播放模型，保留既有模型解析和媒体解密路径。 */
+    private static Stream.VideoTrack fetchPrimary(String vid, String quality, PlaybackDevice.Identity identity)
+            throws Exception {
+        com.hongguo.api.playback.MobilePlayerV5.Request signed =
+                com.hongguo.api.playback.MobilePlayerV5.request(vid, identity.deviceId, identity.iid, identity.cdid, System.currentTimeMillis());
+        Http.Req req = new Http.Req(signed.getUrl()).method("POST").timeout(15000);
+        req.followRedirect = false;
+        for (Map.Entry<String, String> header : signed.getHeaders().entrySet()) req.header(header.getKey(), header.getValue());
+        Http.Resp response = Http.send(req.body(signed.getBody()));
+        if (response.status == 403 || response.status == 429) throw new PlaybackRejectedException(response.status);
+        if (response.status != 200) throw new IOException("播放服务 HTTP " + response.status);
+        if (response.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
+        return parseModel(vid, parseMobileResponse(vid, response.text()), quality);
+    }
+
+    static Map<String, Object> parseMobileResponse(String vid, String text) {
+        Map<String, Object> root = parsePlaybackResponse(text);
+        Object code = root.containsKey("code") ? root.get("code") : root.get("Code");
+        if (code == null || Json.optInt(code, -1) != 0) throw new IllegalStateException("播放接口暂未提供播放信息");
+        Map<String, Object> data = Json.optObj(root.get("data"));
+        Map<String, Object> nested = data == null ? null : Json.optObj(data.get("1004"));
+        Map<String, Object> entries = nested == null ? data : nested;
+        if (entries == null || !entries.containsKey(vid)) throw new IllegalStateException("当前分集未返回播放信息");
+        Map<String, Object> result = Json.obj(); result.put("code", 0L); result.put("data", entries);
+        return result;
+    }
+
     private static Stream.VideoTrack fetchSingle(String vid, String quality, PlaybackDevice.Identity identity)
             throws Exception {
         Map<String, Object> biz = Json.obj();
