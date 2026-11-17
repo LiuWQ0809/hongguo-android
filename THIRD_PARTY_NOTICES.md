@@ -81,3 +81,7 @@ Local changes: signed out, the feed is requested anonymously without any cookie 
 ## 漫剧榜单续页修复（2026-11-14）
 
 参考 [sunnysky123/hongguo-web `1b00f06`](https://github.com/sunnysky123/hongguo-web/commit/1b00f06)（MIT）及 OOIUa/hongguo-android v0.7.28（GPL-3.0-only）：使用 `filter_ids` 排除已展示作品。
+
+## 播放 v5 模型接口（2026-11-16）
+
+移植自 [OOIUa/hongguo-android v0.7.30](https://github.com/OOIUa/hongguo-android/releases/tag/v0.7.30) 和 [N3urda/hongguoTV 6672b55](https://github.com/N3urda/hongguoTV/tree/6672b55d5308ea1ec26d2fe0bc0b2401ef4aa0c3/kotlin-tv)，GPL-3.0-only。包括签名、加密和移动端模型请求；算法参考 drpys `22261ad`。
