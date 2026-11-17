@@ -88,3 +88,36 @@ internal class AesV3(key: ByteArray, timestamp: Int, private val v5: Boolean = f
                 for (i in 0..3) {
                     val t = rows[0][i] xor rows[1][i] xor rows[2][i] xor rows[3][i]
                     val u = rows[0][i]
+                    rows[0][i] = rows[0][i] xor t xor xt(rows[0][i] xor rows[1][i])
+                    rows[1][i] = rows[1][i] xor t xor xt(rows[1][i] xor rows[2][i])
+                    rows[2][i] = rows[2][i] xor t xor xt(rows[2][i] xor rows[3][i])
+                    rows[3][i] = rows[3][i] xor t xor xt(rows[3][i] xor u)
+                }
+            }
+            addCon(round * 4)
+        }
+        for (i in 0..3) for (j in 0..3) rows[i][j] = rows[i][j] xor keys[4 + i][j]
+        return rows.flatMap { it.toList() }.map { it.toByte() }.toByteArray()
+    }
+
+    fun encrypt(source: ByteArray, iv: ByteArray): ByteArray {
+        require(source.size >= 248)
+        val plaintext = ByteArray(32)
+        val wire = if (v5) intArrayOf(6,5,3,4,2,7,1,0) else intArrayOf(5,6,2,4,3,1,0,7)
+        val compact = if (v5) intArrayOf(1,7,3,6,2,0,4,5) else intArrayOf(1,6,0,7,2,4,5,3)
+        for (i in 0 until 31) for (j in 0..7) {
+            plaintext[i] = (plaintext[i].u() or
+                (((source[i * 8 + j].u() ushr wire[j]) and 1) shl compact[j])).toByte()
+        }
+        plaintext[31] = 1
+        val first = block(xor(plaintext.copyOfRange(0, 16), iv))
+        val key = first + block(xor(plaintext.copyOfRange(16, 32), first))
+        val out = source.copyOf()
+        for (i in 0 until 31) for (j in 0..7) {
+            val at = i * 8 + j
+            out[at] = ((out[at].u() and (1 shl wire[j]).inv()) or
+                (((key[i].u() ushr compact[j]) and 1) shl wire[j])).toByte()
+        }
+        return byteArrayOf(key.last()) + out
+    }
+}
