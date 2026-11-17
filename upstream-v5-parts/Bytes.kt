@@ -43,3 +43,29 @@ internal fun ByteArray.i32(at: Int, little: Boolean = false) =
 
 internal fun ByteArray.u32(at: Int) = i32(at).toLong() and 0xffffffffL
 
+internal fun ByteArray.i64(at: Int, little: Boolean = false) =
+    ByteBuffer.wrap(this, at, 8)
+        .order(if (little) ByteOrder.LITTLE_ENDIAN else ByteOrder.BIG_ENDIAN)
+        .long
+
+internal fun digest(algorithm: String, value: ByteArray): ByteArray =
+    MessageDigest.getInstance(algorithm).digest(value)
+
+internal fun sm3(value: ByteArray): ByteArray =
+    SM3Digest().let { d ->
+        d.update(value, 0, value.size)
+        ByteArray(32).also { d.doFinal(it, 0) }
+    }
+
+internal fun aes(mode: String, key: ByteArray, iv: ByteArray, data: ByteArray): ByteArray =
+    Cipher.getInstance("AES/$mode/NoPadding").run {
+        init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
+        doFinal(data)
+    }
+
+internal fun xor(a: ByteArray, b: ByteArray) =
+    ByteArray(a.size) { (a[it].u() xor b[it % b.size].u()).toByte() }
+
+internal fun rol(v: Int, n: Int) = Integer.rotateLeft(v, n)
+
+internal fun ror(v: Int, n: Int) = Integer.rotateRight(v, n)
