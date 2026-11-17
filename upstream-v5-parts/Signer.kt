@@ -268,3 +268,48 @@ internal class Signer(
         }
         val last = encoded.last() xor encoded[encoded.size - 2]
         val first = encoded[0]
+        encoded[0] = (last.inv() + first) and 255
+        encoded[1] = ((encoded[0] xor encoded.last() xor 254) + encoded[1]) and 255
+        encoded[2] =
+            (encoded[2] +
+                ((last - first) xor
+                    (((encoded[1] shl 3) or (encoded[1] ushr 5)) and 255) xor
+                    2)) and 255
+        for (i in 0 until encoded.size - 4) {
+            val temp =
+                (((encoded[i + 2] shl 3) or (encoded[i + 2] ushr 5)) and 255) xor
+                    encoded[i + 1] xor
+                    (i + 3)
+            encoded[i + 3] = (temp.inv() + encoded[i + 3]) and 255
+        }
+        encoded[encoded.size - 1] = encoded.last() xor encoded[encoded.size - 2]
+        encoded[0] = ((encoded[0] xor encoded[1]) + encoded.drop(1).sum()) and 255
+        return encoded.map { it.toByte() }.toByteArray()
+    }
+
+    fun medusa(url: String, body: ByteArray?, ts: Int, identity: Map<String, String>? = null): String {
+        if (mobileV5) return medusaV5(url, body, ts, identity ?: device)
+        val who = identity ?: device
+        val bodyMd5 = body?.let { digest("MD5", it) } ?: ByteArray(16)
+        val query = url.substringAfter('?').toByteArray()
+        val querySm3 = sm3(query)
+        val queryBodyTs = hashF13(querySm3, bodyMd5, ts)
+        val nested =
+            proto(
+                f(1, 111, "sint"),
+                f(2, 10, "sint"),
+                f(3, 694367, "sint"),
+                f(5, 586952199, "sint"),
+            )
+        val messageRand = unsigned(rand())
+        val envLaunch = (random() * 21).toInt() + 100
+        val envPid = (random() * 2000).toInt() + 10001
+        val version = who.getValue("version_name")
+        val env =
+            proto(
+                f(1, envLaunch, "sint"),
+                f(2, 146331399, "sint"),
+                f(3, 146331396, "sint"),
+                f(5, 7, "sint"),
+                f(6, "v04.06.04.03-bugfix"),
+                f(7, envPid, "sint"),
