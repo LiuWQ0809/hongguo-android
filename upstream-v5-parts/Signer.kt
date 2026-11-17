@@ -313,3 +313,48 @@ internal class Signer(
                 f(5, 7, "sint"),
                 f(6, "v04.06.04.03-bugfix"),
                 f(7, envPid, "sint"),
+                f(12, deviceProto(who)),
+                f(13, proto(f(1, clock() / 1000, "sint"), f(2, -2, "sint"), f(4, 200, "sint"))),
+                f(14, version),
+            )
+        val queryHash = sm3(query + bodyMd5 + "none".toByteArray())
+        val message =
+            proto(
+                f(1, hex("f7e85ffad7d7dc3bd62ac87057cf6118")),
+                f(2, 3, "sint"),
+                f(3, messageRand, "sint"),
+                f(4, "8662"),
+                f(5, who.getValue("device_id")),
+                f(6, "1588093228"),
+                f(7, version),
+                f(8, "v04.06.04-ml-android"),
+                f(9, 67503104, "sint"),
+                f(10, hex("4001000000000000")),
+                f(12, ts, "sint"),
+                f(13, queryBodyTs),
+                f(14, querySm3.copyOf(6)),
+                f(15, nested),
+                f(16, processNonce),
+                f(17, ts, "sint"),
+                f(19, queryHash),
+                f(20, "none"),
+                f(21, 312, "sint"),
+                f(23, env),
+                f(
+                    24,
+                    """{"cmr":16777216,"cmr2":16777216,"un_h":1879194040,"vpn":0,"kd":0,"fkd":3672518972,"pd":-1872573247,"dyn":"","do":0,"tk":true}""",
+                ),
+            )
+        val r = rand()
+        val signKey = hex("8ebdfa3806ecc5cee79423e6029ed82540bc2218bb7eaef71cb691f7aa8aa2f5")
+        val hash = sm3(signKey + le32(r) + signKey)
+        val d1 = (r shr 16) and 255
+        val seed = le32((((d1 shl 11) or (r ushr 24)) xor (d1 shr 5) xor d1).inv())
+        val transformed = (hex("4001000000000000") + xmxor(message, hash)).reversedArray()
+        for (i in transformed.indices) transformed[i] =
+            (transformed[i].u() xor seed[i.inv() and 3].u()).toByte()
+        val check =
+            ((querySm3[0].u() and 63) shl 14) or 0x18000001 or ((queryBodyTs[0].u() and 63) shl 8)
+        val packed =
+            byteArrayOf(0x35) +
+                le32(rand()) +
