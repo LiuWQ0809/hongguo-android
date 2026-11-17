@@ -120,6 +120,15 @@ public final class AppSource {
                 throw failure;
             singleFailure = failure;
         }
+        if (useLegacySingle) {
+            try { return fetchSingle(vid, quality, identity); }
+            catch (PlaybackRejectedException rejected) { throw rejected; }
+            catch (Exception legacy) {
+                if (Thread.currentThread().isInterrupted() || (legacy instanceof java.io.InterruptedIOException
+                        && !(legacy instanceof java.net.SocketTimeoutException))) throw legacy;
+                singleFailure.addSuppressed(legacy);
+            }
+        }
         try {
             return fetchSigned(vid, quality, identity);
         } catch (Exception primary) {
@@ -223,10 +232,12 @@ public final class AppSource {
     private static PlaybackTab playbackTab = AppSource::getTabModel;
     static void setPlaybackTabForTest(PlaybackTab tab) { playbackTab = tab == null ? AppSource::getTabModel : tab; }
     interface SinglePlayback { Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity) throws Exception; }
-    private static SinglePlayback singlePlayback = AppSource::fetchSingle;
+    private static SinglePlayback singlePlayback = AppSource::fetchPrimary;
+    private static boolean useLegacySingle = true;
     static void setSinglePlaybackForTest(SinglePlayback playback) {
         PLAYBACK_IDENTITY.set(null);
-        singlePlayback = playback == null ? AppSource::fetchSingle : playback;
+        singlePlayback = playback == null ? AppSource::fetchPrimary : playback;
+        useLegacySingle = playback == null;
     }
     interface PlaybackFallback { Map<String, Object> get(String url) throws Exception; }
     private static PlaybackFallback playbackFallback = AppSource::getPlain;
