@@ -133,3 +133,48 @@ internal class Signer(
                 di[i] +
                     di[i + 9] +
                     (rol(x, 14) xor rol(x, 25) xor (x ushr 3)) +
+                    (rol(y, 13) xor rol(y, 15) xor (y ushr 10))
+            )
+        }
+        val initial =
+            intArrayOf(
+                    0x7aba4fc8,
+                    0x67166507,
+                    0x6403fa00,
+                    0x340f512f,
+                    984304912,
+                    3005047866L.toInt(),
+                    2874125293L.toInt(),
+                    2152413264L.toInt(),
+                )
+                .map { ror(it, count) }
+        val chosen =
+            if (mobileV5) intArrayOf(96, 1, 3, 4, 0, 6, 5, 2, 0, 7, 7) else arrayOf(
+                intArrayOf(101, 5, 7, 6, 3, 2, 1, 0, 5, 4, 3),
+                intArrayOf(96, 0, 6, 7, 5, 3, 2, 1, 5, 4, 4),
+                intArrayOf(96, 7, 6, 2, 1, 4, 0, 5, 4, 3, 5),
+                intArrayOf(99, 3, 6, 2, 4, 5, 1, 0, 0, 7, 6),
+                intArrayOf(96, 0, 5, 6, 7, 3, 1, 2, 5, 4, 4),
+                intArrayOf(100, 2, 0, 3, 5, 4, 6, 7, 2, 1, 5),
+            )[index]
+        val d = initial.toMutableList()
+        for (i in 0 until chosen[0]) {
+            val base = ivV1 + i
+            val n1 = ((d[chosen[3]] xor d[chosen[4]]) and d[chosen[1]]) xor d[chosen[3]]
+            val n2 = rol(d[chosen[1]], 26) xor rol(d[chosen[1]], 21) xor rol(d[chosen[1]], 7)
+            val n4 = di[base and 127] + n1 + n2 + tt[base and 63] + d[chosen[5]]
+            val n5 = rol(d[chosen[2]], 30) xor rol(d[chosen[2]], 19) xor rol(d[chosen[2]], 10)
+            val n6 =
+                (d[chosen[2]] and d[chosen[6]]) or ((d[chosen[2]] or d[chosen[6]]) and d[chosen[7]])
+            val old = d[chosen[9]]
+            d.add(0, d.removeAt(7))
+            d[chosen[10]] = n5 + n6 + n4
+            d[chosen[8]] = old + n4
+        }
+        val ret = (0..7).fold(byteArrayOf()) { a, i -> a + be32(d[i] + initial[i]) }
+        val folded = xor(ret.copyOfRange(0, 16), ret.copyOfRange(16, 32))
+        return folded + le32(sumMd5(folded) or (if (mobileV5) 0x20 else 0))
+    }
+
+    fun gorgon(query: String, body: ByteArray?, ts: Int, random: Int): String {
+        val input =
