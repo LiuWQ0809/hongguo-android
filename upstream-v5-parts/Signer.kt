@@ -223,3 +223,48 @@ internal class Signer(
             f(7, -888888, "sint"),
             f(8, -888888, "sint"),
             f(9, 3, "sint"),
+            f(10, -888888, "sint"),
+            f(11, "!notset!"),
+            f(12, "Asia/Shanghai,8"),
+            f(13, "zh_CN"),
+            f(14, 4, "sint"),
+            f(16, 0f, "float"),
+            f(17, 0f, "float"),
+            f(18, 0f, "float"),
+            f(19, 0f, "float"),
+            f(20, 0f, "float"),
+            f(21, 0f, "float"),
+            f(22, "16"),
+            f(23, 41, "sint"),
+            f(24, 36, "sint"),
+            f(25, processStarted, "sint"),
+            f(26, processStarted, "sint"),
+            f(27, processStarted, "sint"),
+            f(28, processStarted, "sint"),
+            f(29, -1, "sint"),
+            f(30, "25053RT47C"),
+            f(31, "Redmi"),
+            f(32, "25053RT47C"),
+            f(33, "25053RT47C"),
+            f(34, "Xiaomi"),
+            f(35, "Redmi"),
+            f(36, "Redmi"),
+            f(38, 31, "sint"),
+        )
+
+    private fun xmxor(data: ByteArray, key: ByteArray): ByteArray {
+        val encoded = IntArray(data.size)
+        for (i in data.indices) {
+            val at = (i * 4) and 28
+            val d0 = key[at].u()
+            val d1 = key[at + 1].u()
+            val v = data[i].u()
+            var d2 = (((v shl 4) or (v ushr 4)) and 255) + d0
+            d2 = d2.inv() xor d1
+            d2 = (((d2 and 255) shl 3) or ((d2 and 255) ushr 5)) and 255
+            d2 = (d2 + d1) and 255
+            d2 = (d2 xor d0) and 255
+            encoded[data.size - i - 1] = d2.inv() and 255
+        }
+        val last = encoded.last() xor encoded[encoded.size - 2]
+        val first = encoded[0]
