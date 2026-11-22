@@ -392,7 +392,7 @@ public class PlaybackSourceTest {
         }
     }
 
-    @Test public void emptySingleResponseRenewsIdentityAndRetries() throws Exception {
+    @Test public void emptySingleResponseRetriesWithSameIdentity() throws Exception {
         AtomicInteger registrations = new AtomicInteger(), attempts = new AtomicInteger();
         PlaybackDevice.resetForTest((url, headers, body) -> { registrations.incrementAndGet(); return okReply(); });
         Stream.VideoTrack track = new Stream.VideoTrack();
@@ -402,7 +402,7 @@ public class PlaybackSourceTest {
         });
         AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AssertionError("旧接口不应调用"); });
         assertSame(track, AppSource.fetch("7600000000000000001", "auto"));
-        assertEquals(2, attempts.get()); assertEquals(2, registrations.get());
+        assertEquals(2, attempts.get()); assertEquals(1, registrations.get());
     }
 
     @Test public void singleEmptyResponseRetriesAreBounded() throws Exception {
@@ -413,7 +413,7 @@ public class PlaybackSourceTest {
         });
         AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new IOException("offline"); });
         try { AppSource.fetch("7600000000000000001", "auto"); fail(); }
-        catch (IOException expected) { assertEquals(5, attempts.get()); }
+        catch (IOException expected) { assertEquals(2, attempts.get()); }
     }
 
     @Test public void interruptedSingleRequestDoesNotStartFallback() throws Exception {
@@ -436,7 +436,7 @@ public class PlaybackSourceTest {
         assertEquals(1, registrations.get()); assertSame(used.get(0), used.get(1));
     }
 
-    @Test public void rejectedCachedIdentityIsReplaced() throws Exception {
+    @Test public void transientEmptyPreservesCachedIdentity() throws Exception {
         AtomicInteger registrations = new AtomicInteger(), attempts = new AtomicInteger();
         PlaybackDevice.resetForTest((url, headers, body) -> { registrations.incrementAndGet(); return okReply(); });
         List<PlaybackDevice.Identity> used = new ArrayList<>();
@@ -447,8 +447,8 @@ public class PlaybackSourceTest {
         });
         AppSource.fetch("7600000000000000001", "auto");
         AppSource.fetch("7600000000000000002", "auto");
-        assertEquals(2, registrations.get()); assertSame(used.get(0), used.get(1));
-        assertNotSame(used.get(1), used.get(2));
+        assertEquals(1, registrations.get()); assertSame(used.get(0), used.get(1));
+        assertSame(used.get(1), used.get(2));
     }
 
     @Test public void explicitRejectionDoesNotRetryOrUseLegacyRoutes() throws Exception {

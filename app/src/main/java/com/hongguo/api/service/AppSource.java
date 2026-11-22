@@ -182,24 +182,22 @@ public final class AppSource {
         return parseModel(vid, j, quality);
     }
 
-    /** 空响应时换新身份有限重试，明确拒绝和格式错误不重复请求。 */
+    /** 空响应时使用同一身份重查一次，明确拒绝和格式错误不重复请求。 */
     private static Stream.VideoTrack fetchSingleWithRetry(String vid, String quality, PlaybackDevice.Identity identity)
             throws Exception {
-        for (int attempt = 0; attempt < 5; attempt++) {
+        for (int attempt = 0; attempt < 2; attempt++) {
             try {
                 Stream.VideoTrack track = singlePlayback.get(vid, quality, identity);
                 PLAYBACK_IDENTITY.compareAndSet(null, identity);
                 return track;
             }
             catch (EmptyPlaybackResponseException empty) {
-                PLAYBACK_IDENTITY.compareAndSet(identity, null);
-                if (attempt == 4 || Thread.currentThread().isInterrupted()) throw empty;
+                if (attempt == 1 || Thread.currentThread().isInterrupted()) throw empty;
                 try { Thread.sleep(300); }
                 catch (InterruptedException cancelled) {
                     Thread.currentThread().interrupt();
                     throw new java.io.InterruptedIOException("播放请求已取消");
                 }
-                identity = PlaybackDevice.fresh();
             }
         }
         throw new IllegalStateException("播放请求未执行");
