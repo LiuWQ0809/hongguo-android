@@ -425,6 +425,16 @@ public class PlaybackSourceTest {
         catch (java.io.InterruptedIOException expected) { assertEquals(0, legacy.get()); }
     }
 
+    @Test public void cancelledCompatibilityRequestStopsImmediately() throws Exception {
+        AtomicInteger calls = new AtomicInteger(), registrations = new AtomicInteger();
+        PlaybackDevice.resetForTest((url, headers, body) -> { registrations.incrementAndGet(); return okReply(); });
+        AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new IOException("offline"); });
+        AppSource.setPlaybackTabForTest((vid, identity) -> { calls.incrementAndGet(); throw new java.io.InterruptedIOException("cancelled"); });
+        try { AppSource.fetch("7600000000000000001", "auto"); fail("取消后继续请求"); }
+        catch (java.io.InterruptedIOException expected) { assertEquals(1, calls.get()); }
+        assertEquals(1, registrations.get());
+    }
+
     @Test public void successfulSingleIdentityIsReusedAcrossEpisodes() throws Exception {
         AtomicInteger registrations = new AtomicInteger();
         PlaybackDevice.resetForTest((url, headers, body) -> { registrations.incrementAndGet(); return okReply(); });

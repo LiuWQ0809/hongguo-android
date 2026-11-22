@@ -132,13 +132,13 @@ public final class AppSource {
         try {
             return fetchSigned(vid, quality, identity);
         } catch (Exception primary) {
-            if (Thread.currentThread().isInterrupted() || primary instanceof PlaybackRejectedException) throw primary;
+            if (isPlaybackCancelled(primary) || primary instanceof PlaybackRejectedException) throw primary;
             primary.addSuppressed(singleFailure);
             try {
                 Map<String, Object> tab = playbackTab.get(vid, identity);
                 if (tab != null) return parseModel(vid, tab, quality);
             } catch (Exception alternate) {
-                if (Thread.currentThread().isInterrupted() || alternate instanceof PlaybackRejectedException) throw alternate;
+                if (isPlaybackCancelled(alternate) || alternate instanceof PlaybackRejectedException) throw alternate;
                 primary.addSuppressed(alternate);
             }
             try {
@@ -147,17 +147,22 @@ public final class AppSource {
                     Map<String, Object> tab = playbackTab.get(vid, fresh);
                     if (tab != null) return parseModel(vid, tab, quality);
                 } catch (Exception alternate) {
-                    if (Thread.currentThread().isInterrupted() || alternate instanceof PlaybackRejectedException) throw alternate;
+                    if (isPlaybackCancelled(alternate) || alternate instanceof PlaybackRejectedException) throw alternate;
                     primary.addSuppressed(alternate);
                 }
                 return fetchSigned(vid, quality, fresh);
             } catch (Exception retry) {
-                if (Thread.currentThread().isInterrupted() || retry instanceof PlaybackRejectedException) throw retry;
+                if (isPlaybackCancelled(retry) || retry instanceof PlaybackRejectedException) throw retry;
                 primary.addSuppressed(retry);
             }
             if (singleFailure instanceof ByteVc2Only) throw singleFailure;
             throw primary;
         }
+    }
+
+    private static boolean isPlaybackCancelled(Exception error) {
+        return Thread.currentThread().isInterrupted() || (error instanceof java.io.InterruptedIOException
+                && !(error instanceof java.net.SocketTimeoutException));
     }
 
     private static Stream.VideoTrack fetchSigned(String vid, String quality, PlaybackDevice.Identity identity)
@@ -573,7 +578,7 @@ public final class AppSource {
             checkPlaybackResponse(res);
             return res.status == 200 ? parseTabResponse(vid, res.text()) : null;
         } catch (IOException e) {
-            if (Thread.currentThread().isInterrupted() || e instanceof PlaybackRejectedException) throw e;
+            if (isPlaybackCancelled(e) || e instanceof PlaybackRejectedException) throw e;
             return null;
         }
     }
