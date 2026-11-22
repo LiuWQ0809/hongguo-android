@@ -25,4 +25,16 @@ class MobilePlayerV5Test {
         assertTrue(request.url.startsWith(MobilePlayerV5.ENDPOINT + "?"))
         assertEquals(0, Signer(mobileV5 = true).branch(request.url.substringAfter('?'), request.body, 1800000000))
     }
+    @Test fun tabRequestSignsEmptyBodyWithoutSendingPayloadHeaders() {
+        val request = MobilePlayerV5.requestVideoTab("1234", "1234567890123456789", "9876543210987654321", "synthetic", 1800000000000)
+        assertTrue(request.url.startsWith(MobilePlayerV5.TAB_ENDPOINT + "?"))
+        assertEquals("1800000000", request.headers["x-khronos"])
+        assertTrue(request.headers["x-medusa"]!!.isNotBlank())
+        assertTrue(request.headers["x-helios"]!!.isNotBlank())
+        assertFalse(request.headers.containsKey("x-ss-stub"))
+        assertFalse(request.headers.containsKey("Content-Type"))
+        assertFalse(request.headers.containsKey("Content-Encoding"))
+        assertFalse(request.headers.containsKey("Cookie"))
+        assertEquals(0, Signer(mobileV5 = true).branch(request.url.substringAfter('?'), ByteArray(0), 1800000000))
+    }
 }
