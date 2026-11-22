@@ -1,11 +1,9 @@
 package com.hongguo.android
-
 import android.app.Activity
 import android.os.Bundle
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-
 /** Separate, user-selected fallback for an episode that the native player cannot prepare. */
 class WebPlaybackActivity : Activity() {
     private lateinit var browser: WebView
