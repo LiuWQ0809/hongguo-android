@@ -598,6 +598,9 @@ public final class AppSource {
         if (response.status != 200) throw new IOException("播放服务 HTTP " + response.status);
         if (response.body.length == 0) throw new EmptyPlaybackResponseException();
         if (response.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
+        Map<String, Object> raw = null;
+        try { raw = Json.parseObject(response.text()); } catch (Exception ignored) { }
+        checkPlaybackBusinessRejection(raw);
         Map<String, Object> model = parseTabResponse(vid, response.text());
         if (model == null) throw new IllegalStateException("未返回当前分集播放模型");
         return parseModel(vid, model, quality);
@@ -618,14 +621,17 @@ public final class AppSource {
         return parseModel(vid, parseMobileResponse(vid, response.text()), quality);
     }
 
+    private static void checkPlaybackBusinessRejection(Map<String, Object> raw) throws PlaybackRejectedException {
+        if (raw == null) return;
+        int refusal = Json.optInt(raw.containsKey("code") ? raw.get("code") : raw.get("Code"), 0);
+        if (refusal == 1003 || refusal == 101144 || refusal == 110001 || refusal == 110002)
+            throw new PlaybackRejectedException("播放服务拒绝请求（错误码 " + refusal + "）");
+    }
+
     static Map<String, Object> parseMobileResponse(String vid, String text) throws PlaybackRejectedException {
         Map<String, Object> raw = null;
         try { raw = Json.parseObject(text); } catch (Exception ignored) { }
-        if (raw != null) {
-            int refusal = Json.optInt(raw.containsKey("code") ? raw.get("code") : raw.get("Code"), 0);
-            if (refusal == 1003 || refusal == 101144 || refusal == 110001 || refusal == 110002)
-                throw new PlaybackRejectedException("播放服务拒绝请求（错误码 " + refusal + "）");
-        }
+        checkPlaybackBusinessRejection(raw);
         Map<String, Object> root = parsePlaybackResponse(text);
         Object code = root.containsKey("code") ? root.get("code") : root.get("Code");
         if (code == null || Json.optInt(code, -1) != 0) throw new IllegalStateException("播放接口暂未提供播放信息");
