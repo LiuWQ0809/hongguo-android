@@ -113,7 +113,7 @@ public final class AppSource {
         } catch (Exception failure) {
             if (Thread.currentThread().isInterrupted()) throw failure;
             if (failure instanceof PlaybackRejectedException) {
-                PLAYBACK_IDENTITY.compareAndSet(identity, null);
+                if (!((PlaybackRejectedException) failure).backoff) PLAYBACK_IDENTITY.compareAndSet(identity, null);
                 throw failure;
             }
             if (failure instanceof java.io.InterruptedIOException && !(failure instanceof java.net.SocketTimeoutException))
@@ -205,8 +205,18 @@ public final class AppSource {
 
     /** 明确拒绝时停止，避免继续请求其他线路。 */
     static final class PlaybackRejectedException extends IOException {
-        PlaybackRejectedException(int status) { super("播放服务拒绝请求（HTTP " + status + "）"); }
-        PlaybackRejectedException(String message) { super(message); }
+        final boolean backoff;
+        PlaybackRejectedException(int status) { this("播放服务拒绝请求（HTTP " + status + "）", status == 429); }
+        PlaybackRejectedException(String message) { this(message, false); }
+        PlaybackRejectedException(String message, boolean backoff) { super(message); this.backoff = backoff; }
+    }
+
+    static void checkPlaybackResponse(Http.Resp response) throws PlaybackRejectedException {
+        if (response.status == 403 || response.status == 429) throw new PlaybackRejectedException(response.status);
+        String wait = response.header("Retry-After");
+        if (wait != null && !wait.trim().isEmpty()
+                && (response.status == 503 || (response.status == 200 && response.body.length == 0)))
+            throw new PlaybackRejectedException("播放服务要求稍后重试（HTTP " + response.status + "）", true);
     }
 
     /** 播放接口返回空响应：疑似匿名身份被拒，fetch 会换新身份重试。 */
@@ -559,8 +569,8 @@ public final class AppSource {
         req.followRedirect = false;
         for (Map.Entry<String, String> entry : signed.headers.entrySet()) req.header(entry.getKey(), entry.getValue());
         try {
-            Http.Resp res = Http.send(req);
-            if (res.status == 403 || res.status == 429) throw new PlaybackRejectedException(res.status);
+            Http.Resp res = Http.sendPlaybackMetadata(req, Long.MAX_VALUE);
+            checkPlaybackResponse(res);
             return res.status == 200 ? parseTabResponse(vid, res.text()) : null;
         } catch (IOException e) {
             if (Thread.currentThread().isInterrupted() || e instanceof PlaybackRejectedException) throw e;
@@ -576,8 +586,8 @@ public final class AppSource {
         Http.Req req = new Http.Req(signed.getUrl()).method("POST").timeout(15000);
         req.followRedirect = false;
         for (Map.Entry<String, String> header : signed.getHeaders().entrySet()) req.header(header.getKey(), header.getValue());
-        Http.Resp response = Http.send(req.body(signed.getBody()));
-        if (response.status == 403 || response.status == 429) throw new PlaybackRejectedException(response.status);
+        Http.Resp response = Http.sendPlaybackMetadata(req.body(signed.getBody()), Long.MAX_VALUE);
+        checkPlaybackResponse(response);
         if (response.status != 200) throw new IOException("播放服务 HTTP " + response.status);
         if (response.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
         return parseModel(vid, parseMobileResponse(vid, response.text()), quality);
@@ -619,8 +629,8 @@ public final class AppSource {
         request.header("x-xs-from-web", "0"); request.header("sdk-version", "2");
         for (Map.Entry<String, String> header : PlayerSign.headers(URI.create(url).getRawQuery(), body, now, identity.deviceId).entrySet())
             request.header(header.getKey(), header.getValue());
-        Http.Resp response = Http.send(request.body(body));
-        if (response.status == 403 || response.status == 429) throw new PlaybackRejectedException(response.status);
+        Http.Resp response = Http.sendPlaybackMetadata(request.body(body), Long.MAX_VALUE);
+        checkPlaybackResponse(response);
         if (response.status != 200) throw new IllegalStateException("单集接口 HTTP " + response.status);
         return parseModel(vid, parseSingleResponse(vid, response.text()), quality);
     }
@@ -701,8 +711,8 @@ public final class AppSource {
             req.header(e.getKey(), e.getValue());
         }
         req.body(body);
-        Http.Resp res = Http.send(req);
-        if (res.status == 403 || res.status == 429) throw new PlaybackRejectedException(res.status);
+        Http.Resp res = Http.sendPlaybackMetadata(req, Long.MAX_VALUE);
+        checkPlaybackResponse(res);
         if (res.status != 200) {
             throw new IllegalStateException("App 接口 HTTP " + res.status);
         }
