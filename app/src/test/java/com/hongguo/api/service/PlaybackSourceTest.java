@@ -64,6 +64,7 @@ public class PlaybackSourceTest {
         AppSource.setPlaybackPostForTest(null);
         AppSource.setPlaybackTabForTest(null);
         AppSource.setSinglePlaybackForTest(null);
+        AppSource.setPlaybackTabV5ForTest(null);
         AppSource.setPlaybackFallbackForTest(null);
     }
 
@@ -390,6 +391,32 @@ public class PlaybackSourceTest {
         } catch (AppSource.ByteVc2Only expected) {
             assertTrue(expected.getMessage().contains("ByteVC2"));
         }
+    }
+
+    @Test public void tabV5UsesNativeTrackBeforeOtherRoutes() throws Exception {
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        Stream.VideoTrack track = new Stream.VideoTrack();
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> { throw new AssertionError("不应回退"); });
+        AppSource.setPlaybackTabV5ForTest((vid, quality, identity) -> track);
+        assertSame(track, AppSource.fetch("7600000000000000001", "auto"));
+    }
+
+    @Test public void emptyTabV5FallsBackToSingleModel() throws Exception {
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        Stream.VideoTrack track = new Stream.VideoTrack();
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> track);
+        AppSource.setPlaybackTabV5ForTest((vid, quality, identity) -> { throw new AppSource.EmptyPlaybackResponseException(); });
+        assertSame(track, AppSource.fetch("7600000000000000001", "auto"));
+    }
+
+    @Test public void rejectedTabV5StopsAllFallbacks() throws Exception {
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        AtomicInteger calls = new AtomicInteger();
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> { calls.incrementAndGet(); return new Stream.VideoTrack(); });
+        AppSource.setPlaybackTabV5ForTest((vid, quality, identity) -> { throw new AppSource.PlaybackRejectedException(429); });
+        try { AppSource.fetch("7600000000000000001", "auto"); fail("拒绝后仍请求"); }
+        catch (AppSource.PlaybackRejectedException expected) { assertTrue(expected.backoff); }
+        assertEquals(0, calls.get());
     }
 
     @Test public void emptySingleResponseRetriesWithSameIdentity() throws Exception {
