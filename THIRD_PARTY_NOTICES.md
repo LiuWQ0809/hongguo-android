@@ -85,3 +85,7 @@ Local changes: signed out, the feed is requested anonymously without any cookie 
 ## 播放 v5 模型接口（2026-11-16）
 
 移植自 [OOIUa/hongguo-android v0.7.30](https://github.com/OOIUa/hongguo-android/releases/tag/v0.7.30) 和 [N3urda/hongguoTV 6672b55](https://github.com/N3urda/hongguoTV/tree/6672b55d5308ea1ec26d2fe0bc0b2401ef4aa0c3/kotlin-tv)，GPL-3.0-only。包括签名、加密和移动端模型请求；算法参考 drpys `22261ad`。
+
+## 原生播放来源更新（2026-11-22）
+
+播放请求重试、无正文签名与 v5 分集模型 GET 参考 [OOIUa/hongguo-android v0.7.31](https://github.com/OOIUa/hongguo-android/releases/tag/v0.7.31) 和 [v0.7.32](https://github.com/OOIUa/hongguo-android/releases/tag/v0.7.32)，GPL-3.0-only；其 GET 签名设计亦参考 jackotom/hongguo-drama 7.7。此处为按需移植，并非完整同步上游版本。本地保留速率限制、取消请求处理及原有后台播放能力。
