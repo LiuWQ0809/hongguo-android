@@ -463,7 +463,7 @@ public class PlaybackSourceTest {
         try { AppSource.fetch("7600000000000000002", "auto"); fail(); }
         catch (AppSource.PlaybackRejectedException expected) { assertTrue(expected.getMessage().contains("429")); }
         AppSource.fetch("7600000000000000003", "auto");
-        assertEquals(3, attempts.get()); assertEquals(2, registrations.get()); assertEquals(0, legacy.get());
+        assertEquals(3, attempts.get()); assertEquals(1, registrations.get()); assertEquals(0, legacy.get());
     }
 
     @Test public void singlePlaybackSucceedsWithoutCallingLegacyPaths() throws Exception {
