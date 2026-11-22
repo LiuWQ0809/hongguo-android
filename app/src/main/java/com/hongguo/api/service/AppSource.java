@@ -113,7 +113,11 @@ public final class AppSource {
                 Stream.VideoTrack track = playbackTabV5.get(vid, quality, identity);
                 if (track != null) { PLAYBACK_IDENTITY.compareAndSet(null, identity); return track; }
             } catch (Exception error) {
-                if (isPlaybackCancelled(error) || error instanceof PlaybackRejectedException) throw error;
+                if (error instanceof PlaybackRejectedException) {
+                    if (!((PlaybackRejectedException) error).backoff) PLAYBACK_IDENTITY.compareAndSet(identity, null);
+                    throw error;
+                }
+                if (isPlaybackCancelled(error)) throw error;
                 tabFailure = error;
             }
         }
