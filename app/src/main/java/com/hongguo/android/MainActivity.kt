@@ -69,12 +69,16 @@ class MainActivity : ComponentActivity() {
     private var updateRequest by mutableStateOf(0)
     private var pipMode by mutableStateOf(false)
     private var pipAllowed = false
+    private var pipAspect = Rational(16, 9)
 
     internal fun updatePictureInPicture(allowed: Boolean, width: Int, height: Int) {
         pipAllowed = allowed && packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
-        val aspect = if (width > 0 && height > 0) (width.toFloat() / height).coerceIn(1f / 2.39f, 2.39f) else 16f / 9f
-        val params = PictureInPictureParams.Builder().setAspectRatio(Rational((aspect * 1000).toInt(), 1000))
+        if (width > 0 && height > 0) {
+            val aspect = (width.toFloat() / height).coerceIn(1f / 2.39f, 2.39f)
+            pipAspect = Rational((aspect * 1000).toInt(), 1000)
+        }
+        val params = PictureInPictureParams.Builder().setAspectRatio(pipAspect)
         if (Build.VERSION.SDK_INT >= 31) params.setAutoEnterEnabled(pipAllowed)
         setPictureInPictureParams(params.build())
     }
