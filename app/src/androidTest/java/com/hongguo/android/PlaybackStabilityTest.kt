@@ -28,14 +28,15 @@ class PlaybackStabilityTest {
     }
     @Test fun multipleShowsRenderAndAdvance() {
         val model = compose.activity.playbackModel
-        val queries = listOf("铁血信使", "谁让这个文盲修仙的第六季", "重生")
+        val queries = listOf("减肥系男生", "铁血信使", "谁让这个文盲修仙的第六季", "重生")
         for (query in queries) {
             val card = if (query == "铁血信使") DramaCard("7696083096164125721", query, "", 0, "") else {
                 compose.runOnIdle { model.searchRecent(query) }
                 compose.waitUntil(120000) { !model.state.value.searching }
                 assertNull("搜索 $query 失败", model.state.value.searchError)
                 requireNotNull(model.state.value.results.firstOrNull {
-                    if (query.contains("文盲")) it.title.contains("文盲修仙") && it.title.contains("第六季") else true
+                    if (query.contains("文盲")) it.title.contains("文盲修仙") && it.title.contains("第六季")
+                    else if (query == "减肥系男生") it.title.contains("减肥") && it.title.contains("一个亿") else true
                 }) { "搜索 $query 无结果" }
             }
             compose.runOnIdle { model.openDrama(card) }
