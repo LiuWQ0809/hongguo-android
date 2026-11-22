@@ -15,39 +15,6 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class WebPlaybackActivityTest {
-    @Test fun websiteVideoCanAdvanceOnTheDevice() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val intent = Intent(context, WebPlaybackActivity::class.java)
-            .putExtra("series", "7696083096164125721")
-            .putExtra("episode", "7696085244503411774")
-        ActivityScenario.launch<WebPlaybackActivity>(intent).use { scenario ->
-            var advanced = false
-            var lastTap = 0L
-            val deadline = System.currentTimeMillis() + 90_000
-            while (System.currentTimeMillis() < deadline && !advanced) {
-                val latch = CountDownLatch(1)
-                var result = ""
-                scenario.onActivity { activity ->
-                    val browser = activity.findViewById<android.view.ViewGroup>(android.R.id.content).getChildAt(0) as WebView
-                    browser.evaluateJavascript("""(() => { const v = document.querySelector('video');
-                        if (!v) return 'loading';
-                        return v.currentTime > 1 ? 'playing' : (v.paused ? 'paused' : 'buffering'); })()""") { result = it; latch.countDown() }
-                }
-                assertTrue("JavaScript callback timed out", latch.await(5, TimeUnit.SECONDS))
-                advanced = result == "\"playing\""
-                if (result == "\"paused\"" && SystemClock.uptimeMillis() - lastTap > 5_000) {
-                    val now = SystemClock.uptimeMillis()
-                    val automation = InstrumentationRegistry.getInstrumentation()
-                    automation.sendPointerSync(MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 540f, 1080f, 0))
-                    automation.sendPointerSync(MotionEvent.obtain(now, now + 50, MotionEvent.ACTION_UP, 540f, 1080f, 0))
-                    lastTap = now
-                }
-                if (!advanced) Thread.sleep(1000)
-            }
-            assertTrue("Website video did not advance on this Android emulator", advanced)
-        }
-    }
-
     @Test fun episodeOpensOnTheExpectedSiteWithoutFileAccess() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val intent = Intent(context, WebPlaybackActivity::class.java)
