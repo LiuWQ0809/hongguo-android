@@ -107,6 +107,16 @@ public final class AppSource {
 
         PlaybackDevice.Identity identity = PLAYBACK_IDENTITY.get();
         if (identity == null) identity = PlaybackDevice.fresh();
+        Exception tabFailure = null;
+        if (useTabV5) {
+            try {
+                Stream.VideoTrack track = playbackTabV5.get(vid, quality, identity);
+                if (track != null) { PLAYBACK_IDENTITY.compareAndSet(null, identity); return track; }
+            } catch (Exception error) {
+                if (isPlaybackCancelled(error) || error instanceof PlaybackRejectedException) throw error;
+                tabFailure = error;
+            }
+        }
         Exception singleFailure;
         try {
             return fetchSingleWithRetry(vid, quality, identity);
@@ -119,6 +129,7 @@ public final class AppSource {
             if (failure instanceof java.io.InterruptedIOException && !(failure instanceof java.net.SocketTimeoutException))
                 throw failure;
             singleFailure = failure;
+            if (tabFailure != null) singleFailure.addSuppressed(tabFailure);
         }
         if (useLegacySingle) {
             try { return fetchSingle(vid, quality, identity); }
@@ -247,11 +258,18 @@ public final class AppSource {
     static void setPlaybackTabForTest(PlaybackTab tab) { playbackTab = tab == null ? AppSource::getTabModel : tab; }
     interface SinglePlayback { Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity) throws Exception; }
     private static SinglePlayback singlePlayback = AppSource::fetchPrimary;
+    private static SinglePlayback playbackTabV5 = AppSource::fetchTabV5;
     private static boolean useLegacySingle = true;
+    private static boolean useTabV5 = true;
+    static void setPlaybackTabV5ForTest(SinglePlayback playback) {
+        playbackTabV5 = playback == null ? AppSource::fetchTabV5 : playback;
+        useTabV5 = true;
+    }
     static void setSinglePlaybackForTest(SinglePlayback playback) {
         PLAYBACK_IDENTITY.set(null);
         singlePlayback = playback == null ? AppSource::fetchPrimary : playback;
         useLegacySingle = playback == null;
+        useTabV5 = playback == null;
     }
     interface PlaybackFallback { Map<String, Object> get(String url) throws Exception; }
     private static PlaybackFallback playbackFallback = AppSource::getPlain;
