@@ -583,6 +583,26 @@ public final class AppSource {
         }
     }
 
+    /** 使用无正文 v5 签名读取当前分集模型。 */
+    private static Stream.VideoTrack fetchTabV5(String vid, String quality, PlaybackDevice.Identity identity)
+            throws Exception {
+        com.hongguo.api.playback.MobilePlayerV5.TabRequest signed =
+                com.hongguo.api.playback.MobilePlayerV5.requestVideoTab(
+                        vid, identity.deviceId, identity.iid, identity.cdid, System.currentTimeMillis());
+        Http.Req req = new Http.Req(signed.getUrl()).method("GET").timeout(8000);
+        req.followRedirect = false;
+        for (Map.Entry<String, String> header : signed.getHeaders().entrySet()) req.header(header.getKey(), header.getValue());
+        Http.Resp response = Http.sendPlaybackMetadata(req, Long.MAX_VALUE);
+        if (Thread.currentThread().isInterrupted()) throw new java.io.InterruptedIOException("播放请求已取消");
+        checkPlaybackResponse(response);
+        if (response.status != 200) throw new IOException("播放服务 HTTP " + response.status);
+        if (response.body.length == 0) throw new EmptyPlaybackResponseException();
+        if (response.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
+        Map<String, Object> model = parseTabResponse(vid, response.text());
+        if (model == null) throw new IllegalStateException("未返回当前分集播放模型");
+        return parseModel(vid, model, quality);
+    }
+
     /** 新版移动播放模型，保留既有模型解析和媒体解密路径。 */
     private static Stream.VideoTrack fetchPrimary(String vid, String quality, PlaybackDevice.Identity identity)
             throws Exception {
