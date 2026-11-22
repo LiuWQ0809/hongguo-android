@@ -424,14 +424,18 @@ class BackgroundPlaybackDeviceTest {
             val request = model.state.value.video?.requestId
             automation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
             automation.executeShellCommand("wm dismiss-keyguard").close()
-            automation.executeShellCommand("am start -n com.hongguo.android/.MainActivity -f 0x20000000").close()
+            automation.executeShellCommand("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n com.hongguo.android/.MainActivity -f 0x20000000").close()
             compose.waitUntil(60_000) { model.state.value.firstFrameRendered }
             assertEquals("Unlocking must keep the same episode", request, model.state.value.video?.requestId)
             compose.runOnIdle { model.closePlayer() }
             compose.waitUntil(10_000) { PlaybackSessionService.activePlayer == null }
+            println("PIP_LOCK_SEQUENCE_COMPLETE")
         } finally {
             automation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
             automation.executeShellCommand("wm dismiss-keyguard").close()
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                if (!activity.isFinishing) activity.finish()
+            }
         }
     }
 }

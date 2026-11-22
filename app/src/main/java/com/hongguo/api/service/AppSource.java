@@ -125,13 +125,11 @@ public final class AppSource {
         try {
             return fetchSingleWithRetry(vid, quality, identity);
         } catch (Exception failure) {
-            if (Thread.currentThread().isInterrupted()) throw failure;
+            if (isPlaybackCancelled(failure)) throw failure;
             if (failure instanceof PlaybackRejectedException) {
                 if (!((PlaybackRejectedException) failure).backoff) PLAYBACK_IDENTITY.compareAndSet(identity, null);
                 throw failure;
             }
-            if (failure instanceof java.io.InterruptedIOException && !(failure instanceof java.net.SocketTimeoutException))
-                throw failure;
             singleFailure = failure;
             if (tabFailure != null) singleFailure.addSuppressed(tabFailure);
         }
