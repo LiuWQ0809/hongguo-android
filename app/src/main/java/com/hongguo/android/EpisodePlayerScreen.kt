@@ -179,6 +179,8 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
     var synchronizing by remember { mutableStateOf<Int?>(null) }
     var showEpisodes by rememberSaveable(detail.id) { mutableStateOf(false) }
     var showSpeed by rememberSaveable(detail.id) { mutableStateOf(false) }
+    val publisher = rememberDramaPublisher(detail.id)
+    var showPublisher by rememberSaveable(detail.id) { mutableStateOf(false) }
     var showFavorites by rememberSaveable(detail.id) { mutableStateOf(false) }
     var doubleSpeedHeld by remember(state.video?.requestId) { mutableStateOf(false) }
     var seeking by remember(state.video?.requestId) { mutableStateOf(false) }
@@ -219,7 +221,7 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
         pager.settledPage == selected && synchronizing == null && it.episodeId == detail.episodes[selected].id
     }
     // A temporary drag disables the owner without discarding this request's pause/resume intent.
-    val sheetOpen = showEpisodes || showSpeed || showFavorites
+    val sheetOpen = showEpisodes || showSpeed || showFavorites || showPublisher
     val temporaryDoubleSpeed = doubleSpeedHeld && activeVideo != null && !sheetOpen
     val playback = rememberVideoPlayback(state.video, state.resumePositionMs, model, enabled = activeVideo != null,
         playbackSpeed = if (temporaryDoubleSpeed) 2f else state.playbackSpeed)
@@ -290,7 +292,7 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
     }.semantics { testTagsAsResourceId = true }) {
         VerticalPager(state = pager, modifier = Modifier.fillMaxSize().testTag("episode_pager"),
             key = { detail.episodes[it].id }, beyondViewportPageCount = 1,
-            userScrollEnabled = active && synchronizing == null && !showEpisodes && !showSpeed && !showFavorites && !seeking) { page ->
+            userScrollEnabled = active && synchronizing == null && !sheetOpen && !seeking) { page ->
             Box(Modifier.fillMaxSize().testTag("episode_page_$page"), Alignment.Center) {
                 if (page == selected && activeVideo != null && playback.player != null) {
                     VideoSurface(playback, Modifier.fillMaxSize())
@@ -374,6 +376,7 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
                     Text(if (anyFavorite) "已收藏" else "收藏", color = Color.White, fontSize = 12.sp, maxLines = 1)
                 }
             }
+            publisher?.let { PublisherButton(it, Color.White) { showPublisher = true } }
             val duration = playback.durationMs
             val fraction = seekFraction ?: if (duration > 0) (playback.positionMs.toFloat() / duration).coerceIn(0f, 1f) else 0f
             val displayedPosition = seekFraction?.let { (duration * it).toLong() } ?: playback.positionMs
@@ -415,6 +418,9 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
         }
         }
     }
+
+    if (showPublisher && active && !pip && publisher != null)
+        PublisherWorksSheet(publisher, card, { showPublisher = false }, model::openDrama)
 
     if (showFavorites) {
         ModalBottomSheet(onDismissRequest = { showFavorites = false }, containerColor = Color(0xFF211E1B), contentColor = Color.White) {

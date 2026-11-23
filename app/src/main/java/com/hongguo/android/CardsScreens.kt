@@ -440,6 +440,7 @@ internal fun CardsDetail(state: HongguoUiState, model: HongguoViewModel, account
         if (state.loadingDetail) item { CardsLoading("正在获取完整选集…") }
         state.detailError?.let { error -> item { Box(Modifier.padding(horizontal = 12.dp)) { FailurePanel(error, model::retryDetails) } } }
         if (detail != null) {
+            item { DramaPublisherEntry(card, model) }
             item { RelatedWorks(card, model) }
             if (detail.summary.isNotBlank()) item {
                 CardBlock {

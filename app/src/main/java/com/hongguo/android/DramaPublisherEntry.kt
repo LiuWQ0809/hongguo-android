@@ -31,3 +31,11 @@ internal fun PublisherButton(publisher: DramaPublisher, color: Color = MaterialT
         Modifier.testTag("drama_publisher").clickable(role = Role.Button, onClick = onClick).padding(vertical = 8.dp),
         color = color, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }
+
+@Composable
+internal fun DramaPublisherEntry(card: DramaCard, model: HongguoViewModel) {
+    val publisher = rememberDramaPublisher(card.id) ?: return
+    var opened by remember(card.id) { mutableStateOf(false) }
+    PublisherButton(publisher) { opened = true }
+    if (opened) PublisherWorksSheet(publisher, card, { opened = false }, model::openDrama)
+}
