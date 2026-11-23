@@ -234,6 +234,33 @@ public class ProgressiveMediaTest {
         try { session.read(1536 * 1024, new byte[16], 0, 16); fail(); } catch (IOException expected) { }
     }
 
+    @Test public void repeatedNodeFailuresStopAfterTheConfiguredLimit() throws Exception {
+        Origin origin = new Origin(clear(expandMdat(fixture(false), 2 * 1024 * 1024)));
+        session = open(origin, false, null); int before = origin.requests.get();
+        origin.failNext.set(20);
+        try { session.read(1024 * 1024, new byte[16], 0, 16); fail(); } catch (IOException expected) { }
+        assertEquals(before + ProgressiveMedia.FETCH_ATTEMPTS, origin.requests.get());
+    }
+
+    @Test public void closingDuringBackoffDoesNotContactMirror() throws Exception {
+        byte[] media = clear(expandMdat(fixture(false), 2 * 1024 * 1024));
+        Origin primary = new Origin(media), backup = new Origin(media);
+        primary.reprDigest = backup.reprDigest = reprDigest(media); session = openMirrors(primary, backup);
+        ProgressiveMedia.retryBaseMillis = 3000; primary.status = 503;
+        int before = primary.requests.get();
+        ExecutorService worker = Executors.newSingleThreadExecutor();
+        try (ProgressiveMedia.Reader reader = session.newReader()) {
+            Future<Boolean> result = worker.submit(() -> {
+                try { reader.read(1024 * 1024, new byte[16], 0, 16); return false; }
+                catch (InterruptedIOException expected) { return true; }
+            });
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            while (primary.requests.get() == before && System.nanoTime() < deadline) Thread.sleep(10);
+            assertTrue(primary.requests.get() > before); reader.close();
+            assertTrue(result.get(2, TimeUnit.SECONDS)); assertEquals(0, backup.requests.get());
+        } finally { worker.shutdownNow(); }
+    }
+
     @Test public void corruptBlockIsRefetchedAndAbandonedCacheIsNeverReused() throws Exception {
         Path abandoned = Files.createDirectories(root.resolve("p1-abandoned"));
         Files.write(abandoned.resolve("0.range"), new byte[300]);
