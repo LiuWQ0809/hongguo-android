@@ -64,27 +64,32 @@ class PlaybackStabilityTest {
         assertNull("无法加载随机抽样片库", model.state.value.home.error)
         val candidates = model.state.value.home.items.distinctBy { it.id }
         assertTrue("随机片库少于两部作品", candidates.size >= 2)
-        val seed = System.currentTimeMillis()
+        val seed = InstrumentationRegistry.getArguments().getString("randomSeed")?.toLong() ?: System.currentTimeMillis()
         val random = kotlin.random.Random(seed)
         val chosen = candidates.shuffled(random).take(2)
         println("随机抽样 seed=$seed 候选数=${candidates.size} 作品=${chosen.joinToString { it.title + ":" + it.id }}")
-        for (card in chosen) {
-            compose.runOnIdle { model.openDrama(card) }
-            compose.waitUntil(120000) { !model.state.value.loadingDetail }
-            val episodes = requireNotNull(model.state.value.detail?.episodes) { "${card.title}: ${model.state.value.detailError}" }
-            assertTrue("${card.title} 没有分集", episodes.isNotEmpty())
-            val index = random.nextInt(episodes.size)
-            val label = "${card.title} 第${index + 1}集 ${episodes[index].id}"
-            println("随机待播：$label")
-            compose.runOnIdle { model.playEpisode(index, restart = true) }
-            compose.waitUntil(120000) { model.state.value.firstFrameRendered || model.state.value.playbackError != null }
-            assertNull(label, model.state.value.playbackError)
-            assertEquals(label, episodes[index].id, model.state.value.video?.episodeId)
-            assertTrue(label, model.state.value.firstFrameRendered)
-            verifyAdvance(label)
-            println("随机播放通过：$label")
+        val failures = chosen.mapNotNull { card ->
+            val outcome = runCatching {
+                compose.runOnIdle { model.openDrama(card) }
+                compose.waitUntil(120000) { !model.state.value.loadingDetail }
+                val episodes = requireNotNull(model.state.value.detail?.episodes) { "${card.title}: ${model.state.value.detailError}" }
+                assertTrue("${card.title} 没有分集", episodes.isNotEmpty())
+                val index = random.nextInt(episodes.size)
+                val label = "${card.title} 第${index + 1}集 ${episodes[index].id}"
+                println("随机待播：$label")
+                compose.runOnIdle { model.playEpisode(index, restart = true) }
+                compose.waitUntil(120000) { model.state.value.firstFrameRendered || model.state.value.playbackError != null }
+                assertNull(label, model.state.value.playbackError)
+                assertEquals(label, episodes[index].id, model.state.value.video?.episodeId)
+                assertTrue(label, model.state.value.firstFrameRendered)
+                verifyAdvance(label)
+                println("随机播放通过：$label")
+            }
             compose.runOnIdle { model.closePlayer() }
+            outcome.exceptionOrNull()?.let { "${card.title}：${it.message}" }
+                ?.also { println("随机播放失败：$it") }
         }
+        assertTrue(failures.joinToString("\n"), failures.isEmpty())
     }
     @Test fun sustainedNativePlaybackKeepsAdvancing() {
         val model = compose.activity.playbackModel
