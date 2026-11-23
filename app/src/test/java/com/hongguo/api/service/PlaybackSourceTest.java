@@ -68,6 +68,20 @@ public class PlaybackSourceTest {
         AppSource.setPlaybackFallbackForTest(null);
     }
 
+    @Test public void mediaMirrorsAreValidatedDeduplicatedAndRemainOnTheSameTrack() throws Exception {
+        String vid = "7600000000000000001";
+        Map<String, Object> row = item("h264", 720, 1280, "https://v1.qznovelvod.com/main.mp4", null);
+        Map<String, Object> encryption = Json.obj(); encryption.put("encrypt", false); row.put("encrypt_info", encryption);
+        row.put("backup_url", "https://backup.fqnovelvod.com/copy.mp4");
+        row.put("backup_url_list", Arrays.asList("https://backup.fqnovelvod.com/copy.mp4",
+                "https://untrusted.invalid/other.mp4", "https://v1.qznovelvod.com/main.mp4"));
+        List<Object> list = Json.arr(); list.add(row);
+        Map<String, Object> model = Json.obj(); model.put("video_list", list);
+        Stream.VideoTrack track = AppSource.parseModel(vid, response(vid, model), "auto");
+        assertEquals("https://v1.qznovelvod.com/main.mp4", track.url);
+        assertEquals(Arrays.asList("https://backup.fqnovelvod.com/copy.mp4"), track.backupUrls);
+    }
+
     @Test public void byteVc2FallsBackToSameVideoWithCompatibleCodec() throws Exception {
         String vid = "7600000000000000001";
         Map<String, Object> model = Json.obj();
