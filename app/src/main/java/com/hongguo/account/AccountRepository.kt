@@ -768,6 +768,17 @@ class AccountRepository internal constructor(
     internal companion object {
         fun card(series: Series, count: Int = 0) = DramaCard(series.id, series.title, series.cover,
             if (count > 0) count else Regex("[0-9]+").find(series.badge)?.value?.toIntOrNull() ?: 0, series.description)
+        private val PlaceholderTitle = Regex("剧集 [0-9]+")
+        private fun knownCard(card: DramaCard) = card.title.isNotBlank() && !PlaceholderTitle.matches(card.title)
+        private fun LibraryEntry.backfillCard(previous: LibraryEntry): LibraryEntry = copy(card = card.copy(
+            title = if (!knownCard(card)) previous.card.title else card.title,
+            cover = if (card.cover.isBlank()) previous.card.cover else card.cover,
+            summary = if (card.summary.isBlank()) previous.card.summary else card.summary,
+            episodeCount = if (card.episodeCount <= 0) previous.card.episodeCount else card.episodeCount))
+        private fun backfilled(rows: List<LibraryEntry>, previous: List<LibraryEntry>): List<LibraryEntry> {
+            val known = previous.filter { knownCard(it.card) }.associateBy { it.card.id }
+            return rows.map { row -> known[row.card.id]?.let { row.backfillCard(it) } ?: row }
+        }
         fun historyEntry(progress: CloudProgress) = LibraryEntry(card(progress.series, progress.episodeCount), progress.episodeId,
             progress.episodeIndex.coerceAtLeast(0) + 1, progress.position.coerceAtLeast(0), progress.updatedAt.coerceAtLeast(0))
         fun favoriteEntry(favorite: CloudFavorite) = LibraryEntry(card(favorite.series), updatedAt = favorite.collectedAt.coerceAtLeast(0))
