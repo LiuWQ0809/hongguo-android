@@ -107,6 +107,8 @@ internal class BackgroundPlayback(
             }
             override fun onPlaybackStateChanged(state: Int) {
                 if (current !== active) return
+                if (state == Player.STATE_READY && !active.playWhenReady)
+                    PlaybackSessionService.endBackgroundTransition()
                 if (state == Player.STATE_ENDED) {
                     val playback = model.state.value
                     if (active.playWhenReady && playback.autoPlayNext &&
