@@ -17,6 +17,7 @@ final class PublicEpisodeSource {
     private PublicEpisodeSource() {}
 
     static Stream.VideoTrack fetch(String episodeId) throws Exception {
+        if (!episodeId.matches("[0-9]{1,30}")) throw new IllegalArgumentException("分集编号无效");
         byte[] body = Json.stringify(Collections.singletonMap("item_id", episodeId)).getBytes(StandardCharsets.UTF_8);
         Http.Req request = new Http.Req(ENDPOINT).method("POST").timeout(6000).body(body)
                 .header("Accept", "application/json").header("Content-Type", "application/json");
@@ -32,7 +33,7 @@ final class PublicEpisodeSource {
         Map<String, Object> reply = Json.parseObject(text);
         Map<String, Object> base = Json.optObj(reply.get("base_resp"));
         Object code = base == null ? reply.get("code") : base.get("StatusCode");
-        if (Json.optInt(code, -1) != 0) throw new IOException("公开片源不可用");
+        if (Json.optLong(code, -1) != 0) throw new IOException("公开片源不可用");
         Object expires = reply.get("url_expire");
         if (expires != null && Json.optLong(expires, 0) <= nowSeconds + 5)
             throw new IOException("公开片源已过期");
