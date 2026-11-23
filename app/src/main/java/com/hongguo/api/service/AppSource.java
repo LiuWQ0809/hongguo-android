@@ -230,10 +230,9 @@ public final class AppSource {
     }
 
     static void checkPlaybackResponse(Http.Resp response) throws PlaybackRejectedException {
-        if (response.status == 403 || response.status == 429) throw new PlaybackRejectedException(response.status);
+        if (response.status == 401 || response.status == 403 || response.status == 429) throw new PlaybackRejectedException(response.status);
         String wait = response.header("Retry-After");
-        if (wait != null && !wait.trim().isEmpty()
-                && (response.status == 503 || (response.status == 200 && response.body.length == 0)))
+        if (wait != null && !wait.trim().isEmpty())
             throw new PlaybackRejectedException("播放服务要求稍后重试（HTTP " + response.status + "）", true);
     }
 
