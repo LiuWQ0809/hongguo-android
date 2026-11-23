@@ -169,8 +169,25 @@ public final class AppSource {
                 primary.addSuppressed(retry);
             }
             if (singleFailure instanceof ByteVc2Only) throw singleFailure;
+            if (primary instanceof EmptyPlaybackResponseException && allowsPublicSource(quality)) {
+                try { return publicPlayback.get(vid); }
+                catch (Exception error) {
+                    if (isPlaybackCancelled(error) || error instanceof PlaybackRejectedException) throw error;
+                    primary.addSuppressed(error);
+                }
+            }
             throw primary;
         }
+    }
+
+    private static boolean allowsPublicSource(String quality) {
+        return quality == null || quality.isEmpty() || "auto".equals(quality) || "best".equals(quality);
+    }
+
+    interface PublicPlayback { Stream.VideoTrack get(String vid) throws Exception; }
+    private static PublicPlayback publicPlayback = PublicEpisodeSource::fetch;
+    static void setPublicPlaybackForTest(PublicPlayback source) {
+        publicPlayback = source == null ? PublicEpisodeSource::fetch : source;
     }
 
     private static boolean isPlaybackCancelled(Exception error) {

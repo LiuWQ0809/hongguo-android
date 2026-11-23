@@ -57,6 +57,7 @@ public class PlaybackSourceTest {
         AppSource.setPlaybackTabForTest((vid, identity) -> null);
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> { throw new IOException("offline fixture"); });
         AppSource.setPlaybackFallbackForTest(null);
+        AppSource.setPublicPlaybackForTest(vid -> { throw new IOException("offline fixture"); });
     }
 
     @After public void restore() {
@@ -66,6 +67,7 @@ public class PlaybackSourceTest {
         AppSource.setSinglePlaybackForTest(null);
         AppSource.setPlaybackTabV5ForTest(null);
         AppSource.setPlaybackFallbackForTest(null);
+        AppSource.setPublicPlaybackForTest(null);
     }
 
     @Test public void mediaMirrorsAreValidatedDeduplicatedAndRemainOnTheSameTrack() throws Exception {

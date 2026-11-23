@@ -6,6 +6,7 @@ import com.hongguo.api.util.Json;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Map;
 
 /** 以 JSON 取得单集的公开媒体地址，交给原生播放器。 */
@@ -16,7 +17,7 @@ final class PublicEpisodeSource {
     private PublicEpisodeSource() {}
 
     static Stream.VideoTrack fetch(String episodeId) throws Exception {
-        byte[] body = Json.stringify(Map.of("item_id", episodeId)).getBytes(StandardCharsets.UTF_8);
+        byte[] body = Json.stringify(Collections.singletonMap("item_id", episodeId)).getBytes(StandardCharsets.UTF_8);
         Http.Req request = new Http.Req(ENDPOINT).method("POST").timeout(6000).body(body)
                 .header("Accept", "application/json").header("Content-Type", "application/json");
         request.followRedirect = false;
