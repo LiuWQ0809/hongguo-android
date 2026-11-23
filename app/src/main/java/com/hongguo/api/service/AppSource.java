@@ -239,7 +239,7 @@ public final class AppSource {
     }
 
     /** 明确拒绝时停止，避免继续请求其他线路。 */
-    static final class PlaybackRejectedException extends IOException {
+    public static final class PlaybackRejectedException extends IOException {
         final boolean backoff;
         PlaybackRejectedException(int status) { this("播放服务拒绝请求（HTTP " + status + "）", status == 429); }
         PlaybackRejectedException(String message) { this(message, false); }

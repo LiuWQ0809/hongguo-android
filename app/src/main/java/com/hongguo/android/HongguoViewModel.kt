@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import com.hongguo.api.service.AppSource.PlaybackRejectedException
 import com.hongguo.api.service.ProgressiveMedia
 import com.hongguo.account.AccountSessionStatus
 
@@ -545,6 +546,7 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
+                if (error is PlaybackRejectedException) throw error
                 if (!automatic || retries >= AutoPlaybackRetryLimit || version != mediaVersion || !state.value.autoPlayNext) throw error
                 retries++
                 mutableState.update { it.copy(preparationStage = "retry", preparationDone = 0, preparationTotal = 0) }

@@ -23,6 +23,8 @@ final class PublicEpisodeSource {
                 .header("Accept", "application/json").header("Content-Type", "application/json");
         request.followRedirect = false;
         Http.Resp response = Http.sendPlaybackMetadata(request, Long.MAX_VALUE);
+        if (response.status == 403)
+            throw new AppSource.PlaybackRejectedException("本集公开片源不可用");
         AppSource.checkPlaybackResponse(response);
         if (response.status != 200 || response.body.length == 0 || response.body.length > MAX_RESPONSE_BYTES)
             throw new IOException("公开片源接口未返回有效数据");

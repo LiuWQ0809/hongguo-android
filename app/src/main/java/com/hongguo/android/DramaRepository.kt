@@ -194,6 +194,7 @@ fun readableFailure(error: Throwable, action: String): String {
         hint.contains("上游未返回数据") -> "内容服务暂未返回数据，请稍后重试。"
         hint.contains("empty_episodes") -> "暂时没有获取到可播放剧集，请稍后重试。"
         hint.contains("播放接口返回空响应") -> "片源服务暂未返回播放地址，请稍后重试。"
+        hint.contains("本集公开片源不可用") -> "本集暂未提供可用片源，可稍后重试或选择其他集。"
         hint.contains("播放服务拒绝请求") -> "片源服务暂时拒绝访问，请稍后重试。"
         hint.contains("bytevc2") || hint.contains("bvc2") -> "该集暂时只有不支持的视频编码，可选择其他集。"
         hint.contains("风控") || hint.contains("risk") || hint.contains("429") -> "片源服务暂时限制访问，请稍后重试。"
