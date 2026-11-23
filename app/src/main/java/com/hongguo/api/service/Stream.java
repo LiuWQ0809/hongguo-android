@@ -56,6 +56,8 @@ public final class Stream {
     /** Contract consumed by the original AppSource. */
     public static final class VideoTrack {
         public String url;
+        /** 同一明文轨道的备用媒体地址。 */
+        public final List<String> backupUrls = new ArrayList<>();
         public String spadeA;
         public boolean encrypt;
         public String definition = "?";

@@ -408,22 +408,28 @@ public final class AppSource {
                 keyOk = Spade.isValidKey(Spade.unwrapV1(Crypto.base64Decode(spade), 0));
             }
             if (!keyOk) continue; // spade_a 解不出合法 key 的候选不可用
+            Stream.VideoTrack selected = null;
             for (String candidate : urlCandidates(r.item)) {
                 try {
                     String media = seed != null
                             ? decryptSpadeUrl(candidate, seed) : cleanUrl(candidate);
                     String url = checkedUrl(media, VOD_DOMAINS);
-                    Stream.VideoTrack t = new Stream.VideoTrack();
-                    t.url = url;
-                    t.spadeA = spade;
-                    t.encrypt = !spade.isEmpty();
-                    t.definition = r.quality.isEmpty() ? "?" : r.quality;
-                    t.size = r.size;
-                    return t;
+                    if (selected != null) {
+                        if (URI.create(url).getFragment() == null && !url.equals(selected.url)
+                                && !selected.backupUrls.contains(url)) selected.backupUrls.add(url);
+                        continue;
+                    }
+                    selected = new Stream.VideoTrack();
+                    selected.url = url;
+                    selected.spadeA = spade;
+                    selected.encrypt = !spade.isEmpty();
+                    selected.definition = r.quality.isEmpty() ? "?" : r.quality;
+                    selected.size = r.size;
                 } catch (Exception ex) {
                     last = ex;
                 }
             }
+            if (selected != null) return selected;
         }
         throw new IllegalStateException("本集片源地址或密钥无法解析");
     }
