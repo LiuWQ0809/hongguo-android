@@ -86,4 +86,32 @@ class PlaybackStabilityTest {
             compose.runOnIdle { model.closePlayer() }
         }
     }
+    @Test fun sustainedNativePlaybackKeepsAdvancing() {
+        val model = compose.activity.playbackModel
+        compose.runOnIdle { model.openDrama(DramaCard("7696083096164125721", "铁血信使", "", 0, "")) }
+        compose.waitUntil(120000) { !model.state.value.loadingDetail }
+        assertNotNull(model.state.value.detail)
+        compose.runOnIdle { model.playEpisode(0, restart = true) }
+        compose.waitUntil(120000) { model.state.value.firstFrameRendered || model.state.value.playbackError != null }
+        assertNull(model.state.value.playbackError)
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        var previous = 0L
+        instrumentation.runOnMainSync { previous = PlaybackSessionService.activePlayer?.currentPosition ?: 0L }
+        repeat(3) { part ->
+            SystemClock.sleep(10000)
+            var current = 0L
+            var playing = false
+            instrumentation.runOnMainSync {
+                val player = PlaybackSessionService.activePlayer
+                current = player?.currentPosition ?: 0L
+                playing = player?.isPlaying == true
+            }
+            assertNull(model.state.value.playbackError)
+            assertTrue("第${part + 1}段播放进度停滞", playing && current >= previous + 7000)
+            println("持续播放通过：第${part + 1}段 $previous->$current 毫秒")
+            previous = current
+        }
+        compose.runOnIdle { model.closePlayer() }
+    }
+
 }

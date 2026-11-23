@@ -391,7 +391,7 @@ public final class ProgressiveMedia {
                 catch (IOException failure) { reader.check(); throw sanitized(failure, "媒体连接暂时失败，请重试"); }
                 try {
                     reader.attach(connection);
-                    connection.setConnectTimeout(8000); connection.setReadTimeout(5000);
+                    connection.setConnectTimeout(8000); connection.setReadTimeout(10000);
                     connection.setInstanceFollowRedirects(false);
                     connection.setRequestProperty("User-Agent", "Mozilla/5.0");
                     connection.setRequestProperty("Accept-Encoding", "identity");
@@ -406,7 +406,8 @@ public final class ProgressiveMedia {
                         catch (IllegalArgumentException failure) { throw new IOException("媒体重定向异常"); }
                         continue;
                     }
-                    if (code >= 400 && connection.getHeaderField("Retry-After") != null)
+                    String retryAfter = connection.getHeaderField("Retry-After");
+                    if (code >= 400 && retryAfter != null && !retryAfter.trim().isEmpty())
                         throw new TerminalFailure("媒体服务要求稍后重试");
                     if (code == 500 || code == 502 || code == 503 || code == 504) throw new TransientCdnFailure();
                     if (code >= 400) throw new TerminalFailure("媒体请求失败（HTTP " + code + "）");
