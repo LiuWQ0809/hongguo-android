@@ -32,6 +32,7 @@ internal class BackgroundPlayback(
     var current: ExoPlayer? = player
         private set
     val playWhenReady: Boolean get() = current?.playWhenReady ?: initialPlayWhenReady
+    val isPreparing: Boolean get() = model.state.value.preparing
 
     fun start() {
         current?.let { active -> video?.let { listen(active, it) } }

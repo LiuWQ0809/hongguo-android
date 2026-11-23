@@ -29,7 +29,7 @@ class PlaybackSessionService : MediaSessionService() {
             background?.stop()
             background = owner
             handler.removeCallbacks(stop)
-            if (current == null) {
+            if (current == null || owner.isPreparing) {
                 service?.beginBackgroundTransition() ?: ContextCompat.startForegroundService(context, Intent(context, PlaybackSessionService::class.java))
             }
             owner.start()
@@ -70,7 +70,7 @@ class PlaybackSessionService : MediaSessionService() {
         super.onCreate()
         service = this
         current?.let(::replaceSession)
-        if (current == null && background != null) beginBackgroundTransition()
+        background?.let { if (current == null || it.isPreparing) beginBackgroundTransition() }
     }
     private fun beginBackgroundTransition() {
         if (transitionWakeLock != null) return
