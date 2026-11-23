@@ -20,7 +20,8 @@ internal object DramaPublishers {
 
     suspend fun works(publisher: DramaPublisher, current: DramaCard): List<DramaCard> = runInterruptible(Dispatchers.IO) {
         val candidates = Client.searchNativeCatalog(publisher.name).mapNotNull { Json.optObj(it) }
-            .filter { it.field("series_id").isNotBlank() }.distinctBy { it.field("series_id") }
+            .filter { it.field("series_id").isNotBlank() && it.field("title").isNotBlank() }
+            .distinctBy { it.field("series_id") }
         val ids = candidates.map { it.field("series_id") }.filterNot { it == current.id }
         val matched = metadata(ids).filter { it.field("media_id") == publisher.mediaId }
             .map { it.field("book_id") }.toSet()
