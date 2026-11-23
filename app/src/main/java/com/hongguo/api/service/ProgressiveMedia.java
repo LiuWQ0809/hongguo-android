@@ -47,6 +47,7 @@ public final class ProgressiveMedia {
     private static final long CACHE_LIMIT = MAX_SOURCE_BYTES;
     static final int FETCH_ATTEMPTS = 5;
     static volatile long retryBaseMillis = 400;
+    private static final String[] REDIRECT_DOMAINS = {"vegslb.com", "idouyinvod.com", "smtcdns.com"};
     private static final Pattern CONTENT_RANGE = Pattern.compile("bytes ([0-9]+)-([0-9]+)/([0-9]+)");
     private static final Object CACHE_GUARD = new Object();
     private static final LinkedHashMap<Path, CacheBlock> CACHE = new LinkedHashMap<>(16, .75f, true);
@@ -87,9 +88,9 @@ public final class ProgressiveMedia {
         List<URI> sources = new ArrayList<>();
         sources.add(checkedUri(track.url));
         if (!track.encrypt && !track.backupUrls.isEmpty()) {
-            trustedMediaUri(sources.get(0));
+            trustedMediaUri(sources.get(0), false);
             for (String url : track.backupUrls) {
-                URI mirror = trustedMediaUri(checkedUri(url));
+                URI mirror = trustedMediaUri(checkedUri(url), false);
                 if (!sources.contains(mirror)) sources.add(mirror);
             }
         }
@@ -368,6 +369,8 @@ public final class ProgressiveMedia {
                 catch (TransientCdnFailure | SocketException | EOFException | UnknownHostException temporary) { failure = temporary; }
                 reader.check();
                 if (attempt >= FETCH_ATTEMPTS) throw failure;
+                if (sources.size() > 1 && (first || !representation.isEmpty()))
+                    candidate = (candidate + 1) % sources.size();
                 long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(delay);
                 while (System.nanoTime() < until) {
                     reader.check();
@@ -399,7 +402,7 @@ public final class ProgressiveMedia {
                     if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
                         String location = connection.getHeaderField("Location");
                         if (location == null || redirect == 5) throw new IOException("媒体重定向异常");
-                        try { next = checkedUri(next.resolve(location).toString()); }
+                        try { next = trustedMediaUri(checkedUri(next.resolve(location).toString()), true); }
                         catch (IllegalArgumentException failure) { throw new IOException("媒体重定向异常"); }
                         continue;
                     }
@@ -414,6 +417,8 @@ public final class ProgressiveMedia {
                     long start, end, total;
                     try { start = Long.parseLong(range.group(1)); end = Long.parseLong(range.group(2)); total = Long.parseLong(range.group(3)); }
                     catch (NumberFormatException ex) { throw unsupported(); }
+                    if (!first && candidate != activeSource && total != length)
+                        throw new TerminalFailure("备用媒体长度不一致");
                     if (start != from || end != from + count - 1 || total < 16 || total > MAX_SOURCE_BYTES
                             || end >= total || (length >= 0 && total != length)) throw unsupported();
                     boolean switching = !first && candidate != activeSource;
@@ -552,9 +557,15 @@ public final class ProgressiveMedia {
         try { return MessageDigest.getInstance("SHA-256").digest(bytes); }
         catch (java.security.NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
     }
-    private static URI trustedMediaUri(URI uri) throws IOException {
+    private static URI trustedMediaUri(URI uri, boolean redirect) throws IOException {
         try { AppSource.checkedUrl(uri.toString(), AppSource.VOD_DOMAINS); return uri; }
-        catch (Exception invalid) { throw new TerminalFailure("不受支持的媒体地址"); }
+        catch (Exception invalid) {
+            if (redirect) {
+                try { AppSource.checkedUrl(uri.toString(), REDIRECT_DOMAINS); return uri; }
+                catch (Exception ignored) { }
+            }
+            throw new TerminalFailure("不受支持的媒体地址");
+        }
     }
     private static URI checkedUri(String raw) throws IOException {
         try {
