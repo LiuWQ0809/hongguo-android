@@ -190,6 +190,33 @@ public class ProgressiveMediaTest {
         assertTrue(backup.requests.get() > 1);
     }
 
+    @Test public void mirrorMustProveContentAndLengthBeforeCommit() throws Exception {
+        byte[] media = clear(expandMdat(fixture(false), 2 * 1024 * 1024));
+        Origin primary = new Origin(media), backup = new Origin(media);
+        primary.reprDigest = reprDigest(media); session = openMirrors(primary, backup);
+        primary.status = 503; long before = session.downloadedBytes();
+        for (String invalid : Arrays.asList(null, reprDigest(new byte[1]), "sha-256=:AAAA:")) {
+            backup.reprDigest = invalid;
+            try { session.read(1024 * 1024, new byte[16], 0, 16); fail(); } catch (IOException expected) { }
+            assertEquals(before, session.downloadedBytes());
+        }
+        backup.reprDigest = primary.reprDigest; backup.total = media.length + 1L;
+        try { session.read(1024 * 1024, new byte[16], 0, 16); fail(); } catch (IOException expected) { }
+        assertEquals(before, session.downloadedBytes());
+    }
+
+    @Test public void missingOriginalDigestOrUntrustedRedirectCannotSwitchNode() throws Exception {
+        byte[] media = clear(expandMdat(fixture(false), 2 * 1024 * 1024));
+        Origin primary = new Origin(media), backup = new Origin(media);
+        session = openMirrors(primary, backup); primary.status = 503;
+        try { session.read(1024 * 1024, new byte[16], 0, 16); fail(); } catch (IOException expected) { }
+        assertEquals(0, backup.requests.get());
+        session.close(); primary.status = 206; primary.reprDigest = reprDigest(media);
+        session = openMirrors(primary, backup); primary.status = 302; primary.location = "https://unexpected.invalid/x";
+        try { session.read(1024 * 1024, new byte[16], 0, 16); fail(); } catch (IOException expected) { }
+        assertEquals(0, backup.requests.get());
+    }
+
     @Test public void corruptBlockIsRefetchedAndAbandonedCacheIsNeverReused() throws Exception {
         Path abandoned = Files.createDirectories(root.resolve("p1-abandoned"));
         Files.write(abandoned.resolve("0.range"), new byte[300]);
