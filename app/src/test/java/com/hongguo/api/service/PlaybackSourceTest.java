@@ -521,6 +521,22 @@ public class PlaybackSourceTest {
         catch (java.io.InterruptedIOException expected) { assertEquals(0, legacy.get()); }
     }
 
+    @Test public void interruptedVariantDoesNotRequestAnotherSource() throws Exception {
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> { throw new AssertionError("取消后仍查询片源"); });
+        AppSource.setPlaybackTabV5ForTest((vid, quality, identity) -> { throw new InterruptedException(); });
+        assertThrows(InterruptedException.class, () -> AppSource.fetch("7600000000000000001", "auto"));
+    }
+
+    @Test public void fullCacheFallbackUsesTheSuppliedTrackWithoutResolvingAgain() {
+        PlaybackDevice.resetForTest((url, headers, body) -> { throw new AssertionError("已有片源时重复注册"); });
+        Stream.VideoTrack track = new Stream.VideoTrack();
+        track.url = "ftp://example.invalid/fixture.mp4";
+        IOException error = assertThrows(IOException.class,
+                () -> Stream.prepare("7700000000000000180", "auto", track, null));
+        assertEquals("媒体地址协议无效", error.getMessage());
+    }
+
     @Test public void cancelledCompatibilityRequestStopsImmediately() throws Exception {
         AtomicInteger calls = new AtomicInteger(), registrations = new AtomicInteger();
         PlaybackDevice.resetForTest((url, headers, body) -> { registrations.incrementAndGet(); return okReply(); });

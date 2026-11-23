@@ -137,8 +137,7 @@ public final class AppSource {
             try { return fetchSingle(vid, quality, identity); }
             catch (PlaybackRejectedException rejected) { throw rejected; }
             catch (Exception legacy) {
-                if (Thread.currentThread().isInterrupted() || (legacy instanceof java.io.InterruptedIOException
-                        && !(legacy instanceof java.net.SocketTimeoutException))) throw legacy;
+                if (isPlaybackCancelled(legacy)) throw legacy;
                 singleFailure.addSuppressed(legacy);
             }
         }
@@ -191,7 +190,8 @@ public final class AppSource {
     }
 
     private static boolean isPlaybackCancelled(Exception error) {
-        return Thread.currentThread().isInterrupted() || (error instanceof java.io.InterruptedIOException
+        return error instanceof InterruptedException || Thread.currentThread().isInterrupted()
+                || (error instanceof java.io.InterruptedIOException
                 && !(error instanceof java.net.SocketTimeoutException));
     }
 
