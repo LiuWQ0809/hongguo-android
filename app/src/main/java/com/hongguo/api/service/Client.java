@@ -725,6 +725,10 @@ public final class Client {
         return Page.slice(new ArrayList<>(), skipN, limit, false);
     }
 
+    public static List<Object> searchNativeCatalog(String query) throws Exception {
+        return appSearchPage(query, 30, 0).items;
+    }
+
     private static Page appSearchPage(String query, int limit, int skipN) throws Exception {
         // App cursor accumulator; every page preserves upstream passback/search_id.
         // 游标状态可复用：同一关键词的续页从头重抓上游，靠这里的缓存兜住重复请求
