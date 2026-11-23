@@ -423,7 +423,11 @@ class AccountRepository internal constructor(
                         val rows = runInterruptible(io) { gateway.history(credentials) }.map(::historyEntry)
                         cacheChange(g) { cache ->
                             // Preserve a newer local observation and any queued update while reads are in flight.
-                            val merged = (cache.history + rows).groupBy { it.card.id }.values.map { items -> items.maxBy { it.updatedAt } }
+                            val merged = (cache.history + rows).groupBy { it.card.id }.values.map { items ->
+                                val newest = items.maxBy { it.updatedAt }
+                                val donor = items.firstOrNull { it !== newest && knownCard(it.card) } ?: newest
+                                newest.backfillCard(donor)
+                            }
                             cache.copy(history = normalizeHistory(merged))
                         }
                         if (current(g)) state { it.copy(historyError = null) }
@@ -434,7 +438,7 @@ class AccountRepository internal constructor(
                         synchronized(lock) {
                             // A list read started before/during a confirmed write must not restore the old shelf.
                             if (generation == g && favoriteRevision == readRevision && mutableState.value.favoriteBusyIds.isEmpty()) {
-                                cacheChange(g) { it.copy(favorites = normalizeFavorites(rows)) }
+                                cacheChange(g) { it.copy(favorites = normalizeFavorites(backfilled(rows, it.favorites))) }
                             }
                         }
                         if (current(g)) state { it.copy(favoritesError = null) }
