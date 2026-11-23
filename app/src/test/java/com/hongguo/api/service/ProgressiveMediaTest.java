@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -323,6 +324,21 @@ public class ProgressiveMediaTest {
         bytes[at + 2] = (byte) (value >>> 8); bytes[at + 3] = (byte) value;
     }
 
+    private static String reprDigest(byte[] bytes) throws Exception {
+        return "sha-256=:" + Base64.getEncoder().encodeToString(
+                java.security.MessageDigest.getInstance("SHA-256").digest(bytes)) + ":";
+    }
+    private ProgressiveMedia.Session openMirrors(Origin primary, Origin backup) throws Exception {
+        Stream.VideoTrack track = new Stream.VideoTrack();
+        track.url = "https://main.qznovelvod.com/fixture";
+        track.backupUrls.add("https://backup.fqnovelvod.com/fixture");
+        return ProgressiveMedia.openTrack(track, root, null, uri -> {
+            if (uri.getHost().equals("main.qznovelvod.com")) return primary.open(uri);
+            if (uri.getHost().equals("backup.fqnovelvod.com")) return backup.open(uri);
+            throw new AssertionError("unexpected origin");
+        });
+    }
+
     private static final class Origin implements ProgressiveMedia.ConnectionFactory {
         final byte[] bytes;
         final AtomicInteger requests = new AtomicInteger();
@@ -330,7 +346,8 @@ public class ProgressiveMediaTest {
         final CountDownLatch entered = new CountDownLatch(1);
         volatile int status = 206, gatedBlock = -1;
         volatile boolean wrongRange, truncated;
-        volatile String etag = "\"fixture-v1\"", retryAfter;
+        volatile String etag = "\"fixture-v1\"", retryAfter, reprDigest, location;
+        volatile long total = -1;
         Origin(byte[] bytes) { this.bytes = bytes; }
         public HttpURLConnection open(URI uri) throws IOException {
             requests.incrementAndGet();
@@ -346,9 +363,11 @@ public class ProgressiveMediaTest {
                     return failNext.getAndUpdate(n -> Math.max(0, n - 1)) > 0 ? 503 : status;
                 }
                 public String getHeaderField(String name) {
-                    if ("Content-Range".equals(name)) return "bytes " + (wrongRange ? start + 1 : start) + "-" + end + "/" + bytes.length;
+                    if ("Content-Range".equals(name)) return "bytes " + (wrongRange ? start + 1 : start) + "-" + end + "/" + (total > 0 ? total : bytes.length);
                     if ("ETag".equals(name)) return etag;
                     if ("Retry-After".equals(name)) return retryAfter;
+                    if ("Repr-Digest".equals(name)) return reprDigest;
+                    if ("Location".equals(name)) return location;
                     return null;
                 }
                 public long getContentLengthLong() { return end - start + 1; }
