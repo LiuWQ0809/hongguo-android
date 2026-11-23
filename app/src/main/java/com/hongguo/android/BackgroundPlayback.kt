@@ -22,18 +22,19 @@ internal class BackgroundPlayback(
     initial: PreparedVideo?,
     player: ExoPlayer?,
     private val initialPlayWhenReady: Boolean = true,
-    private val releaseOriginal: () -> Unit,
+    initialSource: VideoSourceHandle? = null,
+    initialPinned: Boolean = false,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var video = initial
-    private var original = player != null
-    private var source: VideoSourceHandle? = null
-    private var pinned = false
+    private var source = initialSource
+    private var pinned = initialPinned
     var current: ExoPlayer? = player
         private set
     val playWhenReady: Boolean get() = current?.playWhenReady ?: initialPlayWhenReady
 
-    init {
+    fun start() {
+        current?.let { active -> video?.let { listen(active, it) } }
         scope.launch {
             model.state.collect { state ->
                 if (!state.playerOpen) {
@@ -49,7 +50,7 @@ internal class BackgroundPlayback(
             while (true) {
                 val active = current
                 val playing = video
-                if (!original && active != null && active.isPlaying && playing != null)
+                if (active != null && active.isPlaying && playing != null)
                     model.savePosition(playing.episodeId, active.currentPosition, playing.requestId)
                 delay(2_000)
             }
@@ -58,19 +59,16 @@ internal class BackgroundPlayback(
 
     private fun release() {
         val active = current ?: return
-        if (original) { original = false; releaseOriginal() }
-        else {
-            val ended = active.playbackState == Player.STATE_ENDED
-            video?.let { model.savePosition(it.episodeId, if (ended) 0 else active.currentPosition, it.requestId,
-                force = true, completed = ended) }
-            source?.cancelActiveReads()
-            PlaybackSessionService.detach(active)
-            active.release()
-            if (pinned) video?.let { Stream.unpin(it.path) }
-        }
+        current = null
+        val ended = active.playbackState == Player.STATE_ENDED
+        video?.let { model.savePosition(it.episodeId, if (ended) 0 else active.currentPosition, it.requestId,
+            force = true, completed = ended) }
+        source?.cancelActiveReads()
+        PlaybackSessionService.detach(active)
+        active.release()
+        if (pinned) video?.let { Stream.unpin(it.path) }
         source = null
         pinned = false
-        current = null
     }
 
     private fun switchTo(next: PreparedVideo) {
@@ -114,9 +112,8 @@ internal class BackgroundPlayback(
         })
     }
 
-    fun stop(): Boolean {
+    fun stop() {
         scope.cancel()
-        if (!original) release()
-        return original
+        release()
     }
 }

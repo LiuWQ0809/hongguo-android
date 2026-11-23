@@ -31,6 +31,7 @@ class PlaybackSessionService : MediaSessionService() {
             if (current == null) {
                 service?.showPreparing() ?: ContextCompat.startForegroundService(context, Intent(context, PlaybackSessionService::class.java))
             }
+            owner.start()
         }
 
         internal fun takeBackground(expected: BackgroundPlayback? = null): Boolean? {
