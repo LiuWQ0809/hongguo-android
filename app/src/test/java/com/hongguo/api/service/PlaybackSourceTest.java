@@ -397,6 +397,30 @@ public class PlaybackSourceTest {
         assertEquals("https://v1.qznovelvod.com/test.mp4", AppSource.parseModel(vid, response(vid, model), "auto").url);
     }
 
+    @Test public void publicSourceRecoversEmptyResponsesInAutoQualityOnly() throws Exception {
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AppSource.EmptyPlaybackResponseException(); });
+        Stream.VideoTrack publicTrack = new Stream.VideoTrack();
+        AtomicInteger calls = new AtomicInteger();
+        AppSource.setPublicPlaybackForTest(vid -> {
+            assertEquals("7600000000000000001", vid);
+            calls.incrementAndGet();
+            return publicTrack;
+        });
+        assertSame(publicTrack, AppSource.fetch("7600000000000000001", "auto"));
+        assertThrows(AppSource.EmptyPlaybackResponseException.class,
+                () -> AppSource.fetch("7600000000000000001", "1080p"));
+        assertEquals(1, calls.get());
+    }
+
+    @Test public void publicSourceDoesNotOverrideExplicitRefusal() throws Exception {
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AppSource.PlaybackRejectedException(429); });
+        AppSource.setPublicPlaybackForTest(vid -> { throw new AssertionError("明确拒绝后不得回退"); });
+        assertThrows(AppSource.PlaybackRejectedException.class,
+                () -> AppSource.fetch("7600000000000000001", "auto"));
+    }
+
     @Test public void unsupportedSingleCodecSurvivesEmptyLegacyResponses() throws Exception {
         PlaybackDevice.resetForTest((url, headers, body) -> okReply());
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> { throw new AppSource.ByteVc2Only(); });
