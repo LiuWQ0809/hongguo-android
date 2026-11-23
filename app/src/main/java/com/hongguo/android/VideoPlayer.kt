@@ -218,8 +218,17 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
                 }
                 Lifecycle.Event.ON_STOP -> {
                     if (model.state.value.playerOpen && !PlaybackSessionService.hasBackground) {
-                        releasePlayer()
-                        val owner = BackgroundPlayback(context.applicationContext, model, video, null, wantedPlaying)
+                        val active = player
+                        player = null
+                        if (gestureHold[0]) {
+                            gestureHold[0] = false
+                            active?.play()
+                        }
+                        val owner = BackgroundPlayback(context.applicationContext, model, video, active,
+                            wantedPlaying, sourceHandle, pinned)
+                        sourceHandle = null
+                        pinned = false
+                        ui = ui.copy(player = null)
                         PlaybackSessionService.holdBackground(context.applicationContext, owner)
                     }
                 }
