@@ -8,6 +8,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
@@ -29,10 +30,13 @@ class PlaybackSessionService : MediaSessionService() {
             background = owner
             handler.removeCallbacks(stop)
             if (current == null) {
-                service?.showPreparing() ?: ContextCompat.startForegroundService(context, Intent(context, PlaybackSessionService::class.java))
+                service?.beginBackgroundTransition() ?: ContextCompat.startForegroundService(context, Intent(context, PlaybackSessionService::class.java))
             }
             owner.start()
         }
+
+        internal fun beginBackgroundTransition() { service?.beginBackgroundTransition() }
+        internal fun endBackgroundTransition() { service?.endBackgroundTransition() }
 
         internal fun takeBackground(expected: BackgroundPlayback? = null): Boolean? {
             val owner = background ?: return null
@@ -40,6 +44,7 @@ class PlaybackSessionService : MediaSessionService() {
             val wantedPlaying = owner.playWhenReady
             background = null
             owner.stop()
+            endBackgroundTransition()
             if (current == null) handler.postDelayed(stop, 1_000)
             return wantedPlaying
         }
@@ -59,12 +64,39 @@ class PlaybackSessionService : MediaSessionService() {
     }
 
     private var session: MediaSession? = null
+    private var transitionWakeLock: PowerManager.WakeLock? = null
+    private val stopWaiting = Runnable { endBackgroundTransition() }
     override fun onCreate() {
         super.onCreate()
         service = this
         current?.let(::replaceSession)
-        if (current == null && background != null) showPreparing()
+        if (current == null && background != null) beginBackgroundTransition()
     }
+    private fun beginBackgroundTransition() {
+        if (transitionWakeLock != null) return
+        transitionWakeLock = getSystemService(PowerManager::class.java)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "hongguo:episode-transition").apply {
+                setReferenceCounted(false)
+                acquire(90_000)
+            }
+        handler.postDelayed(stopWaiting, 90_000)
+        showPreparing()
+    }
+
+    private fun endBackgroundTransition() {
+        val wakeLock = transitionWakeLock ?: return
+        transitionWakeLock = null
+        handler.removeCallbacks(stopWaiting)
+        if (wakeLock.isHeld) wakeLock.release()
+        if (current?.isPlaying != true) stopForeground(STOP_FOREGROUND_REMOVE)
+        session?.let { onUpdateNotification(it, current?.isPlaying == true) }
+        getSystemService(NotificationManager::class.java).cancel(1002)
+    }
+
+    override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+        if (transitionWakeLock == null) super.onUpdateNotification(session, startInForegroundRequired)
+    }
+
     private fun showPreparing() {
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel("playback_preparing", "播放准备", NotificationManager.IMPORTANCE_LOW))
@@ -79,7 +111,6 @@ class PlaybackSessionService : MediaSessionService() {
     private fun replaceSession(player: Player) {
         clearSession()
         session = MediaSession.Builder(this, player).build().also(::addSession)
-        getSystemService(NotificationManager::class.java).cancel(1002)
     }
     override fun onTaskRemoved(rootIntent: Intent?) {
         takeBackground()
