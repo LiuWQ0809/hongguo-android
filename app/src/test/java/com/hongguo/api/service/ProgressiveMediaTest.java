@@ -217,6 +217,23 @@ public class ProgressiveMediaTest {
         assertEquals(0, backup.requests.get());
     }
 
+    @Test public void mirrorDenialNeverSwitchesAndMissingDigestAfterSwitchStops() throws Exception {
+        byte[] media = clear(expandMdat(fixture(false), 2 * 1024 * 1024));
+        Origin primary = new Origin(media), backup = new Origin(media);
+        primary.reprDigest = backup.reprDigest = reprDigest(media);
+        session = openMirrors(primary, backup);
+        for (int code : new int[] {401, 403, 429, 503}) {
+            primary.status = code; primary.retryAfter = code == 503 ? "30" : null;
+            int before = primary.requests.get();
+            try { session.read(1024 * 1024, new byte[16], 0, 16); fail(); } catch (IOException expected) { }
+            assertEquals(before + 1, primary.requests.get()); assertEquals(0, backup.requests.get());
+        }
+        primary.retryAfter = null; primary.status = 503;
+        read(session.newReader(), 1024 * 1024, 16);
+        backup.reprDigest = null;
+        try { session.read(1536 * 1024, new byte[16], 0, 16); fail(); } catch (IOException expected) { }
+    }
+
     @Test public void corruptBlockIsRefetchedAndAbandonedCacheIsNeverReused() throws Exception {
         Path abandoned = Files.createDirectories(root.resolve("p1-abandoned"));
         Files.write(abandoned.resolve("0.range"), new byte[300]);
