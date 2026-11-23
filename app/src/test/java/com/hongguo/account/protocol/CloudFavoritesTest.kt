@@ -41,6 +41,14 @@ class CloudFavoritesTest {
         assertEquals(listOf(list, detail), paths())
     }
 
+    @Test fun detailsAcceptAlternateTitleAndCoverFields() {
+        replies[list] = """{"code":0,"data":{"video_shelf_info":[{"series_id":"701"}]}}"""
+        replies[detail] = """{"code":0,"data":[{"book_id":"701","series_title":"测试剧集","series_cover_url":"https://example.invalid/a.jpg"}]}"""
+        val row = client().favorites(credentials).single()
+        assertEquals("测试剧集", row.series.title)
+        assertEquals("https://example.invalid/a.jpg", row.series.cover)
+    }
+
     @Test fun emptyLightListFallsBackToLegacy() {
         replies[list] = """{"code":0,"data":{"video_shelf_info":[]}}"""
         replies[info] = """{"code":0,"data":{"video_shelf_info":[{"video_data":{"series_id":"701","title":"甲"},"collect_time":5}]}}"""
