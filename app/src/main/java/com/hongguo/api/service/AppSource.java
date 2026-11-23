@@ -155,7 +155,7 @@ public final class AppSource {
                 primary.addSuppressed(alternate);
             }
             try {
-                PlaybackDevice.Identity fresh = PlaybackDevice.fresh();
+                PlaybackDevice.Identity fresh = PlaybackDevice.renew(identity);
                 try {
                     Map<String, Object> tab = playbackTab.get(vid, fresh);
                     if (tab != null) return parseModel(vid, tab, quality);
@@ -202,16 +202,10 @@ public final class AppSource {
         try {
             j = playbackPost.post(body, identity, VIDEO_API_HOST);
         } catch (EmptyPlaybackResponseException e) {
-            // 空响应多为当前匿名身份被拒：换一个新注册的身份只重试一次（同步自 hongguo-drama 5.0）。
+            // 备用主机先复用同一身份，整轮取源失败后才允许重新注册。
             if (Thread.currentThread().isInterrupted()) throw e;
-            PlaybackDevice.Identity renewed = identity;
-            try {
-                renewed = PlaybackDevice.renew(identity);
-            } catch (IOException re) {
-                e.addSuppressed(re);
-            }
-            Thread.sleep(300);
-            try { j = playbackPost.post(body, renewed, RETRY_HOST); }
+            waitForPlaybackRetry();
+            try { j = playbackPost.post(body, identity, RETRY_HOST); }
             catch (Exception retry) { retry.addSuppressed(e); throw retry; }
         }
         return parseModel(vid, j, quality);
@@ -228,14 +222,18 @@ public final class AppSource {
             }
             catch (EmptyPlaybackResponseException empty) {
                 if (attempt == 1 || Thread.currentThread().isInterrupted()) throw empty;
-                try { Thread.sleep(300); }
-                catch (InterruptedException cancelled) {
-                    Thread.currentThread().interrupt();
-                    throw new java.io.InterruptedIOException("播放请求已取消");
-                }
+                waitForPlaybackRetry();
             }
         }
         throw new IllegalStateException("播放请求未执行");
+    }
+
+    private static void waitForPlaybackRetry() throws java.io.InterruptedIOException {
+        try { Thread.sleep(300); }
+        catch (InterruptedException cancelled) {
+            Thread.currentThread().interrupt();
+            throw new java.io.InterruptedIOException("播放请求已取消");
+        }
     }
 
     /** 明确拒绝时停止，避免继续请求其他线路。 */

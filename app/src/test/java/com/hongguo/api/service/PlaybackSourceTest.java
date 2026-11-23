@@ -601,7 +601,7 @@ public class PlaybackSourceTest {
         assertEquals(0, tabCalls.get());
     }
 
-    @Test public void emptyPlaybackResponseRetriesOnceWithRenewedIdentity() throws Exception {
+    @Test public void alternateHostReusesIdentityBeforeOneRenewal() throws Exception {
         AtomicInteger registrations = new AtomicInteger();
         PlaybackDevice.resetForTest((url, headers, body) -> registrations.incrementAndGet() == 1
                 ? okReply() : reply("7432109876543219999", "7432109876543218888"));
@@ -623,9 +623,10 @@ public class PlaybackSourceTest {
         }
         assertEquals(3, used.size());
         assertEquals(java.util.Arrays.asList(AppSource.VIDEO_API_HOST, AppSource.RETRY_HOST, AppSource.VIDEO_API_HOST), hosts);
-        assertEquals(3, registrations.get());
+        assertEquals(2, registrations.get());
         assertEquals(DEVICE_ID, used.get(0).deviceId);
-        assertEquals("7432109876543219999", used.get(1).deviceId);
+        assertSame(used.get(0), used.get(1));
+        assertEquals("7432109876543219999", used.get(2).deviceId);
         assertSame("最后的备用身份可供后续请求使用", used.get(2), PlaybackDevice.get());
         assertTrue(bodies.get(0).contains("\"device_level\":1"));
     }
@@ -648,10 +649,10 @@ public class PlaybackSourceTest {
             // 两轮主备路径均已失败，停止重试。
         }
         assertEquals(4, posts.get());
-        assertEquals(4, registrations.get());
+        assertEquals(2, registrations.get());
     }
 
-    @Test public void failedRenewalStillAttemptsTheBackupHost() throws Exception {
+    @Test public void backupHostDoesNotDependOnSuccessfulRenewal() throws Exception {
         AtomicInteger registrations = new AtomicInteger();
         PlaybackDevice.resetForTest((url, headers, body) -> {
             if (registrations.incrementAndGet() > 1) throw new IOException("offline");
