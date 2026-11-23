@@ -89,3 +89,7 @@ Local changes: signed out, the feed is requested anonymously without any cookie 
 ## 原生播放来源更新（2026-11-22）
 
 播放请求重试、无正文签名与 v5 分集模型 GET 参考 [OOIUa/hongguo-android v0.7.31](https://github.com/OOIUa/hongguo-android/releases/tag/v0.7.31) 和 [v0.7.32](https://github.com/OOIUa/hongguo-android/releases/tag/v0.7.32)，GPL-3.0-only；其 GET 签名设计亦参考 jackotom/hongguo-drama 7.7。此处为按需移植，并非完整同步上游版本。本地保留速率限制、取消请求处理及原有后台播放能力。
+
+## 原生播放与片单兼容更新（2026-11-23）
+
+参考 [OOIUa/hongguo-android v0.7.33](https://github.com/OOIUa/hongguo-android/releases/tag/v0.7.33)（GPL-3.0-only）：解码器回退、媒体节点临时故障重试、明文同轨道备用地址与完整内容摘要校验，以及账号片单资料回填。此处为按需移植，并非完整上游同步；本地保留媒体版本校验、后台连播、锁屏和画中画机制。备用节点仅在播放模型明确提供且可核验为相同内容时用于已开始读取的媒体。
