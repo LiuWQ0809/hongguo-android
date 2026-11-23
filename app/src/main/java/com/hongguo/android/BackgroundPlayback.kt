@@ -81,19 +81,7 @@ internal class BackgroundPlayback(
             if (next.session == null && next.path.isNotBlank()) { Stream.pin(next.path); pinned = true }
             val active = createVideoPlayer(context)
             current = active
-            active.addListener(object : Player.Listener {
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (current === active && isPlaying) model.onPlaybackStarted(next.episodeId, next.requestId)
-                }
-                override fun onPlaybackStateChanged(state: Int) {
-                    if (current !== active) return
-                    if (state == Player.STATE_ENDED) model.onPlaybackEnded(next.episodeId, next.requestId,
-                        active.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0)
-                }
-                override fun onPlayerError(error: PlaybackException) {
-                    if (current === active) model.onPlaybackError(next.episodeId, next.requestId, error.errorCode in 4000..4999)
-                }
-            })
+            listen(active, next)
             active.setAudioAttributes(AudioAttributes.DEFAULT, true)
             active.setHandleAudioBecomingNoisy(true)
             active.setWakeMode(C.WAKE_MODE_NETWORK)
@@ -108,6 +96,22 @@ internal class BackgroundPlayback(
             release()
             model.onPlaybackError(next.episodeId, next.requestId, false)
         }
+    }
+
+    private fun listen(active: ExoPlayer, next: PreparedVideo) {
+        active.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (current === active && isPlaying) model.onPlaybackStarted(next.episodeId, next.requestId)
+            }
+            override fun onPlaybackStateChanged(state: Int) {
+                if (current !== active) return
+                if (state == Player.STATE_ENDED) model.onPlaybackEnded(next.episodeId, next.requestId,
+                    active.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0)
+            }
+            override fun onPlayerError(error: PlaybackException) {
+                if (current === active) model.onPlaybackError(next.episodeId, next.requestId, error.errorCode in 4000..4999)
+            }
+        })
     }
 
     fun stop(): Boolean {
