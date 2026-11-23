@@ -166,6 +166,30 @@ public class ProgressiveMediaTest {
         }
     }
 
+    @Test public void matchingDigestAllowsMirrorToSupplyTheMissingRange() throws Exception {
+        byte[] media = clear(expandMdat(fixture(false), 2 * 1024 * 1024));
+        Origin primary = new Origin(media), backup = new Origin(media);
+        primary.reprDigest = backup.reprDigest = reprDigest(media);
+        backup.etag = "\"other-node\"";
+        session = openMirrors(primary, backup); primary.status = 503;
+        int offset = 1024 * 1024 + 41;
+        assertArrayEquals(Arrays.copyOfRange(media, offset, offset + 32), read(session.newReader(), offset, 32));
+        assertEquals(1, backup.requests.get());
+        int oldRequests = primary.requests.get();
+        read(session.newReader(), 1536 * 1024, 16);
+        assertEquals(oldRequests, primary.requests.get());
+        assertEquals(2, backup.requests.get());
+    }
+
+    @Test public void openingMaySwitchBeforeAnyBytesWithoutDigest() throws Exception {
+        byte[] media = clear(expandMdat(fixture(false), 2 * 1024 * 1024));
+        Origin primary = new Origin(media), backup = new Origin(media);
+        primary.status = 503; session = openMirrors(primary, backup);
+        assertEquals(1, primary.requests.get());
+        assertEquals(media.length, session.length());
+        assertTrue(backup.requests.get() > 1);
+    }
+
     @Test public void corruptBlockIsRefetchedAndAbandonedCacheIsNeverReused() throws Exception {
         Path abandoned = Files.createDirectories(root.resolve("p1-abandoned"));
         Files.write(abandoned.resolve("0.range"), new byte[300]);
