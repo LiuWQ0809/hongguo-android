@@ -26,6 +26,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -83,9 +84,17 @@ public final class ProgressiveMedia {
                              ConnectionFactory factory, ContentKeyResolver keyResolver) throws Exception {
         if (track == null || track.url == null) throw new IOException("暂时无法获取本集播放信息");
         checkOpening(progress);
-        URI source = checkedUri(track.url);
+        List<URI> sources = new ArrayList<>();
+        sources.add(checkedUri(track.url));
+        if (!track.encrypt && !track.backupUrls.isEmpty()) {
+            trustedMediaUri(sources.get(0));
+            for (String url : track.backupUrls) {
+                URI mirror = trustedMediaUri(checkedUri(url));
+                if (!sources.contains(mirror)) sources.add(mirror);
+            }
+        }
         Path dir = createSessionDirectory(cacheRoot);
-        Session session = new Session(source, dir, progress, factory);
+        Session session = new Session(sources, dir, progress, factory);
         try {
             session.initialize(track, progress, keyResolver);
             checkOpening(progress);
@@ -99,7 +108,9 @@ public final class ProgressiveMedia {
     }
 
     public static final class Session implements Closeable {
-        private final URI source;
+        private final List<URI> sources;
+        private int activeSource;
+        private Map<String, String> representation = Collections.emptyMap();
         private final Path dir;
         private final Stream.Progress progress;
         private final ConnectionFactory factory;
@@ -119,8 +130,8 @@ public final class ProgressiveMedia {
         private byte[] clearMoov;
         private byte[] key;
 
-        private Session(URI source, Path dir, Stream.Progress progress, ConnectionFactory factory) {
-            this.source = source; this.dir = dir; this.progress = progress; this.factory = factory;
+        private Session(List<URI> sources, Path dir, Stream.Progress progress, ConnectionFactory factory) {
+            this.sources = sources; this.dir = dir; this.progress = progress; this.factory = factory;
             defaultReader = new Reader(this);
             readers.add(defaultReader);
         }
@@ -367,7 +378,7 @@ public final class ProgressiveMedia {
 
         private byte[] fetch(Reader reader, long from, int count, boolean first) throws IOException {
             if (count <= 0) throw unsupported();
-            URI next = source;
+            URI next = sources.get(activeSource);
             for (int redirect = 0; redirect <= 5; redirect++) {
                 reader.check();
                 HttpURLConnection connection;
@@ -524,6 +535,10 @@ public final class ProgressiveMedia {
     private static byte[] digest(byte[] bytes) {
         try { return MessageDigest.getInstance("SHA-256").digest(bytes); }
         catch (java.security.NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
+    }
+    private static URI trustedMediaUri(URI uri) throws IOException {
+        try { AppSource.checkedUrl(uri.toString(), AppSource.VOD_DOMAINS); return uri; }
+        catch (Exception invalid) { throw new TerminalFailure("不受支持的媒体地址"); }
     }
     private static URI checkedUri(String raw) throws IOException {
         try {
