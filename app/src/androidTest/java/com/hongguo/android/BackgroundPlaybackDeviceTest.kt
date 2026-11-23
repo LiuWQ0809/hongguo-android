@@ -116,6 +116,47 @@ class BackgroundPlaybackDeviceTest {
         }
     }
 
+    @Test fun lockingFromForegroundKeepsPlayingAndAdvances() {
+        val model = startVideo()
+        val activity = compose.activity
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val automation = instrumentation.uiAutomation
+        val original = requireNotNull(PlaybackSessionService.activePlayer)
+        try {
+            instrumentation.runOnMainSync { model.setAutoPlayNext(true) }
+            automation.executeShellCommand("input keyevent KEYCODE_SLEEP").close()
+            val keyguard = activity.getSystemService(KeyguardManager::class.java)
+            val lockDeadline = System.currentTimeMillis() + 15_000
+            while ((!keyguard.isKeyguardLocked || !PlaybackSessionService.hasBackground) &&
+                System.currentTimeMillis() < lockDeadline) Thread.sleep(200)
+            assertFalse(activity.getSystemService(PowerManager::class.java).isInteractive)
+            assertTrue("The keyguard must be locked", keyguard.isKeyguardLocked)
+            instrumentation.runOnMainSync {
+                assertTrue(PlaybackSessionService.hasBackground)
+                assertSame("Locking must retain the playing instance", original, PlaybackSessionService.activePlayer)
+                original.seekTo(original.duration - 4_000)
+            }
+            var following: Player? = null
+            val deadline = System.currentTimeMillis() + 60_000
+            while (following == null && model.state.value.playbackError == null && System.currentTimeMillis() < deadline) {
+                instrumentation.runOnMainSync {
+                    if (model.state.value.episodePosition == 1)
+                        following = PlaybackSessionService.activePlayer?.takeIf { it !== original && it.isPlaying }
+                }
+                if (following == null) Thread.sleep(200)
+            }
+            assertNull(model.state.value.playbackError)
+            val active = requireNotNull(following) { "The next episode did not start on the lock screen" }
+            val before = position(active)
+            Thread.sleep(3_000)
+            assertTrue(position(active) > before + 1_000)
+            println("LOCK_PROBE keyguard=${keyguard.isKeyguardLocked} episode=${model.state.value.episodePosition + 1} advance=${position(active) - before}ms")
+        } finally {
+            automation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
+            automation.executeShellCommand("wm dismiss-keyguard").close()
+        }
+    }
+
     @Test fun playbackContinuesAfterBackgroundActivityIsRecreated() = checkDestroyedActivityPlayback(false)
     @Test fun lockScreenPlaysAfterBackgroundActivityIsRecreated() = checkDestroyedActivityPlayback(true)
 
