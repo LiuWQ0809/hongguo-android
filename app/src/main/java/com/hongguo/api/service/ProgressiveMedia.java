@@ -110,6 +110,7 @@ public final class ProgressiveMedia {
     public static final class Session implements Closeable {
         private final List<URI> sources;
         private int activeSource;
+        private boolean switchedDuringRead;
         private Map<String, String> representation = Collections.emptyMap();
         private final Path dir;
         private final Stream.Progress progress;
@@ -358,9 +359,10 @@ public final class ProgressiveMedia {
         /** 仅对临时节点错误重试同一字节范围，并允许取消中断退避。 */
         private byte[] fetchRetrying(Reader reader, long from, int count, boolean first) throws IOException {
             long delay = retryBaseMillis;
+            int candidate = activeSource;
             for (int attempt = 1; ; attempt++) {
                 IOException failure;
-                try { return fetch(reader, from, count, first); }
+                try { return fetch(reader, from, count, first, candidate); }
                 catch (SocketTimeoutException timeout) { failure = timeout; }
                 catch (InterruptedIOException cancelled) { throw cancelled; }
                 catch (TransientCdnFailure | SocketException | EOFException | UnknownHostException temporary) { failure = temporary; }
@@ -376,9 +378,9 @@ public final class ProgressiveMedia {
             }
         }
 
-        private byte[] fetch(Reader reader, long from, int count, boolean first) throws IOException {
+        private byte[] fetch(Reader reader, long from, int count, boolean first, int candidate) throws IOException {
             if (count <= 0) throw unsupported();
-            URI next = sources.get(activeSource);
+            URI next = sources.get(candidate);
             for (int redirect = 0; redirect <= 5; redirect++) {
                 reader.check();
                 HttpURLConnection connection;
