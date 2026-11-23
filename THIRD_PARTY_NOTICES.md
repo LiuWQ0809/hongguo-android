@@ -93,3 +93,7 @@ Local changes: signed out, the feed is requested anonymously without any cookie 
 ## 原生播放与片单兼容更新（2026-11-23）
 
 参考 [OOIUa/hongguo-android v0.7.33](https://github.com/OOIUa/hongguo-android/releases/tag/v0.7.33)（GPL-3.0-only）：解码器回退、媒体节点临时故障重试、明文同轨道备用地址与完整内容摘要校验，以及账号片单资料回填。此处为按需移植，并非完整上游同步；本地保留媒体版本校验、后台连播、锁屏和画中画机制。备用节点仅在播放模型明确提供且可核验为相同内容时用于已开始读取的媒体。
+
+## 公开媒体地址兼容（2026-11-23）
+
+公开单集 JSON 播放地址接口参考 [jackotom/hongguo-drama `ba1fd443`](https://github.com/jackotom/hongguo-drama/commit/ba1fd443f0e1e94bc6cbcbf4bd99459339a2a287) 的问题调研。此处使用自有 Android 请求与校验实现，由 Media3 原生播放。
