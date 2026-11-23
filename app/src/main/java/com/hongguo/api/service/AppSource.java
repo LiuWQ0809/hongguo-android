@@ -206,7 +206,15 @@ public final class AppSource {
             if (Thread.currentThread().isInterrupted()) throw e;
             waitForPlaybackRetry();
             try { j = playbackPost.post(body, identity, RETRY_HOST); }
-            catch (Exception retry) { retry.addSuppressed(e); throw retry; }
+            catch (Exception retry) {
+                if (retry instanceof java.net.SocketException || retry instanceof java.net.SocketTimeoutException
+                        || retry instanceof java.net.UnknownHostException) {
+                    e.addSuppressed(retry);
+                    throw e;
+                }
+                retry.addSuppressed(e);
+                throw retry;
+            }
         }
         return parseModel(vid, j, quality);
     }

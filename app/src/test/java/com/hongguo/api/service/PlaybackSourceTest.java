@@ -418,6 +418,30 @@ public class PlaybackSourceTest {
         assertEquals(1, calls.get());
     }
 
+    @Test public void backupTimeoutAfterAnEmptyResponseStillAllowsPublicSource() throws Exception {
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        AppSource.setPlaybackPostForTest((body, identity, host) -> {
+            if (host.equals(AppSource.RETRY_HOST)) throw new java.net.SocketTimeoutException("fixture");
+            throw new AppSource.EmptyPlaybackResponseException();
+        });
+        Stream.VideoTrack publicTrack = new Stream.VideoTrack();
+        AppSource.setPublicPlaybackForTest(vid -> publicTrack);
+        assertSame(publicTrack, AppSource.fetch("7600000000000000001", "auto"));
+        assertThrows(AppSource.EmptyPlaybackResponseException.class,
+                () -> AppSource.fetch("7600000000000000001", "1080p"));
+    }
+
+    @Test public void backupExplicitRefusalAfterAnEmptyResponseRemainsTerminal() throws Exception {
+        PlaybackDevice.resetForTest((url, headers, body) -> okReply());
+        AppSource.setPlaybackPostForTest((body, identity, host) -> {
+            if (host.equals(AppSource.RETRY_HOST)) throw new AppSource.PlaybackRejectedException(403);
+            throw new AppSource.EmptyPlaybackResponseException();
+        });
+        AppSource.setPublicPlaybackForTest(vid -> { throw new AssertionError("明确拒绝后不得回退"); });
+        assertThrows(AppSource.PlaybackRejectedException.class,
+                () -> AppSource.fetch("7600000000000000001", "auto"));
+    }
+
     @Test public void publicSourceDoesNotOverrideExplicitRefusal() throws Exception {
         PlaybackDevice.resetForTest((url, headers, body) -> okReply());
         AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AppSource.PlaybackRejectedException(429); });
