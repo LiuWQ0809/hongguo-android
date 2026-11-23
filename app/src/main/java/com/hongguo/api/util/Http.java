@@ -133,6 +133,9 @@ public final class Http {
             }
             int status = conn.getResponseCode();
             if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308) {
+                String retryAfter = conn.getHeaderField("Retry-After");
+                if (playback && retryAfter != null && !retryAfter.trim().isEmpty())
+                    return new Resp(status, new byte[0], conn.getHeaderFields());
                 if (!req.followRedirect) return new Resp(status, new byte[0], conn.getHeaderFields());
                 if (redirects >= 3 || !(req.method.equals("GET") || req.method.equals("HEAD")))
                     throw new IOException("不支持的服务重定向");

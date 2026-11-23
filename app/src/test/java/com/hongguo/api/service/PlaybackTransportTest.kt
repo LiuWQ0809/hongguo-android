@@ -38,4 +38,15 @@ class PlaybackTransportTest {
         }
     }
 
+    @Test fun retryAfterOnRedirectDoesNotFollow() {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(302).setHeader("Retry-After", "10").setHeader("Location", "/next"))
+            server.start()
+            val response = Http.sendPlaybackMetadata(Http.Req(server.url("/").toString()), Long.MAX_VALUE)
+            try { AppSource.checkPlaybackResponse(response); fail("不得绕过重试提示") }
+            catch (expected: AppSource.PlaybackRejectedException) { assertTrue(expected.backoff) }
+            assertEquals(1, server.requestCount)
+        }
+    }
+
 }
