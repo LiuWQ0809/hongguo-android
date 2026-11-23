@@ -393,7 +393,7 @@ public final class ProgressiveMedia {
                     connection.setRequestProperty("User-Agent", "Mozilla/5.0");
                     connection.setRequestProperty("Accept-Encoding", "identity");
                     connection.setRequestProperty("Range", "bytes=" + from + "-" + (from + count - 1));
-                    if (validator != null) connection.setRequestProperty("If-Range", validator);
+                    if (validator != null && candidate == activeSource) connection.setRequestProperty("If-Range", validator);
                     int code = connection.getResponseCode();
                     reader.check();
                     if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
@@ -416,15 +416,17 @@ public final class ProgressiveMedia {
                     catch (NumberFormatException ex) { throw unsupported(); }
                     if (start != from || end != from + count - 1 || total < 16 || total > MAX_SOURCE_BYTES
                             || end >= total || (length >= 0 && total != length)) throw unsupported();
-                    if (first) {
-                        length = total;
-                        String etag = connection.getHeaderField("ETag"), modified = connection.getHeaderField("Last-Modified");
-                        if ((etag != null && etag.length() > 512) || (modified != null && modified.length() > 128)) throw unsupported();
-                        if (etag != null && !etag.startsWith("W/")) { validatorHeader = "ETag"; validator = etag; }
-                        else if (modified != null) { validatorHeader = "Last-Modified"; validator = modified; }
-                    } else if (validator != null && !validator.equals(connection.getHeaderField(validatorHeader))) {
-                        throw new IOException("媒体来源已更新，请重新打开本集");
-                    }
+                    boolean switching = !first && candidate != activeSource;
+                    Map<String, String> digests = sources.size() == 1 ? Collections.emptyMap()
+                            : MediaRepresentation.parse(connection.getHeaderField("Repr-Digest"));
+                    if (switching && (representation.isEmpty() || !MediaRepresentation.same(representation, digests)))
+                        throw new TerminalFailure("媒体内容校验不一致");
+                    if (!first && !representation.isEmpty() && (!digests.isEmpty() || switchedDuringRead)
+                            && !MediaRepresentation.same(representation, digests))
+                        throw new TerminalFailure("媒体内容校验不一致");
+                    if (first) { length = total; rememberValidator(connection); }
+                    else if (!switching && validator != null && !validator.equals(connection.getHeaderField(validatorHeader)))
+                        throw new TerminalFailure("媒体来源已更新，请重新打开本集");
                     long declared = connection.getContentLengthLong();
                     if (declared >= 0 && declared != count) throw new IOException("媒体分段长度异常");
                     String encoding = connection.getHeaderField("Content-Encoding");
@@ -438,6 +440,10 @@ public final class ProgressiveMedia {
                         }
                         reader.check();
                     }
+                    if (first) representation = digests;
+                    else if (digests.isEmpty()) representation = Collections.emptyMap();
+                    if (switching) { rememberValidator(connection); switchedDuringRead = true; }
+                    activeSource = candidate;
                     return bytes;
                 } catch (IOException failure) {
                     reader.check();
@@ -448,6 +454,14 @@ public final class ProgressiveMedia {
                 } finally { reader.detach(connection); connection.disconnect(); }
             }
             throw new IOException("媒体重定向异常");
+        }
+
+        private void rememberValidator(HttpURLConnection connection) throws IOException {
+            String etag = connection.getHeaderField("ETag"), modified = connection.getHeaderField("Last-Modified");
+            if ((etag != null && etag.length() > 512) || (modified != null && modified.length() > 128)) throw unsupported();
+            validatorHeader = null; validator = null;
+            if (etag != null && !etag.startsWith("W/")) { validatorHeader = "ETag"; validator = etag; }
+            else if (modified != null) { validatorHeader = "Last-Modified"; validator = modified; }
         }
 
         @Override public void close() {
