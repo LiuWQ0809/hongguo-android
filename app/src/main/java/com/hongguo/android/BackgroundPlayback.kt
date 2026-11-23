@@ -79,7 +79,7 @@ internal class BackgroundPlayback(
         video = next
         try {
             if (next.session == null && next.path.isNotBlank()) { Stream.pin(next.path); pinned = true }
-            val active = ExoPlayer.Builder(context).build()
+            val active = createVideoPlayer(context)
             current = active
             active.addListener(object : Player.Listener {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
