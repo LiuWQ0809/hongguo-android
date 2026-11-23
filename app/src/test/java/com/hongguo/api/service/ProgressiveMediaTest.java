@@ -143,6 +143,28 @@ public class ProgressiveMediaTest {
         assertNoPlayableOrPartFiles();
     }
 
+    @Test public void transientNodeFailuresRetryOpeningAndTheSameRange() throws Exception {
+        byte[] media = clear(expandMdat(fixture(false), 2 * 1024 * 1024));
+        Origin origin = new Origin(media); origin.failNext.set(1);
+        session = open(origin, false, null);
+        assertEquals(0, origin.failNext.get());
+        int before = origin.requests.get(); origin.failNext.set(1);
+        assertArrayEquals(Arrays.copyOfRange(media, 1024 * 1024, 1024 * 1024 + 16),
+                read(session.newReader(), 1024 * 1024, 16));
+        assertEquals(before + 2, origin.requests.get());
+    }
+
+    @Test public void mediaDenialAndRetryAfterNeverRepeatRequests() throws Exception {
+        Origin origin = new Origin(clear(expandMdat(fixture(false), 2 * 1024 * 1024)));
+        session = open(origin, false, null);
+        for (int code : new int[] {401, 403, 429, 503}) {
+            origin.status = code; origin.retryAfter = code == 503 ? "30" : null;
+            int before = origin.requests.get();
+            try { session.read(1024 * 1024, new byte[16], 0, 16); fail(); } catch (IOException expected) { }
+            assertEquals(before + 1, origin.requests.get());
+        }
+    }
+
     @Test public void corruptBlockIsRefetchedAndAbandonedCacheIsNeverReused() throws Exception {
         Path abandoned = Files.createDirectories(root.resolve("p1-abandoned"));
         Files.write(abandoned.resolve("0.range"), new byte[300]);
