@@ -33,10 +33,11 @@ import static org.junit.Assert.*;
 public class ProgressiveMediaTest {
     private Path root;
     private ProgressiveMedia.Session session;
-    @Before public void setup() throws Exception { root = Files.createTempDirectory("progressive-test-"); }
+    @Before public void setup() throws Exception { retryFast(); root = Files.createTempDirectory("progressive-test-"); }
+    private static void retryFast() { ProgressiveMedia.retryBaseMillis = 1; }
     @After public void cleanup() throws Exception {
         if (session != null) session.close();
-        Thread.interrupted();
+        Thread.interrupted(); ProgressiveMedia.retryBaseMillis = 400;
         try (java.util.stream.Stream<Path> paths = Files.walk(root)) {
             for (Path p : paths.sorted(Comparator.reverseOrder()).toArray(Path[]::new)) Files.deleteIfExists(p);
         }
@@ -303,10 +304,11 @@ public class ProgressiveMediaTest {
     private static final class Origin implements ProgressiveMedia.ConnectionFactory {
         final byte[] bytes;
         final AtomicInteger requests = new AtomicInteger();
+        final AtomicInteger failNext = new AtomicInteger();
         final CountDownLatch entered = new CountDownLatch(1);
         volatile int status = 206, gatedBlock = -1;
         volatile boolean wrongRange, truncated;
-        volatile String etag = "\"fixture-v1\"";
+        volatile String etag = "\"fixture-v1\"", retryAfter;
         Origin(byte[] bytes) { this.bytes = bytes; }
         public HttpURLConnection open(URI uri) throws IOException {
             requests.incrementAndGet();
@@ -318,11 +320,13 @@ public class ProgressiveMediaTest {
                 public void disconnect() { disconnected = true; synchronized (this) { notifyAll(); } }
                 public int getResponseCode() {
                     String[] limits = getRequestProperty("Range").substring(6).split("-");
-                    start = Long.parseLong(limits[0]); end = Long.parseLong(limits[1]); return status;
+                    start = Long.parseLong(limits[0]); end = Long.parseLong(limits[1]);
+                    return failNext.getAndUpdate(n -> Math.max(0, n - 1)) > 0 ? 503 : status;
                 }
                 public String getHeaderField(String name) {
                     if ("Content-Range".equals(name)) return "bytes " + (wrongRange ? start + 1 : start) + "-" + end + "/" + bytes.length;
                     if ("ETag".equals(name)) return etag;
+                    if ("Retry-After".equals(name)) return retryAfter;
                     return null;
                 }
                 public long getContentLengthLong() { return end - start + 1; }
