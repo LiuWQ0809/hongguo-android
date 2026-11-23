@@ -319,11 +319,8 @@ public final class AppSource {
         }
 
         // ---- 2. 片源模型：新版直接内联 video_list，旧版跟随 fallback_api 二次请求 ----
-        Object videoList = model.get("video_list");
-        boolean inline = videoList instanceof List && !((List<?>) videoList).isEmpty()
-                || videoList instanceof Map && !((Map<?, ?>) videoList).isEmpty();
         String fallback = parseFallback(model.get("fallback_api"));
-        if (inline) {
+        if (hasTrackList(model)) {
             try { return selectTrack(model, quality, true); }
             catch (ByteVc2Only e) {
                 if (fallback == null || fallback.isEmpty()) throw e;
@@ -333,6 +330,12 @@ public final class AppSource {
             }
         }
         return fallbackTrack(readFallback(fallback), fallback, quality);
+    }
+
+    private static boolean hasTrackList(Map<String, Object> model) {
+        Object list = model.get("video_list");
+        return list instanceof List && !((List<?>) list).isEmpty()
+                || list instanceof Map && !((Map<?, ?>) list).isEmpty();
     }
 
     private static Stream.VideoTrack fallbackTrack(Map<String, Object> info, String fallback, String quality)
@@ -578,7 +581,7 @@ public final class AppSource {
         Map<String, Object> row = rows == null ? null : Json.optObj(rows.get(vid));
         if (row == null) return null;
         Map<String, Object> model = asObject(row.get("video_model"));
-        if (Json.optArr(model.get("video_list")).isEmpty()) return null;
+        if (!hasTrackList(model) && parseFallback(model.get("fallback_api")).isEmpty()) return null;
         Map<String, Object> entry = Json.obj();
         entry.put("video_model", model);
         Map<String, Object> episodes = Json.obj();

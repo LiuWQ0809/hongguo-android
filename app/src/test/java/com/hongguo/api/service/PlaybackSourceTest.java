@@ -384,6 +384,11 @@ public class PlaybackSourceTest {
         String body = "{\"code\":0,\"data\":{\"video_model_data\":{\"" + vid
                 + "\":{\"video_model\":{\"video_list\":[{\"codec_type\":\"bytevc1\"}]}}}}}";
         assertNotNull(AppSource.parseTabResponse(vid, body));
+        String mapped = body.replace("[{\"codec_type\":\"bytevc1\"}]", "{\"video_1\":{\"codec_type\":\"bytevc1\"}}");
+        assertNotNull(AppSource.parseTabResponse(vid, mapped));
+        String fallback = body.replace("\"video_list\":[{\"codec_type\":\"bytevc1\"}]",
+                "\"fallback_api\":\"https://api5-normal-hl.fqnovel.com/track\"");
+        assertNotNull(AppSource.parseTabResponse(vid, fallback));
         assertNull(AppSource.parseTabResponse("7600000000000000002", body));
         assertNull(AppSource.parseTabResponse(vid, "{\"code\":1,\"data\":{}}"));
         assertNull(AppSource.parseTabResponse(vid, ""));
