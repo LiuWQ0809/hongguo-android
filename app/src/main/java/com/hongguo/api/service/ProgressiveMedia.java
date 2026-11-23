@@ -44,6 +44,8 @@ public final class ProgressiveMedia {
     private static final int BLOCK_BYTES = 256 * 1024;
     private static final long MAX_SOURCE_BYTES = 512L * 1024 * 1024;
     private static final long CACHE_LIMIT = MAX_SOURCE_BYTES;
+    static final int FETCH_ATTEMPTS = 5;
+    static volatile long retryBaseMillis = 400;
     private static final Pattern CONTENT_RANGE = Pattern.compile("bytes ([0-9]+)-([0-9]+)/([0-9]+)");
     private static final Object CACHE_GUARD = new Object();
     private static final LinkedHashMap<Path, CacheBlock> CACHE = new LinkedHashMap<>(16, .75f, true);
@@ -145,7 +147,7 @@ public final class ProgressiveMedia {
         private void initialize(Stream.VideoTrack track, Stream.Progress openingProgress, ContentKeyResolver keyResolver) throws Exception {
             emit(progress, "index", 0, -1);
             // The first request is tiny: require true 206 support before allocating media buffers.
-            fetch(defaultReader, 0, 16, true);
+            fetchRetrying(defaultReader, 0, 16, true);
             checkOpening(openingProgress);
             long at = 0, moovSize = 0;
             int boxCount = 0;
@@ -318,7 +320,7 @@ public final class ProgressiveMedia {
                 }
                 long from = number * BLOCK_BYTES;
                 int count = (int) Math.min(BLOCK_BYTES, length - from);
-                byte[] bytes = fetch(reader, from, count, false);
+                byte[] bytes = fetchRetrying(reader, from, count, false);
                 reader.check();
                 Path destination = dir.resolve(number + ".range");
                 Path temporary = Files.createTempFile(dir, "range-", ".part");
@@ -340,6 +342,27 @@ public final class ProgressiveMedia {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt(); throw cancelled();
             } finally { if (locked) fetchLock.unlock(); }
+        }
+
+        /** 仅对临时节点错误重试同一字节范围，并允许取消中断退避。 */
+        private byte[] fetchRetrying(Reader reader, long from, int count, boolean first) throws IOException {
+            long delay = retryBaseMillis;
+            for (int attempt = 1; ; attempt++) {
+                IOException failure;
+                try { return fetch(reader, from, count, first); }
+                catch (SocketTimeoutException timeout) { failure = timeout; }
+                catch (InterruptedIOException cancelled) { throw cancelled; }
+                catch (TransientCdnFailure | SocketException | EOFException | UnknownHostException temporary) { failure = temporary; }
+                reader.check();
+                if (attempt >= FETCH_ATTEMPTS) throw failure;
+                long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(delay);
+                while (System.nanoTime() < until) {
+                    reader.check();
+                    try { Thread.sleep(Math.max(1, Math.min(50, TimeUnit.NANOSECONDS.toMillis(until - System.nanoTime())))); }
+                    catch (InterruptedException e) { Thread.currentThread().interrupt(); throw cancelled(); }
+                }
+                delay = Math.min(delay * 2, 4000);
+            }
         }
 
         private byte[] fetch(Reader reader, long from, int count, boolean first) throws IOException {
