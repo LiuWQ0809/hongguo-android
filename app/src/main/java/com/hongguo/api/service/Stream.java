@@ -129,6 +129,10 @@ public final class Stream {
      * Calls for the same vid/quality serialize and reuse the first successful result.
      */
     public static String prepare(String vid, String quality, Progress progress) throws Exception {
+        return prepare(vid, quality, null, progress);
+    }
+
+    public static String prepare(String vid, String quality, VideoTrack resolved, Progress progress) throws Exception {
         Path out = outputPath(vid, quality);
         String q = qualityOf(quality);
         initializeCache(out.getParent());
@@ -158,8 +162,11 @@ public final class Stream {
             while (!(slot = PREPARATIONS.tryAcquire(200, TimeUnit.MILLISECONDS))) checkCancelled(progress);
             checkCancelled(progress);
             pruneCache(null);
-            update(progress, "resolving", 0, -1);
-            VideoTrack track = videoTrack(vid, q);
+            VideoTrack track = resolved;
+            if (track == null) {
+                update(progress, "resolving", 0, -1);
+                track = videoTrack(vid, q);
+            }
             checkCancelled(progress);
             if (track == null || track.url == null || track.url.isEmpty()) {
                 throw new IOException("暂时无法获取本集播放信息");

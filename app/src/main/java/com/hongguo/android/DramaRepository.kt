@@ -139,15 +139,17 @@ class DramaRepository {
                     override fun update(stage: String, done: Long, total: Long) { progress(stage, done, total) }
                     override fun isCancelled(): Boolean = Thread.currentThread().isInterrupted || (opening && !context.isActive)
                 }
+                progress("resolving", 0, -1)
+                val track = Stream.videoTrack(episode.id, "")
                 try {
-                    allocated = ProgressiveMedia.open(episode.id, "", listener)
+                    allocated = ProgressiveMedia.openResolved(track, listener)
                     opening = false
                     PreparedVideo(episode.id, "", session = allocated)
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (unsupported: ProgressiveMedia.UnsupportedException) {
                     if (!allowFallback) throw unsupported
                     progress("compatibility", 0, -1)
-                    val path = Stream.prepare(episode.id, "", object : Stream.Progress {
+                    val path = Stream.prepare(episode.id, "", track, object : Stream.Progress {
                         override fun update(stage: String, done: Long, total: Long) { if (context.isActive) progress(stage, done, total) }
                         override fun isCancelled(): Boolean = !context.isActive || Thread.currentThread().isInterrupted
                     })
