@@ -22,11 +22,22 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.hongguo.api.service.Stream
 import kotlinx.coroutines.delay
+
+/** 当首选解码器初始化失败时，尝试设备提供的其他解码器。 */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+internal fun createVideoPlayer(context: android.content.Context, loadControl: DefaultLoadControl? = null): ExoPlayer {
+    val app = context.applicationContext
+    val renderers = DefaultRenderersFactory(app).setEnableDecoderFallback(true)
+    val builder = ExoPlayer.Builder(app, renderers)
+    if (loadControl != null) builder.setLoadControl(loadControl)
+    return builder.build()
+}
 
 internal data class VideoPlaybackUi(
     val player: ExoPlayer? = null,
@@ -118,7 +129,7 @@ internal fun rememberVideoPlayback(video: PreparedVideo?, initialPositionMs: Lon
                     .setBufferDurationsMs(5_000, 20_000, 500, 1_000)
                     .setTargetBufferBytes(8 * 1024 * 1024)
                     .setPrioritizeTimeOverSizeThresholds(true).build()
-                val active = ExoPlayer.Builder(context.applicationContext).setLoadControl(loadControl).build()
+                val active = createVideoPlayer(context, loadControl)
                 created = active
                 active.setAudioAttributes(AudioAttributes.DEFAULT, true)
                 active.setHandleAudioBecomingNoisy(true)
