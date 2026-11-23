@@ -127,6 +127,22 @@ class AccountRepositoryTest {
 
     private fun signedStore(cache: AccountCache = AccountCache()) = MemoryStore(AccountDisk(credentials, CloudProfile(uid, "测试账号"), mapOf(uid to cache)))
 
+    @Test fun incompleteCloudCardsKeepKnownDetailsAndNewestProgress() = runTest {
+        val store = signedStore(AccountCache(history = listOf(entry), favorites = listOf(entry)))
+        val blank = Series(series.id, "剧集 ${series.id}", "", "", "")
+        val api = Gateway().apply {
+            historyValue = listOf(CloudProgress(blank, entry.episodeId, 5, 23000, 60000, entry.updatedAt + 1000, 0))
+            favoritesValue = listOf(CloudFavorite(blank, entry.updatedAt + 1000))
+        }
+        val repo = repository(store, api); runCurrent()
+        repo.refresh(); runCurrent()
+        val history = repo.state.value.history.single()
+        assertEquals(card, history.card)
+        assertEquals(6, history.episodeIndex)
+        assertEquals(23000L, history.positionMs)
+        assertEquals(card, repo.state.value.favorites.single().card)
+    }
+
     @Test fun networkRestorePreservesCredentialsAndCachedListsButDoesNotAllowWrites() = runTest {
         val store = signedStore(AccountCache(history = listOf(entry), syncEnabled = true))
         val api = Gateway().apply { profileError = AccountProtocolException("offline", verificationStage = AccountVerificationStage.PROFILE,
