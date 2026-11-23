@@ -261,6 +261,19 @@ public class ProgressiveMediaTest {
         } finally { worker.shutdownNow(); }
     }
 
+    @Test public void encryptedTracksDoNotUseAnUnverifiedMirror() throws Exception {
+        Origin primary = new Origin(clear(expandMdat(fixture(false), 1024 * 1024)));
+        Origin backup = new Origin(primary.bytes); primary.status = 503;
+        Stream.VideoTrack track = new Stream.VideoTrack();
+        track.url = "https://main.qznovelvod.com/fixture";
+        track.backupUrls.add("https://backup.fqnovelvod.com/fixture"); track.encrypt = true;
+        try {
+            ProgressiveMedia.openTrack(track, root, null, uri -> uri.getHost().startsWith("main.")
+                    ? primary.open(uri) : backup.open(uri));
+            fail("媒体节点不可用时不应打开成功");
+        } catch (IOException expected) { assertEquals(0, backup.requests.get()); }
+    }
+
     @Test public void corruptBlockIsRefetchedAndAbandonedCacheIsNeverReused() throws Exception {
         Path abandoned = Files.createDirectories(root.resolve("p1-abandoned"));
         Files.write(abandoned.resolve("0.range"), new byte[300]);
