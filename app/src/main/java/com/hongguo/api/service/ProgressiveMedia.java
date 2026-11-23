@@ -7,11 +7,15 @@ import com.hongguo.api.util.Config;
 import com.hongguo.api.util.Crypto;
 
 import java.io.Closeable;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -32,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.net.ssl.SSLException;
 
 /** On-demand Range transport exposing a clear, same-offset virtual MP4 to Media3. No local server. */
 public final class ProgressiveMedia {
@@ -344,7 +349,7 @@ public final class ProgressiveMedia {
                 reader.check();
                 HttpURLConnection connection;
                 try { connection = factory.open(next); }
-                catch (IOException failure) { reader.check(); throw new IOException("媒体连接暂时失败，请重试"); }
+                catch (IOException failure) { reader.check(); throw sanitized(failure, "媒体连接暂时失败，请重试"); }
                 try {
                     reader.attach(connection);
                     connection.setConnectTimeout(8000); connection.setReadTimeout(5000);
@@ -362,6 +367,10 @@ public final class ProgressiveMedia {
                         catch (IllegalArgumentException failure) { throw new IOException("媒体重定向异常"); }
                         continue;
                     }
+                    if (code >= 400 && connection.getHeaderField("Retry-After") != null)
+                        throw new TerminalFailure("媒体服务要求稍后重试");
+                    if (code == 500 || code == 502 || code == 503 || code == 504) throw new TransientCdnFailure();
+                    if (code >= 400) throw new TerminalFailure("媒体请求失败（HTTP " + code + "）");
                     if (code != 206) throw unsupported();
                     String contentRange = connection.getHeaderField("Content-Range");
                     Matcher range = CONTENT_RANGE.matcher(contentRange == null ? "" : contentRange);
@@ -388,7 +397,7 @@ public final class ProgressiveMedia {
                     try (InputStream input = connection.getInputStream()) {
                         while (done < count) {
                             reader.check(); int n = input.read(bytes, done, count - done);
-                            if (n < 0) throw new IOException("媒体分段下载不完整");
+                            if (n < 0) throw new EOFException("媒体分段下载不完整");
                             if (n > 0) done += n;
                         }
                         reader.check();
@@ -397,8 +406,9 @@ public final class ProgressiveMedia {
                 } catch (IOException failure) {
                     reader.check();
                     // No URL/query/cipher key is included in outward errors or causes.
-                    if (failure instanceof UnsupportedException || failure instanceof InterruptedIOException) throw failure;
-                    throw new IOException("媒体分段暂时读取失败，请重试");
+                    if (failure instanceof UnsupportedException || failure instanceof InterruptedIOException
+                            || failure instanceof TerminalFailure || failure instanceof TransientCdnFailure) throw failure;
+                    throw sanitized(failure, "媒体分段暂时读取失败，请重试");
                 } finally { reader.detach(connection); connection.disconnect(); }
             }
             throw new IOException("媒体重定向异常");
@@ -506,6 +516,21 @@ public final class ProgressiveMedia {
     }
     private static void checkOpening(Stream.Progress progress) throws IOException {
         if (Thread.currentThread().isInterrupted() || (progress != null && progress.isCancelled())) throw cancelled();
+    }
+    private static final class TerminalFailure extends IOException {
+        TerminalFailure(String message) { super(message); }
+    }
+    private static final class TransientCdnFailure extends IOException {
+        TransientCdnFailure() { super("媒体节点暂时不可用"); }
+    }
+    private static IOException sanitized(IOException failure, String message) {
+        if (failure instanceof SocketTimeoutException) return new SocketTimeoutException(message);
+        if (failure instanceof InterruptedIOException) return cancelled();
+        if (failure instanceof EOFException) return new EOFException(message);
+        if (failure instanceof SocketException) return new SocketException(message);
+        if (failure instanceof UnknownHostException) return new UnknownHostException(message);
+        if (failure instanceof SSLException) return new SSLException(message);
+        return new IOException(message);
     }
     private static InterruptedIOException cancelled() { return new InterruptedIOException("播放读取已取消"); }
     private static UnsupportedException unsupported() { return new UnsupportedException("本集暂不支持边播边下，将使用完整准备模式"); }
