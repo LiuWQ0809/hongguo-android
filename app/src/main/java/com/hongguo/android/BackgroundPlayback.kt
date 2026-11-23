@@ -41,6 +41,7 @@ internal class BackgroundPlayback(
                     PlaybackSessionService.takeBackground(this@BackgroundPlayback)
                     return@collect
                 }
+                if (state.playbackError != null) PlaybackSessionService.endBackgroundTransition()
                 val next = state.video
                 if (state.playerOpen && next != null && state.playbackError == null &&
                     (current == null || next.requestId != video?.requestId)) switchTo(next)
@@ -99,12 +100,21 @@ internal class BackgroundPlayback(
     private fun listen(active: ExoPlayer, next: PreparedVideo) {
         active.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (current === active && isPlaying) model.onPlaybackStarted(next.episodeId, next.requestId)
+                if (current === active && isPlaying) {
+                    PlaybackSessionService.endBackgroundTransition()
+                    model.onPlaybackStarted(next.episodeId, next.requestId)
+                }
             }
             override fun onPlaybackStateChanged(state: Int) {
                 if (current !== active) return
-                if (state == Player.STATE_ENDED) model.onPlaybackEnded(next.episodeId, next.requestId,
-                    active.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0)
+                if (state == Player.STATE_ENDED) {
+                    val playback = model.state.value
+                    if (active.playWhenReady && playback.autoPlayNext &&
+                        playback.episodePosition < (playback.detail?.episodes?.lastIndex ?: -1))
+                        PlaybackSessionService.beginBackgroundTransition()
+                    model.onPlaybackEnded(next.episodeId, next.requestId,
+                        active.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0)
+                }
             }
             override fun onPlayerError(error: PlaybackException) {
                 if (current === active) model.onPlaybackError(next.episodeId, next.requestId, error.errorCode in 4000..4999)
