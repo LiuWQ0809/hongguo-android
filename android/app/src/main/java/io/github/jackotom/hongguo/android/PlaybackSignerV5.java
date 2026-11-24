@@ -20,7 +20,8 @@ import java.util.UUID;
  * which upstream attributes to drpys 22261adfa31435e3b3ef5a730b8a2a75bcaf1715.
  * 2026-11-16: the former 551-signed model requests earn empty HTTP 200 bodies; only the
  * v5 three-header form (x-khronos/x-helios/x-medusa) is accepted. The JS twin with golden
- * vectors is src/native/playback-signature-v5.js; both must stay byte-identical.
+ * vectors is src/native/playback-signature-v5.js. The registered Android profile
+ * uses the optional expanded envelope from OOIUa/hongguo-android c0821c6.
  * Public protocol constants only; no account credentials.
  */
 final class PlaybackSignerV5 {
@@ -377,23 +378,49 @@ final class PlaybackSignerV5 {
         return medusa(url, body, ts, who, 377);
     }
 
+    private static byte[] registeredDeviceInfo(Map<String, String> who, String token) {
+        String model = who.get("device_type"), brand = who.get("device_brand");
+        return concat(sint(1, 1), sint(2, 2), str(3, "8662"), str(4, who.get("device_id")),
+            str(5, token), str(6, "!noperm!"), sint(7, -888888), sint(8, -888888), sint(9, 3),
+            sint(10, -888888), str(11, "!notset!"), str(12, "Asia/Shanghai,8"), str(13, "zh_CN"), sint(14, 4),
+            fixedZero(16), fixedZero(17), fixedZero(18), fixedZero(19), fixedZero(20), fixedZero(21),
+            str(22, who.get("os_version")), sint(23, 41), sint(24, 36), sint(25, PROCESS_STARTED),
+            sint(26, PROCESS_STARTED), sint(27, PROCESS_STARTED), sint(28, System.currentTimeMillis()),
+            sint(29, -1), str(30, model), str(31, brand), str(32, model), str(33, model), str(34, brand),
+            str(35, brand), str(36, brand), sint(38, 31));
+    }
+    private static byte[] fixedZero(int tag) {
+        return concat(varint(((long) tag << 3) | 5), new byte[4]);
+    }
+
     private static String medusa(String url, byte[] body, long ts, Map<String, String> who, int playbackStatus) {
         String query = url.substring(url.indexOf('?') + 1);
         byte[] bodyMd5 = body != null ? md5(body) : new byte[16];
         byte[] querySm3 = DanmakuSigner.sm3(query.getBytes(StandardCharsets.UTF_8));
         byte[] f13 = hashF13(querySm3, bodyMd5, ts);
         byte[] flags = new byte[8];
+        boolean registeredProfile = who.containsKey("pv_player");
+        String token = "A" + PROCESS_NONCE;
         byte[] deviceInfo = concat(
             sint(1, 1), sint(2, 2), str(3, "8662"), str(4, who.get("device_id")), str(5, PROCESS_NONCE),
             str(6, "!noperm!"), str(12, "Asia/Shanghai,8"), str(13, "zh_CN"), str(22, who.get("os_version")),
             sint(25, PROCESS_STARTED), str(30, who.get("device_type")), str(31, "HONOR"), str(32, who.get("device_type")), str(34, "HONOR"));
         byte[] env = concat(str(6, "v04.10.03.04-bugfix"), str(8, who.get("channel")), field(12, deviceInfo), str(14, who.get("version_name")));
+        byte[] nested = concat(sint(1, 1), sint(2, 1), sint(3, 1), sint(5, 1));
+        if (registeredProfile) {
+            flags[0] = 0x44; flags[1] = (byte) 0x80;
+            env = concat(sint(1, 100 + RANDOM.nextInt(21)), sint(2, 247235599), sint(3, 247235596), sint(5, 7),
+                str(6, "v04.10.03.04-bugfix"), sint(7, 10001 + RANDOM.nextInt(2000)), str(8, who.get("channel")),
+                field(12, registeredDeviceInfo(who, token)), field(13, concat(sint(1, ts), sint(2, -2), sint(4, 200))),
+                str(14, who.get("version_name")));
+            nested = concat(sint(1, 305), sint(2, 4), sint(3, 694367), sint(5, 1621072674));
+        }
         byte[] message = concat(
             field(1, MAGIC), sint(2, 5), sint(3, unsigned(rand())), str(4, "8662"), str(5, who.get("device_id")),
             str(6, LICENSE), str(7, who.get("version_name")), str(8, "v04.10.03-ml-android"), sint(9, 0x040a0300),
             field(10, flags), sint(12, ts), field(13, f13), field(14, copyOf(querySm3, 6)),
-            field(15, concat(sint(1, 1), sint(2, 1), sint(3, 1), sint(5, 1))),
-            sint(17, ts), str(20, "none"), sint(21, playbackStatus), field(23, env),
+            field(15, nested), str(16, registeredProfile ? token : ""),
+            sint(17, ts), str(20, "none"), sint(21, registeredProfile ? 312 : playbackStatus), field(23, env),
             str(24, "{\"cmr\":16777216,\"cmr2\":16777216,\"un_h\":11,\"vpn\":0,\"kd\":0,\"dyn\":\"\",\"do\":1,\"tk\":true}"));
         int nonce = rand();
         byte[] hash = DanmakuSigner.sm3(concat(SIGN_KEY, le32(unsigned(nonce)), SIGN_KEY));
