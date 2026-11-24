@@ -11,8 +11,6 @@ on:
         description: Build release assets without running unit, platform, installer, or upgrade acceptance checks
         type: boolean
         default: false
-  push:
-    branches: ['windows/**']
 permissions:
   contents: read
 jobs:

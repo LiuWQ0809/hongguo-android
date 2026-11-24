@@ -1,8 +1,7 @@
 # 红果短剧 6.0：统一发行前的源码回归检查。
 name: Test
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

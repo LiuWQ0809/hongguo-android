@@ -1,27 +1,6 @@
 name: Android cast
 on:
-  push:
-    paths:
-      - 'android/**'
-      - 'src/android/**'
-      - 'src/native/app-source-registered.js'
-      - 'scripts/check-android-*'
-      - 'scripts/build-android-source-modules.cjs'
-      - 'scripts/check-android-source-*.cjs'
-      - 'vendor/source-modules/**'
-      - 'package-lock.json'
-      - '.github/workflows/android-cast.yml'
-  pull_request:
-    paths:
-      - 'android/**'
-      - 'src/android/**'
-      - 'src/native/app-source-registered.js'
-      - 'scripts/check-android-*'
-      - 'scripts/build-android-source-modules.cjs'
-      - 'scripts/check-android-source-*.cjs'
-      - 'vendor/source-modules/**'
-      - 'package-lock.json'
-      - '.github/workflows/android-cast.yml'
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

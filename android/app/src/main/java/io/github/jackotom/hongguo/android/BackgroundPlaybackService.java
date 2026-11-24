@@ -27,6 +27,8 @@ public final class BackgroundPlaybackService extends Service {
     private Future<?> preparing;
     private MediaPlayer player;
     private MediaSession media;
+    private PowerManager.WakeLock preparingWake;
+    private final Runnable preparationTimeout = () -> { if (!ready) park(); };
     private LibraryStore store;
     private boolean ready;
     private final Runnable checkpoint = new Runnable() {
@@ -103,6 +105,7 @@ public final class BackgroundPlaybackService extends Service {
         return START_NOT_STICKY;
     }
     private void load() {
+        acquirePreparationWake();
         BackgroundPlaybackSession request = session;
         BackgroundEpisodeSource files = source;
         var owner = request.owner();
@@ -131,6 +134,7 @@ public final class BackgroundPlaybackService extends Service {
                 catch (Exception rejectedSpeed) { android.util.Log.w("HongguoBackground", "设备未确认后台倍速"); }
                 if (!request.paused) ready.start();
                 this.ready = true;
+                releasePreparationWake();
                 updateMediaState();
                 android.util.Log.i("HongguoBackground", "第 " + request.episode().optInt("index") + " 集开始后台播放");
                 main.postDelayed(checkpoint, 2000);
@@ -198,10 +202,24 @@ public final class BackgroundPlaybackService extends Service {
     }
 
     private void releaseDecoder() {
+        releasePreparationWake();
         ready = false;
         main.removeCallbacks(checkpoint);
         if (player != null) player.release();
         player = null;
+    }
+
+    private void acquirePreparationWake() {
+        releasePreparationWake();
+        preparingWake = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Hongguo:PreparingEpisode");
+        preparingWake.acquire(100_000L);
+        main.postDelayed(preparationTimeout, 95_000L);
+    }
+
+    private void releasePreparationWake() {
+        main.removeCallbacks(preparationTimeout);
+        if (preparingWake != null && preparingWake.isHeld()) preparingWake.release();
+        preparingWake = null;
     }
 
     private void park() {
