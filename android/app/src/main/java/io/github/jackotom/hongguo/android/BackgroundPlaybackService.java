@@ -5,6 +5,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
 import android.media.MediaPlayer;
+import android.media.MediaMetadata;
+import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
@@ -23,11 +26,13 @@ public final class BackgroundPlaybackService extends Service {
     private final ExecutorService resolver = Executors.newSingleThreadExecutor();
     private Future<?> preparing;
     private MediaPlayer player;
+    private MediaSession media;
     private LibraryStore store;
     private boolean ready;
     private final Runnable checkpoint = new Runnable() {
         @Override public void run() {
             savePosition();
+            updateMediaState();
             if (ready) main.postDelayed(this, 2000);
         }
     };
@@ -83,8 +88,9 @@ public final class BackgroundPlaybackService extends Service {
             running = this;
             source = new BackgroundEpisodeSource(this, session);
             store = new LibraryStore(this);
+            openControls();
         }
-        startForeground(BackgroundPlaybackNotification.ID, BackgroundPlaybackNotification.build(this, session, null));
+        startForeground(BackgroundPlaybackNotification.ID, BackgroundPlaybackNotification.build(this, session, media));
         if (session == null) stopSelf(startId);
         else if (player == null && preparing == null && !session.completed) load();
         return START_NOT_STICKY;
@@ -114,8 +120,11 @@ public final class BackgroundPlaybackService extends Service {
             player.setOnPreparedListener(ready -> {
                 if (ready != player) return;
                 if (request.position > 0) ready.seekTo(request.position);
+                try { PlayerOptions.setVerifiedSpeed(ready, request.speed, false); }
+                catch (Exception rejectedSpeed) { android.util.Log.w("HongguoBackground", "设备未确认后台倍速"); }
                 if (!request.paused) ready.start();
                 this.ready = true;
+                updateMediaState();
                 android.util.Log.i("HongguoBackground", "第 " + request.episode().optInt("index") + " 集开始后台播放");
                 main.postDelayed(checkpoint, 2000);
             });
@@ -136,8 +145,39 @@ public final class BackgroundPlaybackService extends Service {
         session.index++;
         session.completed = false;
         source.select(session.index);
-        startForeground(BackgroundPlaybackNotification.ID, BackgroundPlaybackNotification.build(this, session, null));
+        startForeground(BackgroundPlaybackNotification.ID, BackgroundPlaybackNotification.build(this, session, media));
+        updateMediaState();
         load();
+    }
+
+    private void openControls() {
+        media = new MediaSession(this, "HongguoBackgroundPlayback");
+        media.setCallback(new MediaSession.Callback() {
+            @Override public void onPlay() { setPaused(false); }
+            @Override public void onPause() { setPaused(true); }
+            @Override public void onStop() { stopSelf(); }
+        }, main);
+        media.setActive(true);
+        updateMediaState();
+    }
+
+    private void setPaused(boolean paused) {
+        if (session == null || session.completed) return;
+        session.paused = paused;
+        if (ready) { if (paused) player.pause(); else player.start(); }
+        savePosition();
+        updateMediaState();
+    }
+
+    private void updateMediaState() {
+        if (media == null || session == null) return;
+        String title = session.owner().optString("title") + " · 第 " + session.episode().optInt("index") + " 集";
+        media.setMetadata(new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE, title).build());
+        int state = session.completed ? PlaybackState.STATE_STOPPED : session.paused ? PlaybackState.STATE_PAUSED
+            : ready ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_BUFFERING;
+        media.setPlaybackState(new PlaybackState.Builder()
+            .setActions(PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_STOP)
+            .setState(state, session.position, state == PlaybackState.STATE_PLAYING ? session.speed : 0).build());
     }
 
     private void savePosition() {
@@ -158,6 +198,8 @@ public final class BackgroundPlaybackService extends Service {
         releaseDecoder();
         if (preparing != null) preparing.cancel(true);
         preparing = null;
+        if (media != null) media.release();
+        media = null;
         if (source != null) source.close();
         source = null;
         session = null;
