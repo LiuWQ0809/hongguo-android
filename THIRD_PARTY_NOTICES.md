@@ -97,3 +97,9 @@ Local changes: signed out, the feed is requested anonymously without any cookie 
 ## 公开媒体地址兼容（2026-11-23）
 
 公开单集 JSON 播放地址接口参考 [jackotom/hongguo-drama `ba1fd443`](https://github.com/jackotom/hongguo-drama/commit/ba1fd443f0e1e94bc6cbcbf4bd99459339a2a287) 的问题调研。此处使用自有 Android 请求与校验实现，由 Media3 原生播放。
+
+## 原生分集预加载
+
+`PlaybackPreloadV5.kt` 的预加载请求参数及签名状态参考
+[tsukiyo-zero/hongguoTV kotlin-v0.1.38](https://github.com/tsukiyo-zero/hongguoTV/releases/tag/kotlin-v0.1.38)，
+许可证为 GPL-3.0-only。

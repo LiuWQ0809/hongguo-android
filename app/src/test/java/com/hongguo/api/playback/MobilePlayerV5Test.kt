@@ -37,4 +37,20 @@ class MobilePlayerV5Test {
         assertFalse(request.headers.containsKey("Cookie"))
         assertEquals(0, Signer(mobileV5 = true).branch(request.url.substringAfter('?'), ByteArray(0), 1800000000))
     }
+
+    @Test fun preloadUsesExactEpisodeAndSignsTheCompressedPayload() {
+        val request = PlaybackPreloadV5.request("1234", "1234567890123456789", "9876543210987654321", "synthetic", 1800000000000)
+        val endpoint = java.net.URI(request.url)
+        assertEquals("reading.snssdk.com", endpoint.host)
+        assertEquals("/novel/player/multi_video_model/preload/v1", endpoint.path)
+        val body = JSONObject(GZIPInputStream(ByteArrayInputStream(request.body)).bufferedReader().use { it.readText() })
+        assertEquals(2, body.getJSONObject("biz_param").getInt("device_level"))
+        val ids = body.getJSONObject("mixed_video_id_map").getJSONArray("1004")
+        assertEquals(1, ids.length())
+        assertEquals("1234", ids.getString(0))
+        assertEquals("preload", body.getString("dr_scene"))
+        assertEquals("gzip", request.headers["Content-Encoding"])
+        assertEquals(digest("MD5", request.body).hex().uppercase(), request.headers["x-ss-stub"])
+        assertFalse(request.headers.containsKey("Cookie"))
+    }
 }

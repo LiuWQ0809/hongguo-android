@@ -7,9 +7,9 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 public class MobilePlaybackResponseTest {
-    @Test public void acceptsFlatAndContentTypeMapsWithExactEpisode() throws Exception {
+    @Test public void acceptsFlatAndNestedMapsWithExactEpisode() throws Exception {
         String entry = "\"1234\":{\"video_model\":{\"video_list\":[]}}";
-        for (String data : new String[]{"{" + entry + "}", "{\"1004\":{" + entry + "}}"}) {
+        for (String data : new String[]{"{" + entry + "}", "{\"1004\":{" + entry + "}}", "{\"video_model_data\":{" + entry + "}}"}) {
             Map<String,Object> response = AppSource.parseMobileResponse("1234", "{\"code\":0,\"data\":"+data+"}");
             assertTrue(Json.optObj(response.get("data")).containsKey("1234"));
             try { AppSource.parseMobileResponse("5678", "{\"code\":0,\"data\":"+data+"}"); fail("Wrong episode accepted"); }
