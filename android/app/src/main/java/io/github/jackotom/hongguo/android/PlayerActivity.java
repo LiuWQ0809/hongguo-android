@@ -2,6 +2,7 @@ package io.github.jackotom.hongguo.android;
 
 import android.app.*;
 import android.content.*;
+import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.media.MediaPlayer;
@@ -49,7 +50,8 @@ public final class PlayerActivity extends Activity {
     private ScrollView phoneScroller;
     private Button[] episodeActions;
     private int safeLeft, safeTop, safeRight, safeBottom;
-    private Button back;
+    private Button back, fullscreenButton;
+    private boolean fullscreen;
     private PlayerHud controlsHud;
     private boolean buffering, touchingControls;
     private int hudDialogs, wakeKey = KeyEvent.KEYCODE_UNKNOWN;
@@ -167,6 +169,7 @@ public final class PlayerActivity extends Activity {
                 backgroundId = UUID.randomUUID().toString();
             }
             getIntent().putExtra(BACKGROUND_ID, backgroundId);
+            fullscreen = !BuildConfig.IS_TV && (state == null ? getIntent().getBooleanExtra("fullscreen", false) : state.getBoolean("fullscreen"));
             BackgroundPlaybackService.stopOther(backgroundId);
             buildViews();
             int position = restored ? Math.max(0, state.getInt("position")) : store.position(series, queue.get(current));
@@ -207,6 +210,11 @@ public final class PlayerActivity extends Activity {
         heading = new LinearLayout(this); heading.setOrientation(LinearLayout.VERTICAL); heading.setPadding(dp(8), 0, 0, 0);
         title = label(BuildConfig.IS_TV ? 20 : 17); title.setMaxLines(1); status = label(12); status.setMaxLines(2);
         heading.addView(title); heading.addView(status); top.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
+        if (!BuildConfig.IS_TV) {
+            fullscreenButton = button("全屏", this::toggleFullscreen);
+            top.addView(fullscreenButton, new LinearLayout.LayoutParams(-2, dp(48)));
+            updateFullscreen();
+        }
         root.addView(top, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
         bottom = new LinearLayout(this); bottom.setOrientation(LinearLayout.VERTICAL); bottom.setBackgroundColor(0xcc101014);
         LinearLayout content = bottom;
@@ -341,6 +349,22 @@ public final class PlayerActivity extends Activity {
         super.onConfigurationChanged(configuration);
         if (!BuildConfig.IS_TV && playerRoot != null) { applyPhoneLayout(); playerRoot.requestApplyInsets(); }
     }
+    private void toggleFullscreen() {
+        fullscreen = !fullscreen;
+        getIntent().putExtra("fullscreen", fullscreen);
+        updateFullscreen();
+    }
+    private void updateFullscreen() {
+        if (fullscreenButton == null) return;
+        String label = fullscreen ? "退出全屏" : "全屏";
+        fullscreenButton.setText(label);
+        fullscreenButton.setContentDescription(label);
+        if (isInPictureInPictureMode() || fullscreen && (videoWidth <= 0 || videoHeight <= 0)) return;
+        int orientation = !fullscreen ? ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            : videoWidth > videoHeight ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            : ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
+        if (getRequestedOrientation() != orientation) setRequestedOrientation(orientation);
+    }
     private void installVideoTouch(VideoView view) {
         // Consume the reveal tap so it never also pauses/seeks or activates a newly shown button.
         // A vertical swipe switches episodes: up for next, down for previous, short-drama style.
@@ -441,6 +465,7 @@ public final class PlayerActivity extends Activity {
         return restored;
     }
     private void savePlaybackState(Bundle state) {
+        state.putBoolean("fullscreen", fullscreen);
         state.putString(BACKGROUND_ID, backgroundId);
         saveProgress(); state.putInt("position", resumeAt); state.putBoolean("autoplay", autoplay);
         state.putString("quality", quality); state.putString("actualQuality", actualQuality); state.putInt("automaticCeiling", automaticCeiling); state.putDouble("speed", requestedSpeed); state.putBoolean("userPaused", userPaused);
@@ -799,6 +824,7 @@ public final class PlayerActivity extends Activity {
     private static String qualityLabel(String value) { return "auto".equals(value) ? "自动" : value; }
     private static String rateLabel(float value) { return String.format(Locale.ROOT, "%s×", value == (int) value ? Integer.toString((int) value) : Float.toString(value)); }
     private void renderStatus() {
+        updateFullscreen();
         String size = videoWidth > 0 && videoHeight > 0 ? "实际 " + videoWidth + "×" + videoHeight : "实际分辨率待解码确认";
         status.setText(currentKind + " · 当前 " + qualityLabel(actualQuality) + (quality.equals(actualQuality) ? "" : "（首选 " + qualityLabel(quality) + "）") + " · " + size);
     }
@@ -1471,9 +1497,9 @@ public final class PlayerActivity extends Activity {
         browserCastService = null;
     }
     private void exitPlayer() { if (controlsHud != null) controlsHud.suspend(); saveProgress(); finish(); }
-    @Override public void onBackPressed() { exitPlayer(); }
+    @Override public void onBackPressed() { if (fullscreen) toggleFullscreen(); else exitPlayer(); }
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) { if (event.getAction() == KeyEvent.ACTION_UP) exitPlayer(); return true; }
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) { if (event.getAction() == KeyEvent.ACTION_UP) onBackPressed(); return true; }
         int key = event.getKeyCode();
         boolean navigation = key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN || key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT || key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER;
         if (navigation && key == wakeKey) { showControls(); if (event.getAction() == KeyEvent.ACTION_UP) wakeKey = KeyEvent.KEYCODE_UNKNOWN; return true; }
