@@ -11,6 +11,18 @@ import java.util.Collections;
 /** Android's own release identity. Never consumes the desktop or reference project's feed. */
 final class UpdatePolicy {
     static final String REPOSITORY = "skydeadpeng/hongguo-android-cast";
+    static final String LOCAL_PACKAGE = "com.hongguo.android";
+    private static final String LOCAL_VERSION = "[0-9]+\\.[0-9]+\\.[0-9]+-local\\.[0-9]+";
+    private static final String LOCAL_RELEASES = "/LiuWQ0809/hongguo-android/releases/";
+    private static final String LOCAL_FEED = "https://github.com" + LOCAL_RELEASES + "latest/download/update.json";
+
+    static void validateLocal(int schema, String pkg, int code, String name, int minSdk, long size, String hash, String url, int deviceSdk) {
+        if (schema != 1 || !LOCAL_PACKAGE.equals(pkg) || code <= 0 || !name.matches(LOCAL_VERSION)
+            || minSdk < 26 || minSdk > deviceSdk || size <= 0 || size > MAX_APK_BYTES || !hash.matches("[a-f0-9]{64}")
+            || !url.equals("https://github.com" + LOCAL_RELEASES + "download/v" + name + "/hongguo-android-" + name + ".apk"))
+            throw new IllegalArgumentException("更新信息与独立版安装包不匹配");
+    }
+
     static final long CHECK_INTERVAL = 24L * 60 * 60 * 1000;
     static final long MAX_APK_BYTES = 150L * 1024 * 1024;
     static final String[] PROXY_HOSTS={"gh-proxy.com","v4.gh-proxy.org","gh-proxy.org","ghfast.top"};
@@ -99,6 +111,10 @@ final class UpdatePolicy {
         }
     }
     static List<DownloadSource> downloadSources(String canonical) {
+        if (canonical.matches("https://github\\.com" + LOCAL_RELEASES + "download/v(" + LOCAL_VERSION
+            + ")/hongguo-android-\\1\\.apk")) {
+            return Collections.singletonList(new DownloadSource(canonical, "GitHub 官方直连", null, canonical));
+        }
         URI uri;
         try { uri=URI.create(canonical); } catch (RuntimeException invalid) { throw new IllegalArgumentException("更新包地址无效"); }
         // The Native prefix pairs only with the tvNative flavor; phone/tv keep the legacy name.
@@ -124,6 +140,12 @@ final class UpdatePolicy {
         boolean allows(String value){
             try {
                 URI uri=URI.create(value),origin=URI.create(canonical);
+                if (LOCAL_FEED.equals(canonical)) {
+                    if (!allowedRedirect(value)) return false;
+                    if (!"github.com".equals(uri.getHost())) return true;
+                    return (origin.getRawPath().equals(uri.getRawPath()) && query.equals(uri.getRawQuery()))
+                        || (uri.getRawQuery() == null && uri.getRawPath().matches(LOCAL_RELEASES + "download/v" + LOCAL_VERSION + "/update\\.json"));
+                }
                 if(!"https".equals(uri.getScheme())||(uri.getPort()!=-1&&uri.getPort()!=443)||uri.getRawUserInfo()!=null||uri.getRawFragment()!=null||!query.equals(uri.getRawQuery()))return false;
                 if(proxyHost!=null&&proxyHost.equals(uri.getHost()))return ("/"+canonical).equals(uri.getRawPath());
                 return origin.getHost().equals(uri.getHost())&&origin.getRawPath().equals(uri.getRawPath());
@@ -132,7 +154,10 @@ final class UpdatePolicy {
     }
     static List<ManifestSource> manifestSources(String flavor,long nonce){
         if(nonce<=0)throw new IllegalArgumentException("更新检查标记无效");
-        String canonical=manifestUrl(flavor),query="check="+nonce;
+        String query="check="+nonce;
+        if ("local-phone".equals(flavor))
+            return Collections.singletonList(new ManifestSource(LOCAL_FEED+"?"+query,"独立版更新清单",null,LOCAL_FEED,query));
+        String canonical=manifestUrl(flavor);
         List<ManifestSource> sources=new ArrayList<>();
         for(String host:PROXY_HOSTS)sources.add(new ManifestSource("https://"+host+"/"+canonical+"?"+query,host,host,canonical,query));
         sources.add(new ManifestSource(canonical+"?"+query,"GitHub 清单直连",null,canonical,query));
