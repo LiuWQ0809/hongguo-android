@@ -198,6 +198,7 @@ public final class PlayerActivity extends Activity {
         video = new VideoView(this); video.setFocusable(true); video.setFocusableInTouchMode(true);
         root.addView(video, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
         installVideoTouch(video);
+        if (!BuildConfig.IS_TV) installVideoTouch(root);
         danmakuOverlay = new DanmakuOverlay(this, new DanmakuOverlay.Clock() {
             public long position() { return prepared && video != null ? Math.max(0, video.getCurrentPosition()) : Math.max(0, resumeAt); }
             public boolean playing() { return active && prepared && !completed && !userPaused && !buffering && !dragging && !casting() && !castWasActive && video != null && video.isPlaying(); }
@@ -291,7 +292,10 @@ public final class PlayerActivity extends Activity {
             });
         }
         playerRoot.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
-            if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) applyPhoneLayout();
+            if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) {
+                applyPhoneLayout();
+                applyVideoFill(video);
+            }
         });
         top.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
             if (bottom - top != oldBottom - oldTop) applyPhoneLayout();
@@ -359,21 +363,37 @@ public final class PlayerActivity extends Activity {
         String label = fullscreen ? "退出全屏" : "全屏";
         fullscreenButton.setText(label);
         fullscreenButton.setContentDescription(label);
+        applyVideoFill(video);
         if (isInPictureInPictureMode() || fullscreen && (videoWidth <= 0 || videoHeight <= 0)) return;
         int orientation = !fullscreen ? ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             : videoWidth > videoHeight ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             : ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
         if (getRequestedOrientation() != orientation) setRequestedOrientation(orientation);
     }
-    private void installVideoTouch(VideoView view) {
+    private void applyVideoFill(View view) {
+        if (view == null || playerRoot == null) return;
+        int width = view.getWidth(), height = view.getHeight();
+        int windowWidth = playerRoot.getWidth(), windowHeight = playerRoot.getHeight();
+        float scale = 1f;
+        if (fullscreen && !isInPictureInPictureMode() && width > 0 && height > 0
+                && windowWidth > 0 && windowHeight > 0 && (width > height) == (windowWidth > windowHeight)) {
+            scale = Math.max((float) windowWidth / width, (float) windowHeight / height);
+        }
+        view.setScaleX(scale);
+        view.setScaleY(scale);
+    }
+    private void installVideoTouch(View view) {
+        if (!BuildConfig.IS_TV && view instanceof VideoView) {
+            view.addOnLayoutChangeListener((target, l, t, r, b, oldL, oldT, oldR, oldB) -> applyVideoFill(target));
+        }
         // Consume the reveal tap so it never also pauses/seeks or activates a newly shown button.
         // A vertical swipe switches episodes: up for next, down for previous, short-drama style.
         final float[] down = new float[2];
         view.setOnTouchListener((target, event) -> {
             int action = event.getActionMasked();
-            if (action == MotionEvent.ACTION_DOWN) { down[0] = event.getX(); down[1] = event.getY(); return true; }
+            if (action == MotionEvent.ACTION_DOWN) { down[0] = event.getRawX(); down[1] = event.getRawY(); return true; }
             if (action == MotionEvent.ACTION_UP) {
-                float dx = event.getX() - down[0], dy = event.getY() - down[1];
+                float dx = event.getRawX() - down[0], dy = event.getRawY() - down[1];
                 if (Math.abs(dy) >= dp(72) && Math.abs(dy) >= Math.abs(dx) * 2) {
                     if (dy < 0 && current + 1 < queue.size()) { move(1); return true; }
                     if (dy > 0 && current > 0) { move(-1); return true; }
@@ -1537,6 +1557,7 @@ public final class PlayerActivity extends Activity {
 
     @Override public void onPictureInPictureModeChanged(boolean inPip, android.content.res.Configuration configuration) {
         super.onPictureInPictureModeChanged(inPip, configuration);
+        updateFullscreen();
         if (controlsHud != null) controlsHud.interact();
         if (danmaku != null && inPip) danmaku.suspend();
     }
