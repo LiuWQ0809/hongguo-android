@@ -91,7 +91,11 @@ if [[ "$MODE" == --debug ]]; then
   # ABI splits apply to every flavor (libhongguo_sdk.so since 0.12.91 gives phone/TV an arm64 lib),
   # so each debug build is the universal APK, exactly like the phone/TV release channel ships.
   for flavor in phone tv; do
-    cp "android/app/build/outputs/apk/$flavor/debug/app-$flavor-universal-debug.apk" "dist/android/Hongguo-$VERSION-$flavor-debug.apk"
+    FLAVOR_VERSION="$VERSION"
+    if [[ "$flavor" == phone ]]; then
+      FLAVOR_VERSION="$(sed -n '/phone {/,/^        }/s/.*versionName '\''\([^'\'']*\)'\''.*/\1/p' android/app/build.gradle)"
+    fi
+    cp "android/app/build/outputs/apk/$flavor/debug/app-$flavor-universal-debug.apk" "dist/android/Hongguo-$FLAVOR_VERSION-$flavor-debug.apk"
   done
   # tvNative is an independent version line; name it with its own versionName.
   NATIVE_VERSION="$(sed -n '/tvNative {/,/^        }/s/.*versionName '\''\([^'\'']*\)'\''.*/\1/p' android/app/build.gradle | head -1)"
@@ -123,6 +127,10 @@ else
   SUFFIX="$DEVICE-release"
   [[ "$MODE" != *-release-compatible ]] || SUFFIX="$DEVICE-release-compatible"
   OUTPUT="dist/android/Hongguo-$VERSION-$SUFFIX.apk"
+  if [[ "$DEVICE" == phone ]]; then
+    VERSION="$(sed -n '/phone {/,/^        }/s/.*versionName '\''\([^'\'']*\)'\''.*/\1/p' android/app/build.gradle)"
+    OUTPUT="dist/android/hongguo-android-$VERSION.apk"
+  fi
   # ABI splits (added for tvNative 0.1.22) apply to every flavor; the phone/TV
   # WebView channels ship one universal APK, same as before the splits existed.
   cp "android/app/build/outputs/apk/$DEVICE/release/app-$DEVICE-universal-release.apk" "$OUTPUT"

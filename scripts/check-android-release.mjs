@@ -32,12 +32,13 @@ function run(command, argv, options = {}) {
 }
 if (!['phone','tv'].includes(device)) throw new Error('Unknown device');
 const gradle = read('android/app/build.gradle');
-const version = /versionName\s+'([^']+)'/.exec(gradle)?.[1];
-const code = /versionCode\s+(\d+)/.exec(gradle)?.[1];
+const releaseConfig = device === 'phone' ? /phone\s*\{([^}]+)\}/.exec(gradle)[1] : gradle;
+const version = /versionName\s+'([^']+)'/.exec(releaseConfig)?.[1];
+const code = /versionCode\s+(\d+)/.exec(releaseConfig)?.[1];
 const script = read('scripts/build-android.sh');
 const pkg = JSON.parse(read('package.json'));
 check(`release version is ${version}/code ${code}`, () => {
-  assert(/^\d+\.\d+\.\d+$/.test(version) && Number(code) > 0, 'valid Android release version required');
+  assert(/^\d+\.\d+\.\d+(?:-local\.\d+)?$/.test(version) && Number(code) > 0, 'valid Android release version required');
 });
 check('release explicitly disables debuggability and shrinking', () => {
   assert(/release\s*\{[^}]*debuggable\s+false[^}]*minifyEnabled\s+false/s.test(gradle), 'release must explicitly use debuggable false and minifyEnabled false');
@@ -82,7 +83,7 @@ if (apk) {
   check(`actual ${device} APK has correct identity, version, launcher, and orientation`, () => {
     badging = run(aapt, ['dump', 'badging', apk]);
     manifest = run(aapt, ['dump', 'xmltree', apk, 'AndroidManifest.xml']);
-    const id = 'io.github.jackotom.hongguo.android' + (device === 'tv' ? '.tv' : '');
+    const id = device === 'phone' ? 'com.hongguo.android' : 'io.github.jackotom.hongguo.android.tv';
     assert(badging.includes(`package: name='${id}' versionCode='${code}' versionName='${version}'`), 'unexpected app ID or version');
     if (device === 'tv') {
       assert(badging.includes("uses-feature: name='android.software.leanback'") && badging.includes('leanback-launchable-activity:'), 'TV leanback requirement/launcher missing');

@@ -70,6 +70,16 @@ public final class UpdatePolicyTest {
   yes(UpdatePolicy.automaticCheckDue(base+day,base-100,base));
   yes(UpdatePolicy.automaticCheckDue(base,base+1,0));
   yes(UpdatePolicy.automaticCheckDue(base,0,base+1));
+  String localVersion="0.7.12-local.20", releases="https://github.com/LiuWQ0809/hongguo-android/releases/";
+  String archive=releases+"download/v"+localVersion+"/hongguo-android-"+localVersion+".apk";
+  UpdatePolicy.validateLocal(1,"com.hongguo.android",51,localVersion,26,100,hash,archive,35); checks++;
+  bad(()->UpdatePolicy.validateLocal(1,pkg,51,localVersion,26,100,hash,archive,35));
+  yes(UpdatePolicy.downloadSources(archive).size()==1);
+  bad(()->UpdatePolicy.downloadSources(archive.replace("LiuWQ0809","foreign")));
+  var sources=UpdatePolicy.manifestSources("local-phone",5);
+  yes(sources.size()==1 && sources.get(0).allows(sources.get(0).url));
+  yes(sources.get(0).allows(releases+"download/v"+localVersion+"/update.json"));
+  yes(!sources.get(0).allows(releases.replace("LiuWQ0809","foreign")+"download/v"+localVersion+"/update.json"));
   System.out.println("UpdatePolicy: "+checks+" checks passed");
  }
 }
