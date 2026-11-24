@@ -162,11 +162,12 @@ public final class PlayerActivity extends Activity {
             requestedSpeed = PlayerOptions.speed(state == null ? getIntent().getDoubleExtra("speed", defaults.getDouble("speed")) : state.getDouble("speed", defaults.getDouble("speed")));
             boolean restored = restoreSelection(state);
             series = owner(queue.get(current));
-            backgroundId = getIntent().getStringExtra(BACKGROUND_ID);
+            backgroundId = state == null ? null : state.getString(BACKGROUND_ID);
+            if (backgroundId == null) backgroundId = getIntent().getStringExtra(BACKGROUND_ID);
             if (backgroundId == null) {
                 backgroundId = UUID.randomUUID().toString();
-                getIntent().putExtra(BACKGROUND_ID, backgroundId);
             }
+            getIntent().putExtra(BACKGROUND_ID, backgroundId);
             BackgroundPlaybackService.stopOther(backgroundId);
             buildViews();
             int position = restored ? Math.max(0, state.getInt("position")) : store.position(series, queue.get(current));
@@ -441,6 +442,7 @@ public final class PlayerActivity extends Activity {
         return restored;
     }
     private void savePlaybackState(Bundle state) {
+        state.putString(BACKGROUND_ID, backgroundId);
         saveProgress(); state.putInt("position", resumeAt); state.putBoolean("autoplay", autoplay);
         state.putString("quality", quality); state.putString("actualQuality", actualQuality); state.putInt("automaticCeiling", automaticCeiling); state.putDouble("speed", requestedSpeed); state.putBoolean("userPaused", userPaused);
         if (episode != null) { state.putString("vid", episode.optString("vid")); state.putString("seriesId", owner(episode).optString("seriesId")); state.putInt("episodeIndex", episode.optInt("index")); }
@@ -1572,12 +1574,14 @@ public final class PlayerActivity extends Activity {
     }
     @Override protected void onResume() { super.onResume(); active = true; resumeFromService(); if (decoderPreparing && !casting() && !castWasActive) armPreparationTimeout(generation, video); updateBufferingWatchdog(generation, video); if (!casting() && prepared && !completed && !userPaused) video.start(); showControls(); }
     @Override protected void onStop() {
+        saveProgress();
         handoffPlayback();
         if (handedOff && video != null && prepared) video.pause();
         super.onStop();
     }
     @Override protected void onSaveInstanceState(Bundle state) { savePlaybackState(state); super.onSaveInstanceState(state); }
     @Override protected void onDestroy() {
+        if (handedOff) android.util.Log.i("HongguoBackground", "播放器页面已销毁，服务继续持有播放会话");
         // Keep file deletion/update blocked until all media handles have been released.
         SoftDecoder.stop(softLayer); softLayer = null; softActive = false;
         if (danmaku != null) danmaku.close();
