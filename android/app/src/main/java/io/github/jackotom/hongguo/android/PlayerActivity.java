@@ -54,6 +54,8 @@ public final class PlayerActivity extends Activity {
     private boolean fullscreen;
     private PlayerHud controlsHud;
     private boolean buffering, touchingControls;
+    private float swipeX, swipeY;
+    private boolean swipeAllowed;
     private int hudDialogs, wakeKey = KeyEvent.KEYCODE_UNKNOWN;
     private SeekBar seek;
     private Button previous, toggle, next, autoplayButton, qualityButton, speedButton;
@@ -198,7 +200,7 @@ public final class PlayerActivity extends Activity {
         video = new VideoView(this); video.setFocusable(true); video.setFocusableInTouchMode(true);
         root.addView(video, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
         installVideoTouch(video);
-        if (!BuildConfig.IS_TV) installVideoTouch(root);
+        if (!BuildConfig.IS_TV) root.setOnTouchListener((view, event) -> true);
         danmakuOverlay = new DanmakuOverlay(this, new DanmakuOverlay.Clock() {
             public long position() { return prepared && video != null ? Math.max(0, video.getCurrentPosition()) : Math.max(0, resumeAt); }
             public boolean playing() { return active && prepared && !completed && !userPaused && !buffering && !dragging && !casting() && !castWasActive && video != null && video.isPlaying(); }
@@ -385,6 +387,8 @@ public final class PlayerActivity extends Activity {
     private void installVideoTouch(View view) {
         if (!BuildConfig.IS_TV && view instanceof VideoView) {
             view.addOnLayoutChangeListener((target, l, t, r, b, oldL, oldT, oldR, oldB) -> applyVideoFill(target));
+            view.setOnTouchListener((target, event) -> true);
+            return;
         }
         // Consume the reveal tap so it never also pauses/seeks or activates a newly shown button.
         // A vertical swipe switches episodes: up for next, down for previous, short-drama style.
@@ -420,12 +424,42 @@ public final class PlayerActivity extends Activity {
     }
     @Override public boolean dispatchTouchEvent(MotionEvent event) {
         int action = event.getActionMasked();
+        if (!BuildConfig.IS_TV && phoneScroller != null && !isInPictureInPictureMode()) {
+            if (action == MotionEvent.ACTION_DOWN) {
+                swipeX = event.getRawX();
+                swipeY = event.getRawY();
+                boolean scrolls = phoneScroller.canScrollVertically(1) || phoneScroller.canScrollVertically(-1);
+                swipeAllowed = !underTouch(seek, swipeX, swipeY) && !(scrolls && underTouch(phoneScroller, swipeX, swipeY));
+            } else if (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_CANCEL) swipeAllowed = false;
+            else if (action == MotionEvent.ACTION_UP && swipeAllowed) {
+                swipeAllowed = false;
+                float dx = event.getRawX() - swipeX, dy = event.getRawY() - swipeY;
+                if (Math.abs(dy) >= dp(72) && Math.abs(dy) >= Math.abs(dx) * 2) {
+                    MotionEvent cancel = MotionEvent.obtain(event);
+                    cancel.setAction(MotionEvent.ACTION_CANCEL);
+                    super.dispatchTouchEvent(cancel);
+                    cancel.recycle();
+                    touchingControls = false;
+                    switchBySwipe(dy < 0 ? 1 : -1);
+                    showControls();
+                    return true;
+                }
+            }
+        }
         if (action == MotionEvent.ACTION_DOWN) touchingControls = true;
         else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) touchingControls = false;
         // Dispatch before revealing: a tap on hidden controls is only a reveal, never a click.
         boolean handled = super.dispatchTouchEvent(event);
         if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) showControls();
         return handled;
+    }
+    private static boolean underTouch(View view, float x, float y) {
+        android.graphics.Rect bounds = new android.graphics.Rect();
+        return view.isShown() && view.getGlobalVisibleRect(bounds) && bounds.contains((int) x, (int) y);
+    }
+    private void switchBySwipe(int delta) {
+        if (current + delta >= 0 && current + delta < queue.size()) move(delta);
+        else Toast.makeText(this, delta > 0 ? "已经是最后一集" : "已经是第一集", Toast.LENGTH_SHORT).show();
     }
     private void updateButtons() {
         if (renderCastControls()) return;
