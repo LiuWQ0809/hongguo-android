@@ -83,6 +83,17 @@ public final class UpdatePolicyTest {
   yes(sources.size()==1 && sources.get(0).allows(sources.get(0).url));
   yes(sources.get(0).allows(releases+"download/v"+localVersion+"/update.json"));
   yes(!sources.get(0).allows(releases.replace("LiuWQ0809","foreign")+"download/v"+localVersion+"/update.json"));
+  var api = new UpdatePolicy.ReleaseApiSource(localVersion, "hongguo-android-"+localVersion+".apk");
+  String apiAsset = api.assetUrl("v"+localVersion,archive,123);
+  yes(api.allows(api.url) && api.allows(apiAsset) && UpdatePolicy.ReleaseApiSource.isAssetEndpoint(apiAsset));
+  yes(!api.allows(apiAsset.replace("LiuWQ0809","foreign")) && !api.allows(apiAsset+"?q=1"));
+  yes(!api.allows(archive) && api.allows("https://release-assets.githubusercontent.com/x?download=1"));
+  bad(()->api.assetUrl("v"+localVersion,archive.replace("LiuWQ0809","foreign"),123));
+  bad(()->api.assetUrl("v0.7.12-local.19",archive,123));
+  bad(()->api.assetUrl("v"+localVersion,archive,0));
+  var apiManifest = new UpdatePolicy.ReleaseApiSource(null, "update.json");
+  yes(apiManifest.url.endsWith("/releases/latest") && apiManifest.acceptsTag("v"+localVersion));
+  bad(()->apiManifest.assetUrl("v"+localVersion,archive,123));
   System.out.println("UpdatePolicy: "+checks+" checks passed");
  }
 }

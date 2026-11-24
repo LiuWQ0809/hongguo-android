@@ -13,7 +13,8 @@ final class UpdatePolicy {
     static final String REPOSITORY = "skydeadpeng/hongguo-android-cast";
     static final String LOCAL_PACKAGE = "com.hongguo.android";
     private static final String LOCAL_VERSION = "[0-9]+\\.[0-9]+\\.[0-9]+-local\\.[0-9]+";
-    private static final String LOCAL_RELEASES = "/LiuWQ0809/hongguo-android/releases/";
+    private static final String LOCAL_REPOSITORY = "/LiuWQ0809/hongguo-android";
+    private static final String LOCAL_RELEASES = LOCAL_REPOSITORY + "/releases/";
     private static final String LOCAL_FEED = "https://github.com" + LOCAL_RELEASES + "latest/download/update.json";
 
     static void validateLocal(int schema, String pkg, int code, String name, int minSdk, long size, String hash, String url, int deviceSdk) {
@@ -89,6 +90,36 @@ final class UpdatePolicy {
         final String url,label;
         Source(String url,String label){this.url=url;this.label=label;}
         abstract boolean allows(String value);
+    }
+    static final class ReleaseApiSource extends Source {
+        private static final String API = "https://api.github.com/repos" + LOCAL_RELEASES;
+        final String tag, file;
+
+        ReleaseApiSource(String version, String file) {
+            super(API + (version == null ? "latest" : "tags/v" + version), "GitHub 附件 API");
+            if (version != null && !version.matches(LOCAL_VERSION)) throw new IllegalArgumentException("更新版本无效");
+            tag = version == null ? null : "v" + version;
+            this.file = file;
+        }
+
+        boolean acceptsTag(String value) {
+            return value.matches("v" + LOCAL_VERSION) && (tag == null || tag.equals(value));
+        }
+
+        String assetUrl(String releaseTag, String canonical, long id) {
+            String expected = "https://github.com" + LOCAL_RELEASES + "download/" + releaseTag + "/" + file;
+            if (!acceptsTag(releaseTag) || !expected.equals(canonical) || id <= 0)
+                throw new IllegalArgumentException("更新附件与正式发布不匹配");
+            return API + "assets/" + id;
+        }
+
+        static boolean isAssetEndpoint(String address) {
+            return address.startsWith(API + "assets/") && address.substring((API + "assets/").length()).matches("[1-9][0-9]*");
+        }
+
+        @Override boolean allows(String value) {
+            return url.equals(value) || isAssetEndpoint(value) || allowedRedirect(value) && !"github.com".equals(URI.create(value).getHost());
+        }
     }
     static final class DownloadSource extends Source {
         final String proxyHost, canonical;
