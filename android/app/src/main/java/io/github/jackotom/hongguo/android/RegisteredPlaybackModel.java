@@ -324,15 +324,22 @@ final class RegisteredPlaybackModel implements AutoCloseable {
         catch (ModelError | java.util.zip.ZipException | java.io.EOFException tabFailure) { check(); }
         return null;
     }
-    /** The v5 player profile both V5 shapes share (jackotom 7.7, hongguoTV 0.1.37). */
+    /** Anonymous v5 player profile from OOIUa/hongguo-android c0821c6. */
     private static Map<String, String> v5Query(String did, String iid, String cdid) {
         Map<String, String> query = new LinkedHashMap<>();
+        query.put("device_platform", "android"); query.put("os", "android"); query.put("ssmix", "a");
+        query.put("cdid", cdid); query.put("channel", "vivo_8662_64");
         query.put("aid", "8662"); query.put("app_name", "novelread");
         query.put("version_code", "74332"); query.put("version_name", "7.4.3.32");
-        query.put("channel", "vivo_8662_64"); query.put("device_platform", "android");
-        query.put("device_type", "PGT-AN10"); query.put("os_version", "12"); query.put("update_version_code", "74332");
-        query.put("iid", iid);
-        query.put("cdid", cdid);
+        query.put("manifest_version_code", "74332"); query.put("update_version_code", "74332");
+        query.put("resolution", "1920*1080"); query.put("dpi", "280");
+        query.put("device_type", "PGT-AN10"); query.put("device_brand", "HONOR");
+        query.put("language", "zh"); query.put("os_api", "31"); query.put("os_version", "12");
+        query.put("ac", "wifi"); query.put("host_abi", "arm64-v8a");
+        query.put("dragon_device_type", "phone"); query.put("pv_player", "74332");
+        query.put("compliance_status", "0"); query.put("need_personal_recommend", "1");
+        query.put("player_so_load", "1"); query.put("is_android_pad_screen", "0");
+        query.put("rom_version", "V417IR+release-keys"); query.put("iid", iid);
         query.put("device_id", did);
         return query;
     }
