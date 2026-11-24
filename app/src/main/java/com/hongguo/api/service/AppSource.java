@@ -108,9 +108,9 @@ public final class AppSource {
         PlaybackDevice.Identity identity = PLAYBACK_IDENTITY.get();
         if (identity == null) identity = PlaybackDevice.fresh();
         Exception tabFailure = null;
-        if (useTabV5) {
+        if (useNativeV5) {
             try {
-                Stream.VideoTrack track = playbackTabV5.get(vid, quality, identity);
+                Stream.VideoTrack track = nativeV5Playback.get(vid, quality, identity);
                 if (track != null) { PLAYBACK_IDENTITY.compareAndSet(null, identity); return track; }
             } catch (Exception error) {
                 if (error instanceof PlaybackRejectedException) {
@@ -282,18 +282,18 @@ public final class AppSource {
     static void setPlaybackTabForTest(PlaybackTab tab) { playbackTab = tab == null ? AppSource::getTabModel : tab; }
     interface SinglePlayback { Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity) throws Exception; }
     private static SinglePlayback singlePlayback = AppSource::fetchPrimary;
-    private static SinglePlayback playbackTabV5 = AppSource::fetchNativeV5;
+    private static SinglePlayback nativeV5Playback = AppSource::fetchNativeV5;
     private static boolean useLegacySingle = true;
-    private static boolean useTabV5 = true;
+    private static boolean useNativeV5 = true;
     static void setPlaybackTabV5ForTest(SinglePlayback playback) {
-        playbackTabV5 = playback == null ? AppSource::fetchNativeV5 : playback;
-        useTabV5 = true;
+        nativeV5Playback = playback == null ? AppSource::fetchNativeV5 : playback;
+        useNativeV5 = true;
     }
     static void setSinglePlaybackForTest(SinglePlayback playback) {
         PLAYBACK_IDENTITY.set(null);
         singlePlayback = playback == null ? AppSource::fetchPrimary : playback;
         useLegacySingle = playback == null;
-        useTabV5 = playback == null;
+        useNativeV5 = playback == null;
     }
     interface PlaybackFallback { Map<String, Object> get(String url) throws Exception; }
     private static PlaybackFallback playbackFallback = AppSource::getPlain;
