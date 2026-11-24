@@ -18,7 +18,7 @@ import java.util.concurrent.Future;
 
 public final class BackgroundPlaybackService extends Service {
     private static final String TAKEOVER = "background.takeover";
-    private static BackgroundPlaybackSession pending;
+    private static BackgroundPlaybackSession pending, parked;
     private static volatile BackgroundPlaybackService running;
     private volatile BackgroundPlaybackSession session;
     private BackgroundEpisodeSource source;
@@ -37,6 +37,7 @@ public final class BackgroundPlaybackService extends Service {
         }
     };
     static boolean begin(Context context, BackgroundPlaybackSession request) {
+        parked = null;
         pending = request;
         try {
             context.startForegroundService(new Intent(context, BackgroundPlaybackService.class)
@@ -55,7 +56,12 @@ public final class BackgroundPlaybackService extends Service {
             return request;
         }
         BackgroundPlaybackService service = running;
-        if (service == null || service.session == null || !service.session.id.equals(id)) return null;
+        if (service == null || service.session == null || !service.session.id.equals(id)) {
+            if (parked == null || !parked.id.equals(id)) return null;
+            BackgroundPlaybackSession request = parked;
+            parked = null;
+            return request;
+        }
         service.savePosition();
         BackgroundPlaybackSession request = service.session;
         service.clearSession();
@@ -69,6 +75,7 @@ public final class BackgroundPlaybackService extends Service {
     }
 
     static void stopOther(String id) {
+        if (parked != null && !parked.id.equals(id)) parked = null;
         if (pending != null && !pending.id.equals(id)) pending = null;
         BackgroundPlaybackService service = running;
         if (service != null && service.session != null && !service.session.id.equals(id)) {
@@ -80,7 +87,7 @@ public final class BackgroundPlaybackService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? null : intent.getAction();
         if (BackgroundPlaybackNotification.STOP.equals(action)) {
-            clearSession();
+            park();
         } else if (TAKEOVER.equals(action) && pending != null && pending.id.equals(intent.getStringExtra("id"))) {
             clearSession();
             session = pending;
@@ -107,7 +114,7 @@ public final class BackgroundPlaybackService extends Service {
                 Uri uri = files.load(request, owner, episode, prepared);
                 main.post(() -> { if (session == request) open(uri, request); });
             } catch (Exception failed) {
-                main.post(() -> { if (session == request) stopSelf(); });
+                main.post(() -> { if (session == request) park(); });
             }
         });
     }
@@ -129,10 +136,10 @@ public final class BackgroundPlaybackService extends Service {
                 main.postDelayed(checkpoint, 2000);
             });
             player.setOnCompletionListener(done -> { if (done == player) completed(); });
-            player.setOnErrorListener((failed, what, extra) -> { if (failed == player) stopSelf(); return true; });
+            player.setOnErrorListener((failed, what, extra) -> { if (failed == player) park(); return true; });
             player.prepareAsync();
         } catch (Exception unavailable) {
-            stopSelf();
+            park();
         }
     }
 
@@ -141,7 +148,7 @@ public final class BackgroundPlaybackService extends Service {
         session.completed = true;
         savePosition();
         releaseDecoder();
-        if (!session.autoplay || !session.hasNext()) return;
+        if (!session.autoplay || !session.hasNext()) { park(); return; }
         session.index++;
         session.completed = false;
         source.select(session.index);
@@ -155,7 +162,7 @@ public final class BackgroundPlaybackService extends Service {
         media.setCallback(new MediaSession.Callback() {
             @Override public void onPlay() { setPaused(false); }
             @Override public void onPause() { setPaused(true); }
-            @Override public void onStop() { stopSelf(); }
+            @Override public void onStop() { park(); }
         }, main);
         media.setActive(true);
         updateMediaState();
@@ -182,8 +189,12 @@ public final class BackgroundPlaybackService extends Service {
 
     private void savePosition() {
         if (!ready || session == null) return;
-        session.position = session.completed ? 0 : player.getCurrentPosition();
-        store.history(session.owner(), session.episode(), session.position, player.getDuration());
+        try {
+            session.position = session.completed ? 0 : Math.max(0, player.getCurrentPosition());
+            store.history(session.owner(), session.episode(), session.position, player.getDuration());
+        } catch (IllegalStateException invalidDecoder) {
+            // Preserve the previous checkpoint after the decoder reports an error.
+        }
     }
 
     private void releaseDecoder() {
@@ -191,6 +202,15 @@ public final class BackgroundPlaybackService extends Service {
         main.removeCallbacks(checkpoint);
         if (player != null) player.release();
         player = null;
+    }
+
+    private void park() {
+        if (session != null) {
+            session.paused = true;
+            parked = session;
+        }
+        clearSession();
+        stopSelf();
     }
 
     private void clearSession() {
