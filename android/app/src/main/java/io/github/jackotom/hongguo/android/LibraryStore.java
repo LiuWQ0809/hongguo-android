@@ -33,6 +33,7 @@ final class LibraryStore {
     private final HistoryAccess accountHistory;
     LibraryStore(Context context) {
         preferences = context.getSharedPreferences("hongguo_library_v1", Context.MODE_PRIVATE);
+        synchronized (LibraryStore.class) { LegacyLibraryImport.migrate(context, preferences); }
         HistoryFactory factory=historyFactory;accountHistory=factory==null?null:factory.open();
     }
     private JSONArray historyRows() throws JSONException { return accountHistory==null?read("history"):accountHistory.rows(); }
