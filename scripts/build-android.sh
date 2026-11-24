@@ -56,7 +56,8 @@ if [[ -z "${JAVA_HOME:-}" && -d '/Applications/Android Studio.app/Contents/jbr/C
   export JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home'
 fi
 export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
-[[ -f "$ANDROID_HOME/platforms/android-35/android.jar" ]] || { echo '请安装 Android SDK Platform 35。' >&2; exit 1; }
+COMPILE_SDK="$(awk '/^[[:space:]]*compileSdk [0-9]+$/ {print $2; exit}' android/app/build.gradle)"
+[[ -f "$ANDROID_HOME/platforms/android-$COMPILE_SDK/android.jar" ]] || { echo "请安装 Android SDK Platform $COMPILE_SDK。" >&2; exit 1; }
 [[ -d node_modules ]] || { echo '请先运行 npm ci。' >&2; exit 1; }
 
 npm run build:android:ui
