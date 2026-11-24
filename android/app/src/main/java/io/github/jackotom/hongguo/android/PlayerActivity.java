@@ -21,8 +21,10 @@ public final class PlayerActivity extends Activity {
     private static final ExecutorService RETRY_LOOKUP = new ThreadPoolExecutor(0, 1, 10, TimeUnit.SECONDS,
         new SynchronousQueue<>(), task -> { Thread thread = new Thread(task, "hongguo-source-retry"); thread.setDaemon(true); return thread; });
     private static final long RETRY_LOOKUP_TIMEOUT_MS = 30_000L;
-    private boolean registeredPlayer;
-    static boolean hasLivePlayer() { return LIVE_PLAYERS.get() > 0; }
+    private boolean registeredPlayer, handedOff;
+    private static final String BACKGROUND_ID = "backgroundPlaybackId";
+    private String backgroundId;
+    static boolean hasLivePlayer() { return LIVE_PLAYERS.get() > 0 || BackgroundPlaybackService.isActive(); }
     private DanmakuController danmaku;
     private DanmakuOverlay danmakuOverlay;
     private Button danmakuButton;
@@ -160,10 +162,16 @@ public final class PlayerActivity extends Activity {
             requestedSpeed = PlayerOptions.speed(state == null ? getIntent().getDoubleExtra("speed", defaults.getDouble("speed")) : state.getDouble("speed", defaults.getDouble("speed")));
             boolean restored = restoreSelection(state);
             series = owner(queue.get(current));
+            backgroundId = getIntent().getStringExtra(BACKGROUND_ID);
+            if (backgroundId == null) {
+                backgroundId = UUID.randomUUID().toString();
+                getIntent().putExtra(BACKGROUND_ID, backgroundId);
+            }
+            BackgroundPlaybackService.stopOther(backgroundId);
             buildViews();
             int position = restored ? Math.max(0, state.getInt("position")) : store.position(series, queue.get(current));
             String initial = state == null ? getIntent().getStringExtra("url") : null;
-            loadAt(current, initial, position, restored && state.getBoolean("userPaused", false));
+            if (!resumeFromService()) loadAt(current, initial, position, restored && state.getBoolean("userPaused", false));
             main.post(tick);
             if (!BuildConfig.IS_TV) {
                 castBound = bindService(new Intent(this, DlnaCastService.class), castConnection, BIND_AUTO_CREATE);
@@ -395,7 +403,7 @@ public final class PlayerActivity extends Activity {
         lastProgressSavedAt = SystemClock.elapsedRealtime();
     }
     private void saveProgress() {
-        if (casting()) return; // The service persists the TV position, never the stopped local VideoView.
+        if (handedOff || casting()) return; // The service persists the TV position, never the stopped local VideoView.
         if (prepared && episode != null && video != null) try {
             resumeAt = completed ? 0 : Math.max(0, video.getCurrentPosition()); recordProgress(owner(episode), episode, resumeAt);
         } catch (RuntimeException transition) { /* A decoder transition is retried at the next checkpoint. */ }
@@ -1526,6 +1534,30 @@ public final class PlayerActivity extends Activity {
         if (danmaku != null && inPip) danmaku.suspend();
     }
 
+    private void handoffPlayback() {
+        if (BuildConfig.IS_TV || handedOff || backgroundId == null || episode == null
+            || userPaused || completed || casting() || isFinishing() || destroyed) return;
+        BackgroundPlaybackSession request = new BackgroundPlaybackSession(backgroundId, getIntent(),
+            queueSeries, queue, current, resumeAt, actualQuality, automaticCeiling, requestedSpeed,
+            autoplay, cleanup, offline, adoptedMedia == null ? null : adoptedMedia.uri);
+        handedOff = BackgroundPlaybackService.begin(this, request);
+    }
+
+    private boolean resumeFromService() {
+        BackgroundPlaybackSession request = BackgroundPlaybackService.take(backgroundId);
+        if (request == null) { handedOff = false; return false; }
+        JSONObject previous = request.episode();
+        int match = PlaybackPlaylist.find(queue, request.owner().optString("seriesId"),
+            previous.optString("vid"), previous.optInt("index"), queueSeries);
+        if (match < 0) { handedOff = false; return false; }
+        handedOff = true;
+        autoplay = request.autoplay;
+        actualQuality = request.quality; automaticCeiling = request.ceiling; requestedSpeed = request.speed;
+        loadAt(match, null, request.position, request.paused || request.completed);
+        handedOff = false;
+        return true;
+    }
+
     @Override protected void onPause() {
         active = isInPictureInPictureMode();
         if (!active) cancelPlaybackWatchdogs();
@@ -1534,10 +1566,16 @@ public final class PlayerActivity extends Activity {
         wakeKey = KeyEvent.KEYCODE_UNKNOWN;
         if (controlsHud != null) controlsHud.suspend();
         saveProgress();
+        if (!active) handoffPlayback();
         if (!active && !casting() && video != null && prepared) video.pause();
         super.onPause();
     }
-    @Override protected void onResume() { super.onResume(); active = true; if (decoderPreparing && !casting() && !castWasActive) armPreparationTimeout(generation, video); updateBufferingWatchdog(generation, video); if (!casting() && prepared && !completed && !userPaused) video.start(); showControls(); }
+    @Override protected void onResume() { super.onResume(); active = true; resumeFromService(); if (decoderPreparing && !casting() && !castWasActive) armPreparationTimeout(generation, video); updateBufferingWatchdog(generation, video); if (!casting() && prepared && !completed && !userPaused) video.start(); showControls(); }
+    @Override protected void onStop() {
+        handoffPlayback();
+        if (handedOff && video != null && prepared) video.pause();
+        super.onStop();
+    }
     @Override protected void onSaveInstanceState(Bundle state) { savePlaybackState(state); super.onSaveInstanceState(state); }
     @Override protected void onDestroy() {
         // Keep file deletion/update blocked until all media handles have been released.
