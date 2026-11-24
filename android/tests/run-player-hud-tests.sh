@@ -45,8 +45,10 @@ def method(name,optional=False):
         i+=1
     raise SystemExit('Unclosed real Activity method: '+name)
 modern='controlsHud = new PlayerHud(' in source
-methods='\n'.join(method(name) for name in ['installVideoTouch','showControls','exitPlayer','dispatchKeyEvent','onKeyDown','onPause','onResume','onDestroy'])
+methods='\n'.join(method(name) for name in ['installVideoTouch','showControls','exitPlayer','onBackPressed','dispatchKeyEvent','onKeyDown','onPause','onResume','onDestroy'])
 methods+='\n'+ '\n'.join(method(name,True) for name in ['canHideControls','updateControlsState','showPlayerDialog','dispatchTouchEvent','cancelPlaybackWatchdogs','validPlaybackCallback','armPreparationTimeout','updateBufferingWatchdog'])
+methods+='\n'+'\n'.join(method(name,True) for name in ['underTouch','switchBySwipe'])
+methods=methods.replace('android.util.Log.i(', 'HudLog.i(')
 setup=''
 if modern:
     start=source.index('controlsHud = new PlayerHud(')
@@ -56,6 +58,9 @@ info=method('bindPlayback')
 info=info[info.index('{')+1:info.index('        view.setOnCompletionListener')]
 text='''package io.github.jackotom.hongguo.android;
 import java.util.*;
+final class BuildConfig {static final boolean IS_TV=false;}
+final class HudLog {static void i(String tag,String message){}}
+final class SoftDecoder {static void stop(Object layer){}}
 // Episode metadata is not used by the HUD info callback; playback ownership is tested separately.
 final class JSONObject {}
 final class KeyEvent {
@@ -63,9 +68,10 @@ final class KeyEvent {
  final int action,key; KeyEvent(int action,int key){this.action=action;this.key=key;} int getAction(){return action;}int getKeyCode(){return key;}
 }
 final class MotionEvent {
- static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_CANCEL=3;final int action;final float x,y;
+ static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_CANCEL=3,ACTION_POINTER_DOWN=5;int action;final float x,y;
  MotionEvent(int action){this(action,0,0);}MotionEvent(int action,float x,float y){this.action=action;this.x=x;this.y=y;}
- int getAction(){return action;}int getActionMasked(){return action;}float getX(){return x;}float getY(){return y;}
+ int getAction(){return action;}int getActionMasked(){return action;}float getRawX(){return x;}float getRawY(){return y;}
+ static MotionEvent obtain(MotionEvent e){return new MotionEvent(e.action,e.x,e.y);}void setAction(int value){action=value;}void recycle(){}
 }
 final class Toast {
  static final int LENGTH_SHORT=0,LENGTH_LONG=1;static final List<String> messages=new ArrayList<>();
@@ -74,12 +80,16 @@ final class Toast {
 }
 class View {
  static final int VISIBLE=0,GONE=8;static View focused; int visibility=VISIBLE;boolean enabled=true;
+ interface Layout {void change(View v,int l,int t,int r,int b,int oldL,int oldT,int oldR,int oldB);}
+ VideoView.Touch touch;void setOnTouchListener(VideoView.Touch listener){touch=listener;}void addOnLayoutChangeListener(Layout listener){}
+ boolean isShown(){return visibility==VISIBLE;}boolean canScrollVertically(int direction){return false;}
+ boolean getGlobalVisibleRect(android.graphics.Rect bounds){return false;}
  void setVisibility(int value){visibility=value;}int getVisibility(){return visibility;}boolean requestFocus(){focused=this;return true;}boolean hasFocus(){return focused==this;}boolean isEnabled(){return enabled;}
 }
 final class VideoView extends View {
  interface Touch {boolean touch(View view,MotionEvent event);} interface Info {boolean info(MediaPlayer player,int what,int extra);}
- boolean playing;int stops;Touch touch;Info info;
- void setOnTouchListener(Touch listener){touch=listener;}void setOnInfoListener(Info listener){info=listener;}void info(int code){if(info!=null)info.info(new MediaPlayer(),code,0);}
+ boolean playing;int stops;Info info;
+ void setOnInfoListener(Info listener){info=listener;}void info(int code){if(info!=null)info.info(new MediaPlayer(),code,0);}
  boolean isPlaying(){return playing;}void start(){playing=true;}void pause(){playing=false;}void stopPlayback(){playing=false;stops++;}void seekTo(int value){}int getDuration(){return 100000;}int getCurrentPosition(){return 50000;}
 }
 final class MediaPlayer {static final int MEDIA_INFO_BUFFERING_START=701,MEDIA_INFO_BUFFERING_END=702;}
@@ -101,6 +111,11 @@ class HudActivityBase {
 final class PlayerHudHarness extends HudActivityBase {
  final MainLoop main=new MainLoop();final Worker resolver=new Worker(),cacheWorker=new Worker();
  final View top=new View(),bottom=new View(),toggle=new View(),back=new View();VideoView video=new VideoView();
+ final View phoneScroller=new View(),seek=new View();
+ boolean fullscreen,swipeAllowed,handedOff,softActive;float swipeX,swipeY;Object softLayer;
+ java.util.concurrent.Future<?> prefetch;int prefetchedIndex=-1;
+ void applyVideoFill(View view){}void toggleFullscreen(){fullscreen=!fullscreen;}
+ boolean isInPictureInPictureMode(){return false;}void handoffPlayback(){}boolean resumeFromService(){return false;}
  boolean active,prepared,completed,userPaused,buffering,dragging,touchingControls,destroyed,decoderPreparing,castWasActive;Runnable playbackPrepareTimeout,bufferingTimeout;int generation,hudDialogs,wakeKey=KeyEvent.KEYCODE_UNKNOWN,toggleCalls,seekCalls;Object qualitySwitch;
  // Independent danmaku and install-lock lifecycle boundaries.
  boolean registeredPlayer;static final java.util.concurrent.atomic.AtomicInteger LIVE_PLAYERS=new java.util.concurrent.atomic.AtomicInteger();
@@ -133,7 +148,8 @@ text=text.replace('HUD_INFO',info).replace('ACTIVITY_METHODS',methods)
 Path(sys.argv[2]).write_text(text)
 print('HUD_ACTIVITY_BINDING actualMethods=true baselineWithoutPolicy='+str(not modern).lower()+' source='+sys.argv[1])
 PY
-SOURCES=("$TMP/PlayerHudHarness.java" "$ROOT/android/tests/PlayerHudActivityTest.java")
+printf '%s\n' 'package android.graphics; public final class Rect { public boolean contains(int x,int y){return false;} }' > "$TMP/Rect.java"
+SOURCES=("$TMP/PlayerHudHarness.java" "$TMP/Rect.java" "$ROOT/android/tests/PlayerHudActivityTest.java")
 if [[ -f "$SRC/PlayerHud.java" ]]; then SOURCES+=("$SRC/PlayerHud.java" "$ROOT/android/tests/PlayerHudTest.java"); fi
 "$JAVA_HOME/bin/javac" -encoding UTF-8 -source 17 -target 17 -d "$TMP/classes" "${SOURCES[@]}"
 "$JAVA_HOME/bin/java" -cp "$TMP/classes" io.github.jackotom.hongguo.android.PlayerHudActivityTest
