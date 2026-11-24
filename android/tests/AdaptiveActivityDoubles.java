@@ -61,7 +61,11 @@ class PlaybackCache {
  void invalidate(String sid,String vid,int i,String q){invalidatedOwners.add(ownerKey(sid,vid,i,q));invalidations.add(key(vid,q));hits.remove(key(vid,q));}
 }
 class NetworkGuard {static final String UA="fixture-ua",REFERER="https://fixture.invalid/";interface TransferProgress {void onProgress(long bytes,long totalBytes);}}
-class RegisteredPlaybackLookup {static JSONObject resolve(String sid,String vid,String quality,int ceiling,long timeoutMs){throw new AssertionError("lookup is owned by the source boundary in this fixture");}}
+class SoftDecoder {static void stop(Object layer){}}
+class RegisteredPlaybackLookup {
+ static final PlaybackSources.NativeLookup SPECULATIVE=RegisteredPlaybackLookup::resolve;
+ static JSONObject resolve(String sid,String vid,String quality,int ceiling,long timeoutMs){throw new AssertionError("lookup is owned by the source boundary in this fixture");}
+}
 class PlaybackSources {
  static void requireCurrentSource(String sid,String vid)throws IOException {if(sid!=null&&sid.matches("99[0-9]{8}")||vid!=null&&vid.matches("99[0-9]{12}"))throw new IOException("原黄果来源已移除");}
  interface NativeLookup {JSONObject lookup(String sid,String vid,String quality,int ceiling,long timeoutMs)throws Exception;}

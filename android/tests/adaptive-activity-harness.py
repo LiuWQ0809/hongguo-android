@@ -49,15 +49,18 @@ for name in (['RecoveryBudget','PreparedMedia','QualitySwitch'] if modern else [
 header='''package io.github.jackotom.hongguo.android;
 import java.io.*;import java.util.*;import java.util.concurrent.*;import org.json.*;
 final class AdaptiveActivityHarness {
- final MainLoop main=new MainLoop();final Worker resolver=new Worker(),cacheWorker=new Worker();Future<?> resolution;
+ final MainLoop main=new MainLoop();final Worker resolver=new Worker(),cacheWorker=new Worker();
+ Future<?> resolution,prefetch;int prefetchedIndex=-1;
  RETRY_FIELDS
- final Set<String> caching=new HashSet<>();final PlaybackCache cache=new PlaybackCache();final LibraryStore store=new LibraryStore();
+ final PlaybackCache cache=new PlaybackCache();final LibraryStore store=new LibraryStore();
  VideoView video=new VideoView(this);FrameLayout playerRoot=new FrameLayout();MediaPlayer mediaPlayer;
  String quality="1080p",actualQuality="1080p",protectedQuality="auto",currentKind="fixture",lastMediaError;float requestedSpeed=1,actualSpeed=1;
  final Label title=new Label(),status=new Label(),time=new Label();final SeekBar seek=new SeekBar();
  JSONObject series,episode,queueSeries,protectedEpisode;String protectedSeriesId="",queueIdentity="";PlaybackCache.QueueWindow localWindow,protectedWindow;boolean cleanup=true;final List<JSONObject>queue=new ArrayList<>();int current,generation=7,resumeAt,lastGoodPosition,qualitySerial,videoWidth,videoHeight,sourceShortEdge,automaticCeiling,protectedCeiling;Runnable playbackPrepareTimeout,bufferingTimeout;boolean decoderPreparing;
  boolean destroyed,offline,autoplay,prepared,completed,userPaused,active=true,protectedCurrent,currentManual,currentCache,currentWeb,buffering,castWasActive;
  long lastProgressSavedAt,downloadMarkNano,downloadMarkBytes;
+ boolean fullscreen,handedOff,softActive;Object softLayer;PreparedMedia adoptedMedia;
+ static final String BACKGROUND_ID="backgroundPlaybackId";String backgroundId;
  int loads,loadedAt,loadedPosition,errors,updates,saves,prunes;Uri manualFile;AlertDialog dialog;
  // Danmaku is an independent display boundary, certified by DanmakuControllerTest.
  DanmakuLayer danmaku;static final class DanmakuLayer{void suspend(){}}
@@ -69,6 +72,8 @@ final class AdaptiveActivityHarness {
  boolean casting(){return false;}boolean castCommand(String command,long value){return false;}
  boolean renderCastControls(){return false;}void detachCast(){}
  void showPlayerDialog(AlertDialog d){dialog=d;}void showControls(){}void updateControlsState(){}void installVideoTouch(VideoView v){}
+ void updateFullscreen(){}
+ String decoderMode(){return "auto";}boolean launchSoftDecoder(int token,PreparedMedia media){return false;}
  void updateButtons(){updates++;}void pruneCache(){prunes++;}void saveProgress(){saves++;}
  Uri downloaded(JSONObject e){return manualFile;}void playbackError(int token,String message){if(token==generation&&!destroyed){errors++;status.setText(message);}}
  Intent getIntent(){return new Intent();}static class Intent{String getStringExtra(String name){return null;}}
