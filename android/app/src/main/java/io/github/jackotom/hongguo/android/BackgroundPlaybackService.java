@@ -23,6 +23,14 @@ public final class BackgroundPlaybackService extends Service {
     private final ExecutorService resolver = Executors.newSingleThreadExecutor();
     private Future<?> preparing;
     private MediaPlayer player;
+    private LibraryStore store;
+    private boolean ready;
+    private final Runnable checkpoint = new Runnable() {
+        @Override public void run() {
+            savePosition();
+            if (ready) main.postDelayed(this, 2000);
+        }
+    };
     static boolean begin(Context context, BackgroundPlaybackSession request) {
         pending = request;
         try {
@@ -43,6 +51,7 @@ public final class BackgroundPlaybackService extends Service {
         }
         BackgroundPlaybackService service = running;
         if (service == null || service.session == null || !service.session.id.equals(id)) return null;
+        service.savePosition();
         BackgroundPlaybackSession request = service.session;
         service.clearSession();
         service.stopSelf();
@@ -73,10 +82,11 @@ public final class BackgroundPlaybackService extends Service {
             pending = null;
             running = this;
             source = new BackgroundEpisodeSource(this, session);
+            store = new LibraryStore(this);
         }
         startForeground(BackgroundPlaybackNotification.ID, BackgroundPlaybackNotification.build(this, session, null));
         if (session == null) stopSelf(startId);
-        else if (player == null && preparing == null) load();
+        else if (player == null && preparing == null && !session.completed) load();
         return START_NOT_STICKY;
     }
     private void load() {
@@ -105,18 +115,49 @@ public final class BackgroundPlaybackService extends Service {
                 if (ready != player) return;
                 if (request.position > 0) ready.seekTo(request.position);
                 if (!request.paused) ready.start();
+                this.ready = true;
+                android.util.Log.i("HongguoBackground", "第 " + request.episode().optInt("index") + " 集开始后台播放");
+                main.postDelayed(checkpoint, 2000);
             });
+            player.setOnCompletionListener(done -> { if (done == player) completed(); });
+            player.setOnErrorListener((failed, what, extra) -> { if (failed == player) stopSelf(); return true; });
             player.prepareAsync();
         } catch (Exception unavailable) {
             stopSelf();
         }
     }
 
-    private void clearSession() {
-        if (preparing != null) preparing.cancel(true);
-        preparing = null;
+    private void completed() {
+        session.position = 0;
+        session.completed = true;
+        savePosition();
+        releaseDecoder();
+        if (!session.autoplay || !session.hasNext()) return;
+        session.index++;
+        session.completed = false;
+        source.select(session.index);
+        startForeground(BackgroundPlaybackNotification.ID, BackgroundPlaybackNotification.build(this, session, null));
+        load();
+    }
+
+    private void savePosition() {
+        if (!ready || session == null) return;
+        session.position = session.completed ? 0 : player.getCurrentPosition();
+        store.history(session.owner(), session.episode(), session.position, player.getDuration());
+    }
+
+    private void releaseDecoder() {
+        ready = false;
+        main.removeCallbacks(checkpoint);
         if (player != null) player.release();
         player = null;
+    }
+
+    private void clearSession() {
+        savePosition();
+        releaseDecoder();
+        if (preparing != null) preparing.cancel(true);
+        preparing = null;
         if (source != null) source.close();
         source = null;
         session = null;
