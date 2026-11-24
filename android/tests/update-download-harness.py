@@ -63,12 +63,12 @@ public final class UpdateDownloadHarness implements AutoCloseable {
  static final class Prefs{final Map<String,String>data=new HashMap<>();boolean writable=true,failCleanup;Runnable onCommit;Prefs edit(){return this;}Prefs putString(String k,String v){data.put(k,v);return this;}Prefs putLong(String k,long v){data.put(k,Long.toString(v));return this;}void apply(){}Prefs remove(String k){data.remove(k);return this;}boolean getBoolean(String k,boolean fallback){String v=data.get(k);return v==null?fallback:Boolean.parseBoolean(v);}String getString(String k,String fallback){if(failCleanup)throw new IllegalStateException("fixture cleanup prefs unavailable");return data.getOrDefault(k,fallback);}boolean commit(){if(onCommit!=null){Runnable action=onCommit;onCommit=null;action.run();}return writable;}}
  static final class Worker{void purge(){}void shutdownNow(){}}
  static final class Build{static final String[] SUPPORTED_ABIS={"arm64-v8a"};static final class VERSION{static int SDK_INT=35;}}
- static final class BuildConfig{static final boolean IS_TV=false;static final boolean NATIVE_UI=false;static final String VERSION_NAME="fixture",APPLICATION_ID=PKG;}
+ static final class BuildConfig{static final boolean IS_TV=false;static final boolean NATIVE_UI=false;static final String VERSION_NAME="fixture";static String APPLICATION_ID=PKG;}
  static final class UpdateInstallCheckpoint{static void release(Object owner){}}
  static final class Signature{final byte[]data;Signature(int value){data=new byte[]{(byte)value};}byte[]toByteArray(){return data;}}
  static final class SigningInfo{Signature[]signatures={new Signature(7)};Signature[]getApkContentsSigners(){return signatures;}}
  static final class ApplicationInfo{int minSdkVersion=26;}
- static final class PackageInfo{String packageName=PKG,versionName=NAME;int versionCode=100;ApplicationInfo applicationInfo=new ApplicationInfo();SigningInfo signingInfo=new SigningInfo();Signature[]signatures={new Signature(7)};}
+ static final class PackageInfo{String packageName=BuildConfig.APPLICATION_ID,versionName=UpdatePolicy.LOCAL_PACKAGE.equals(packageName)?"0.7.12-local.23":NAME;int versionCode=UpdatePolicy.LOCAL_PACKAGE.equals(packageName)?54:100;ApplicationInfo applicationInfo=new ApplicationInfo();SigningInfo signingInfo=new SigningInfo();Signature[]signatures={new Signature(7)};}
  static final class PackageManager{static final int GET_SIGNING_CERTIFICATES=1,GET_SIGNATURES=2;final Deque<String>archiveFaults=new ArrayDeque<>();int parses;Runnable onParse;PackageInfo getPackageInfo(String n,int f){PackageInfo p=new PackageInfo();p.versionCode=39;p.versionName="0.12.16";return p;}PackageInfo getPackageArchiveInfo(String path,int flags){parses++;if(onParse!=null){Runnable action=onParse;onParse=null;action.run();}PackageInfo p=new PackageInfo();String fault=archiveFaults.isEmpty()?"":archiveFaults.removeFirst();switch(fault){case"null":return null;case"package":p.packageName+=".other";break;case"code":p.versionCode=99;break;case"name":p.versionName="0.99.2";break;case"sdk":p.applicationInfo.minSdkVersion=27;break;case"signature":p.signingInfo.signatures=new Signature[]{new Signature(8)};break;}return p;}}
  static final class SystemClock{static long now;static long elapsedRealtime(){return now;}static void advance(long millis){now+=millis;UpdateDownloadHarness h=Network.active;if(h!=null)h.deadlines.due();}}
  static final class TimerFuture implements ScheduledFuture<Object>{final Runnable action;final long at;boolean canceled,done;TimerFuture(Runnable r,long a){action=r;at=a;}void fire(){if(!canceled&&!done){done=true;action.run();}}public boolean cancel(boolean b){canceled=true;return true;}public boolean isCancelled(){return canceled;}public boolean isDone(){return done||canceled;}public Object get(){return null;}public Object get(long t,TimeUnit u){return null;}public long getDelay(TimeUnit u){return u.convert(at-SystemClock.now,TimeUnit.MILLISECONDS);}public int compareTo(Delayed d){return Long.compare(getDelay(TimeUnit.MILLISECONDS),d.getDelay(TimeUnit.MILLISECONDS));}}
@@ -134,11 +134,47 @@ manifest=r'''
   group("previous manifest route callbacks cannot overwrite a later result",()->{try(UpdateDownloadHarness h=new UpdateDownloadHarness()){h.candidate=null;List<Runnable>late=new ArrayList<>();Spec bad=new Spec().bytes("{}".getBytes(StandardCharsets.UTF_8),2);bad.read=()->{late.addAll(h.host.ui);h.host.ui.clear();};h.at(manifestProxy(0),bad);h.at(manifestProxy(1),manifestSpec(manifest(40,"0.12.17")));h.check(true);h.pump();checked(h,40);int publishes=h.publishes.size();for(Runnable callback:late)callback.run();check(h.state.equals("available")&&h.publishes.size()==publishes,"old checking UI cannot return after available");}});
   group("manifest deadline rejects late current without trying unbounded routes",()->{try(UpdateDownloadHarness h=new UpdateDownloadHarness()){h.candidate=null;h.at(manifestProxy(0),manifestSpec(manifest(39,"0.12.16")));Spec stall=new Spec();stall.headerMs=60001;h.at(manifestProxy(1),stall);h.check(true);h.pump();check(h.state.equals("error")&&h.opened.size()==2&&h.candidate==null,"untried routes at global deadline cannot certify latest");}});
   MANIFEST_POLICY_TESTS
+  LOCAL_API_TESTS
   System.out.println("UPDATE_MANIFEST_PROXY_OK groups="+groups+" checks="+checks+" actualCheckOpenReadParse=true fixedSources=5 boundedBytes=131072 nonceBound=true noNetworkSockets=true");
  }
 '''
+localApi=r'''
+  group("independent update verifies the GitHub API backup after direct failure", () -> {
+   try (UpdateDownloadHarness h = new UpdateDownloadHarness()) {
+    BuildConfig.APPLICATION_ID = UpdatePolicy.LOCAL_PACKAGE;
+    String version = "0.7.12-local.23";
+    String name = "hongguo-android-" + version + ".apk";
+    String release = "https://github.com/LiuWQ0809/hongguo-android/releases/download/v" + version + "/";
+    var apiManifest = new UpdatePolicy.ReleaseApiSource(null, "update.json");
+    var apiApk = new UpdatePolicy.ReleaseApiSource(version, name);
+    String manifestUrl = apiManifest.assetUrl("v" + version, release + "update.json", 11);
+    String apkUrl = apiApk.assetUrl("v" + version, release + name, 22);
+    JSONArray assets = new JSONArray().put(new JSONObject().put("name", "update.json").put("id", 11)
+          .put("browser_download_url", release + "update.json")).put(new JSONObject().put("name", name)
+          .put("id", 22).put("browser_download_url", release + name));
+    JSONObject metadata = new JSONObject().put("tag_name", "v" + version).put("assets", assets)
+          .put("draft", false).put("prerelease", false);
+    JSONObject update = new JSONObject().put("schemaVersion", 1).put("applicationId", UpdatePolicy.LOCAL_PACKAGE)
+          .put("versionCode", 54).put("versionName", version).put("minSdk", 26).put("sizeBytes", GOOD.length)
+          .put("sha256", hex(MessageDigest.getInstance("SHA-256").digest(GOOD))).put("apkUrl", release + name);
+    String file = "https://release-assets.githubusercontent.com/fixture";
+    h.at(apiManifest.url, manifestSpec(metadata));
+    h.at(manifestUrl, manifestSpec(update));
+    h.at(apiApk.url, manifestSpec(metadata));
+    h.at(apkUrl, new Spec().status(302, file));
+    h.at(file, new Spec());
+    h.check(true); h.pump(); checked(h, 54);
+    check("application/octet-stream".equals(h.connections.get(2).getRequestProperty("Accept")), "manifest asset requests raw bytes");
+    h.download(); h.pump();
+    check(h.state.equals("ready") && Arrays.equals(Files.readAllBytes(h.apk.toPath()), GOOD), "backup holds verified bytes");
+    check(h.prefs.data.get("manifest").contains(release + name), "backup keeps the canonical URL");
+    check(h.opened.subList(4, 7).equals(List.of(apiApk.url, apkUrl, file)), "APK backup stays within the expected release");
+    check("application/octet-stream".equals(h.connections.get(5).getRequestProperty("Accept")), "APK asset requests raw bytes");
+   } finally { BuildConfig.APPLICATION_ID = PKG; }
+  });
+'''
 manifestpolicy='group("manifest policy only constructs the matching fixed phone or TV path",()->{for(String flavor:new String[]{"phone","tv","tvnative"}){List<UpdatePolicy.ManifestSource>routes=UpdatePolicy.manifestSources(flavor,123);check(routes.size()==5,"fixed manifest routes");for(UpdatePolicy.ManifestSource route:routes){check(route.allows(route.url),"constructed source accepted");check(!route.allows(route.url.replace("check=123","check=124")),"nonce changed rejected");check(!route.allows(route.url.replace("main/android/","other/android/")),"branch change rejected");check(!route.allows(ORIGIN),"APK endpoint not a manifest");}}try{UpdatePolicy.manifestSources("phone",0);throw new AssertionError();}catch(IllegalArgumentException expected){checks++;}});'
-text=text.replace('MANIFEST_TESTS',manifest.replace('MANIFEST_POLICY_TESTS',manifestpolicy if manifestModern else ''))
+text=text.replace('MANIFEST_TESTS',manifest.replace('MANIFEST_POLICY_TESTS',manifestpolicy if manifestModern else '').replace('LOCAL_API_TESTS',localApi if 'private JSONObject readUpdateJson' in source else ''))
 text=text.replace('NESTED','\n'.join(nested)).replace('METHODS','\n'.join(methods)).replace('POLICY_TESTS',policy if modern else '')
 Path(sys.argv[2]).write_text(text)
 print('UPDATE_DOWNLOAD_BINDING actualMethods='+str(len(methods))+' modern='+str(modern).lower()+' source='+sys.argv[1])

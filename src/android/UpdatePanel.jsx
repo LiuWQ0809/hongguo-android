@@ -47,6 +47,6 @@ export default function UpdatePanel() {
       <strong>新版本 {value.versionName} 可下载</strong>
       {value.notes && <p>{value.notes}</p>}
     </div>}
-    <details className="update-details"><summary>更新机制说明</summary><p>每天自动检查一次，不打断播放；下载需确认，安装由系统确认。手机与TV使用各自的更新包。检查和下载自动尝试内置加速线路，失败后回退 GitHub；每条线路都校验完整安装包。</p></details>
+    <details className="update-details"><summary>更新机制说明</summary><p>每天自动检查一次，下载和安装需确认。手机与 TV 使用各自的更新包。连接失败时会尝试备用线路，安装前校验完整安装包。</p></details>
   </section>;
 }
