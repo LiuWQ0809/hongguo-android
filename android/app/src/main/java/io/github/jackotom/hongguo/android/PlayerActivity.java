@@ -246,8 +246,9 @@ public final class PlayerActivity extends Activity {
             public void cancel(Runnable action) { main.removeCallbacks(action); }
             public void later(Runnable action, long delay) { main.postDelayed(action, delay); }
         }, visible -> {
-            top.setVisibility(visible ? View.VISIBLE : View.GONE);
-            bottom.setVisibility(visible ? View.VISIBLE : View.GONE);
+            boolean show = visible && !isInPictureInPictureMode();
+            top.setVisibility(show ? View.VISIBLE : View.GONE);
+            bottom.setVisibility(show ? View.VISIBLE : View.GONE);
             if (!visible && video != null) video.requestFocus();
         });
         video.requestFocus(); showControls();
@@ -1507,7 +1508,35 @@ public final class PlayerActivity extends Activity {
         if (video.hasFocus() && (key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN)) { showControls(); toggle.requestFocus(); return true; }
         return super.onKeyDown(key, event);
     }
-    @Override protected void onPause() { active = false; cancelPlaybackWatchdogs(); if (danmaku != null) danmaku.suspend(); touchingControls = false; wakeKey = KeyEvent.KEYCODE_UNKNOWN; if (controlsHud != null) controlsHud.suspend(); saveProgress(); if (!casting() && video != null && prepared) video.pause(); super.onPause(); }
+    @Override protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if (BuildConfig.IS_TV || android.os.Build.VERSION.SDK_INT < 26 || casting()
+            || !prepared || video == null || !video.isPlaying() || isFinishing()
+            || !getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) return;
+        try {
+            enterPictureInPictureMode(new android.app.PictureInPictureParams.Builder().build());
+        } catch (IllegalStateException | SecurityException ignored) {
+            // Android may disallow PiP for the current user or window.
+        }
+    }
+
+    @Override public void onPictureInPictureModeChanged(boolean inPip, android.content.res.Configuration configuration) {
+        super.onPictureInPictureModeChanged(inPip, configuration);
+        if (controlsHud != null) controlsHud.interact();
+        if (danmaku != null && inPip) danmaku.suspend();
+    }
+
+    @Override protected void onPause() {
+        active = isInPictureInPictureMode();
+        if (!active) cancelPlaybackWatchdogs();
+        if (danmaku != null) danmaku.suspend();
+        touchingControls = false;
+        wakeKey = KeyEvent.KEYCODE_UNKNOWN;
+        if (controlsHud != null) controlsHud.suspend();
+        saveProgress();
+        if (!active && !casting() && video != null && prepared) video.pause();
+        super.onPause();
+    }
     @Override protected void onResume() { super.onResume(); active = true; if (decoderPreparing && !casting() && !castWasActive) armPreparationTimeout(generation, video); updateBufferingWatchdog(generation, video); if (!casting() && prepared && !completed && !userPaused) video.start(); showControls(); }
     @Override protected void onSaveInstanceState(Bundle state) { savePlaybackState(state); super.onSaveInstanceState(state); }
     @Override protected void onDestroy() {
