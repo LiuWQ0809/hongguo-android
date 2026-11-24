@@ -8,6 +8,9 @@ JAVA_HOME="${JAVA_HOME:-/Applications/Android Studio.app/Contents/jbr/Contents/H
 JSON_JAR="${JSON_JAR:-$HOME/.m2/repository/com/vaadin/external/google/android-json/0.0.20131108.vaadin1/android-json-0.0.20131108.vaadin1.jar}"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 SRC="$SOURCE_ROOT/android/app/src/main/java/io/github/jackotom/hongguo/android"
+SDK_JAR="${SDK_JAR:-${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}/platforms/android-36/android.jar}"
+EXTRA=()
+if [[ -f "$SRC/LegacyFiles.java" ]]; then EXTRA+=("$SRC/LegacyFiles.java"); fi
 python3 "$HERE/update-download-harness.py" "$SRC/AppUpdater.java" "$TMP/UpdateDownloadHarness.java"
-"$JAVA_HOME/bin/javac" --release 17 -encoding UTF-8 -cp "$JSON_JAR" -d "$TMP/classes" "$SRC/UpdatePolicy.java" "$SRC/UpdateIntegrity.java" "$TMP/UpdateDownloadHarness.java"
+"$JAVA_HOME/bin/javac" --release 17 -encoding UTF-8 -cp "$JSON_JAR:$SDK_JAR" -d "$TMP/classes" "$SRC/UpdatePolicy.java" "$SRC/UpdateIntegrity.java" "${EXTRA[@]}" "$TMP/UpdateDownloadHarness.java"
 "$JAVA_HOME/bin/java" -cp "$TMP/classes:$JSON_JAR" io.github.jackotom.hongguo.android.UpdateDownloadHarness "$MODE"

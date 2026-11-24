@@ -31,12 +31,14 @@ def blocks(pattern):
    i+=1
  return out
 names=['automaticChecksEnabled','check','fetchManifest','download','transfer','open','verify','signerHashes','hex','live','finish','failed','stateWasReady','userError','cancel','destroy']
-if manifestModern:names+=['finishManifest','readManifest','nextManifestNonce']
+if manifestModern:
+ names+=['finishManifest','nextManifestNonce']
+ names+=['openUpdateFile','readUpdateJson'] if 'private JSONObject readUpdateJson' in source else ['readManifest']
 if modern:names+=['finishDownload','remainingTimeout','disconnect','liveDownload','transferSource','interruptedDownload']
 else:names+=['hashFile']
 methods=[]
 for name in names:
- found=blocks(r'^    (?:private )?(?:static )?(?:void|boolean|String|String\[\]|int|long|HttpURLConnection|DownloadAttempt|Candidate|byte\[\])\s+'+name+r'\([^;\n]*\)(?: throws [^\n{]+)?\s*\{')
+ found=blocks(r'^    (?:private )?(?:static )?(?:void|boolean|String|String\[\]|int|long|HttpURLConnection|DownloadAttempt|Candidate|JSONObject|byte\[\])\s+'+name+r'\([^;\n]*\)(?: throws [^\n{]+)?\s*\{')
  if not found:raise SystemExit('MISSING_ACTUAL_DOWNLOAD_METHOD '+name)
  methods+=found
 nested=[]
@@ -60,8 +62,8 @@ public final class UpdateDownloadHarness implements AutoCloseable {
  final class Host {final PackageManager pm=new PackageManager();final Deque<Runnable>ui=new ArrayDeque<>();void runOnUiThread(Runnable r){ui.addLast(r);}void flush(){while(!ui.isEmpty())ui.removeFirst().run();}PackageManager getPackageManager(){return pm;}String getPackageName(){return PKG;}}
  static final class Prefs{final Map<String,String>data=new HashMap<>();boolean writable=true,failCleanup;Runnable onCommit;Prefs edit(){return this;}Prefs putString(String k,String v){data.put(k,v);return this;}Prefs putLong(String k,long v){data.put(k,Long.toString(v));return this;}void apply(){}Prefs remove(String k){data.remove(k);return this;}boolean getBoolean(String k,boolean fallback){String v=data.get(k);return v==null?fallback:Boolean.parseBoolean(v);}String getString(String k,String fallback){if(failCleanup)throw new IllegalStateException("fixture cleanup prefs unavailable");return data.getOrDefault(k,fallback);}boolean commit(){if(onCommit!=null){Runnable action=onCommit;onCommit=null;action.run();}return writable;}}
  static final class Worker{void purge(){}void shutdownNow(){}}
- static final class Build{static final class VERSION{static int SDK_INT=35;}}
- static final class BuildConfig{static final boolean IS_TV=false;static final boolean NATIVE_UI=false;static final String VERSION_NAME="fixture";}
+ static final class Build{static final String[] SUPPORTED_ABIS={"arm64-v8a"};static final class VERSION{static int SDK_INT=35;}}
+ static final class BuildConfig{static final boolean IS_TV=false;static final boolean NATIVE_UI=false;static final String VERSION_NAME="fixture",APPLICATION_ID=PKG;}
  static final class UpdateInstallCheckpoint{static void release(Object owner){}}
  static final class Signature{final byte[]data;Signature(int value){data=new byte[]{(byte)value};}byte[]toByteArray(){return data;}}
  static final class SigningInfo{Signature[]signatures={new Signature(7)};Signature[]getApkContentsSigners(){return signatures;}}
