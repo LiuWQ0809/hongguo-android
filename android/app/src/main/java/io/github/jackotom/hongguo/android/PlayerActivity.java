@@ -32,9 +32,9 @@ public final class PlayerActivity extends Activity {
     private String danmakuNotice = "弹幕默认关闭，开启后只读匿名时间轴弹幕";
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService resolver = Executors.newSingleThreadExecutor();
-    private Future<?> resolution;
+    private Future<?> resolution, prefetch;
+    private int prefetchedIndex = -1;
     private final ExecutorService cacheWorker = Executors.newFixedThreadPool(2);
-    private final Set<String> caching = Collections.newSetFromMap(new ConcurrentHashMap<String,Boolean>());
     private VideoView video;
     private Object softLayer; private boolean softActive; private PreparedMedia adoptedMedia; private int softToken;
     private FrameLayout playerRoot;
@@ -458,7 +458,10 @@ public final class PlayerActivity extends Activity {
         return view.isShown() && view.getGlobalVisibleRect(bounds) && bounds.contains((int) x, (int) y);
     }
     private void switchBySwipe(int delta) {
-        if (current + delta >= 0 && current + delta < queue.size()) move(delta);
+        if (current + delta >= 0 && current + delta < queue.size()) {
+            if (prefetch != null && prefetchedIndex != current + delta) prefetch.cancel(true);
+            move(delta);
+        }
         else Toast.makeText(this, delta > 0 ? "已经是最后一集" : "已经是第一集", Toast.LENGTH_SHORT).show();
     }
     private void updateButtons() {
@@ -1143,36 +1146,27 @@ public final class PlayerActivity extends Activity {
             PlaybackCache.QueueWindow window = localWindow; if (window != null) { window.moveTo(current); window.prune(); }
         }); } catch (RejectedExecutionException ignored) { }
     }
-    private void cacheEpisode(String sid, JSONObject target, PlaybackSources.Plan plan, String targetQuality, int token) {
-        if (plan == null || destroyed || castWasActive || token != generation) return;
-        final int cacheToken = token, ceiling = plan.playbackCeiling;
-        String path = Uri.parse(plan.url).getPath(); if (path == null || path.toLowerCase(Locale.ROOT).endsWith(".m3u8")) return;
-        String key = sid + ":" + target.optString("vid") + ":" + target.optInt("index") + ":" + targetQuality + ":" + ceiling;
-        if (!caching.add(key)) return;
-        try { cacheWorker.execute(() -> {
-            try { if (!destroyed && !castWasActive && cacheToken == generation) cache.fetch(sid, target.optString("vid"), target.optInt("index"), plan, targetQuality); }
-            catch (Exception ignored) { /* A cache miss never interrupts streaming. */ }
-            finally { caching.remove(key); main.post(this::pruneCache); }
-        }); } catch (RejectedExecutionException ignored) { caching.remove(key); }
-    }
     private void schedulePrefetch(int token) {
         int nextIndex = current + 1; if (nextIndex >= queue.size() || destroyed || castWasActive) return;
         final String targetQuality = actualQuality;
         final int targetCeiling = stageCeiling(targetQuality, automaticCeiling);
         JSONObject following = queue.get(nextIndex); final String sid = owner(following).optString("seriesId");
-        String key = "resolve:" + sid + ":" + following.optString("vid") + ":" + following.optInt("index") + ":" + targetQuality + ":" + targetCeiling;
-        if (!caching.add(key)) return;
-        try { cacheWorker.execute(() -> {
+        if (prefetch != null) prefetch.cancel(true);
+        prefetchedIndex = nextIndex;
+        try { prefetch = cacheWorker.submit(() -> {
             try {
                 if (token != generation || destroyed || !autoplay || castWasActive) return;
                 if (cache.find(sid, following.optString("vid"), following.optInt("index"), targetQuality, targetCeiling) != null
                         || (targetCeiling == 0 && "auto".equals(targetQuality) && downloaded(following) != null)) return;
                 PlaybackSources.Plan plan = PlaybackSources.resolvePlayback(sid, following.optString("vid"), targetQuality, targetCeiling, false, false, RegisteredPlaybackLookup.SPECULATIVE);
-                if (token == generation && !destroyed && !castWasActive && autoplay && actualQuality.equals(targetQuality)
-                        && stageCeiling(actualQuality, automaticCeiling) == targetCeiling) cacheEpisode(sid, following, plan, targetQuality, token);
+                String path = Uri.parse(plan.url).getPath();
+                if (path != null && !path.toLowerCase(Locale.ROOT).endsWith(".m3u8")
+                        && token == generation && !destroyed && !castWasActive && autoplay && actualQuality.equals(targetQuality)
+                        && stageCeiling(actualQuality, automaticCeiling) == targetCeiling)
+                    cache.fetch(sid, following.optString("vid"), following.optInt("index"), plan, targetQuality);
             } catch (Exception ignored) { /* The next episode is checked again when requested. */ }
-            finally { caching.remove(key); }
-        }); } catch (RejectedExecutionException ignored) { caching.remove(key); }
+            finally { main.post(this::pruneCache); }
+        }); } catch (RejectedExecutionException ignored) { }
     }
     private static String format(int millis) { int seconds = Math.max(0, millis / 1000); return String.format(Locale.ROOT, "%02d:%02d", seconds / 60, seconds % 60); }
     private final Runnable tick = new Runnable() { public void run() {
