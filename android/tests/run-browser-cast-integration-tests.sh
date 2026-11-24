@@ -13,7 +13,7 @@ SRC="$SOURCE_ROOT/android/app/src/main/java/io/github/jackotom/hongguo/android"
 if [[ ! -f "$SRC/BrowserCastServer.java" || ! -f "$SRC/BrowserCastSession.java" ]]; then echo 'BROWSER_CAST_INTEGRATION_UNSUPPORTED productionBrowserCast=absent'; exit 3; fi
 TMP="$(mktemp -d -t hongguo-browser-cast-integration.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
-"$JAVA_HOME/bin/javac" --release 17 -encoding UTF-8 -cp "$JSON_JAR:$SDK_JAR" -d "$TMP/classes" "$SRC/MediaQuality.java" "$SRC/DlnaSession.java" "$SRC/DlnaPrefetch.java" "$SRC/PlaybackCachePolicy.java" "$SRC/LegacyFiles.java" "$SRC/BrowserCastServer.java" "$SRC/BrowserCastSession.java" "$HERE/BrowserCastIntegrationTest.java"
+"$JAVA_HOME/bin/javac" --release 17 -encoding UTF-8 -cp "$JSON_JAR:$SDK_JAR" -d "$TMP/classes" "$SRC/MediaQuality.java" "$SRC/DlnaSession.java" "$SRC/DlnaPrefetch.java" "$SRC/PlaybackCachePolicy.java" "$SRC/LegacyFiles.java" "$SRC/LegacyText.java" "$SRC/BrowserCastServer.java" "$SRC/BrowserCastSession.java" "$HERE/BrowserCastIntegrationTest.java"
 if [[ -n "$SERVE" ]]; then
   "$JAVA_HOME/bin/java" -cp "$TMP/classes:$JSON_JAR:$SDK_JAR" io.github.jackotom.hongguo.android.BrowserCastIntegrationTest --serve "$SERVE" "$SOURCE_ROOT/android/app/src/main/assets/receiver"
 else

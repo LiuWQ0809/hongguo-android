@@ -96,7 +96,11 @@ final class UpdatePolicy {
             super(url,label); this.proxyHost=proxyHost; this.canonical=canonical;
         }
         boolean allows(String value) {
-            if (proxyHost == null) return allowedRedirect(value);
+            if (proxyHost == null) {
+                if (!allowedRedirect(value)) return false;
+                URI target = URI.create(value);
+                return !canonical.contains(LOCAL_RELEASES) || !"github.com".equals(target.getHost()) || canonical.equals(value);
+            }
             try {
                 URI uri=URI.create(value), origin=URI.create(canonical);
                 if (!"https".equals(uri.getScheme()) || (uri.getPort()!=-1 && uri.getPort()!=443)

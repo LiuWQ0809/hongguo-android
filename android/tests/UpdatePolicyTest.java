@@ -75,6 +75,9 @@ public final class UpdatePolicyTest {
   UpdatePolicy.validateLocal(1,"com.hongguo.android",51,localVersion,26,100,hash,archive,35); checks++;
   bad(()->UpdatePolicy.validateLocal(1,pkg,51,localVersion,26,100,hash,archive,35));
   yes(UpdatePolicy.downloadSources(archive).size()==1);
+  var delivery=UpdatePolicy.downloadSources(archive).get(0);
+  yes(delivery.allows(archive) && !delivery.allows(archive.replace("LiuWQ0809","foreign")));
+  yes(delivery.allows("https://release-assets.githubusercontent.com/github-production-release-asset/file?token=example"));
   bad(()->UpdatePolicy.downloadSources(archive.replace("LiuWQ0809","foreign")));
   var sources=UpdatePolicy.manifestSources("local-phone",5);
   yes(sources.size()==1 && sources.get(0).allows(sources.get(0).url));
