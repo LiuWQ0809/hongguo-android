@@ -38,7 +38,8 @@ function appQuality(info, quality) {
   if (quality !== 'auto' && rows.some(row =>
     !['app', 'api'].includes(row.source ?? info.source) ||
     !Number.isSafeInteger(row.width) || !Number.isSafeInteger(row.height) ||
-    row.width <= 0 || row.height <= 0 || Math.min(row.width, row.height) < Number.parseInt(quality, 10))) {
+    row.width <= 0 || row.height <= 0 || Math.min(row.width, row.height) < Number.parseInt(quality, 10) ||
+    quality === '2160p' && Math.max(row.width, row.height) < 3840)) {
     throw error(`本集暂无尺寸可确认且满足 ${quality} 的片源，未降级。`, 'QUALITY_UNAVAILABLE');
   }
   return { ...info, requestedQuality: quality, ...(Array.isArray(info.variants)

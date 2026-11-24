@@ -7,7 +7,7 @@ public final class QualityCacheTest {
     static int checks;
     static void check(boolean value,String label) { checks++; if(!value)throw new AssertionError(label); }
     public static void main(String[] args)throws Exception {
-        for(String q:new String[]{"auto","720p","1080p"})check(MediaQuality.normalize(q).equals(q),"enum");
+        for(String q:new String[]{"auto","720p","1080p","2160p"})check(MediaQuality.normalize(q).equals(q),"enum");
         check(MediaQuality.normalize(null).equals("auto"),"null default");
         for(String q:new String[]{"","4k","1080","AUTO","720P","../auto"}){try{MediaQuality.normalize(q);throw new AssertionError("invalid enum");}catch(IllegalArgumentException expected){checks++;}}
         check(MediaQuality.meets(0,0,"auto"),"auto no invented dimensions");
@@ -15,6 +15,10 @@ public final class QualityCacheTest {
         check(MediaQuality.meets(720,1280,"720p"),"portrait720");
         check(!MediaQuality.meets(720,1280,"1080p"),"do not call long edge1080p");
         check(MediaQuality.meets(1920,1080,"1080p"),"landscape1080");
+        check(MediaQuality.meets(3840,2160,"2160p"),"landscape UHD");
+        check(MediaQuality.meets(2160,3840,"2160p"),"portrait UHD");
+        check(!MediaQuality.meets(2160,2880,"2160p"),"require both UHD edges");
+        check(!MediaQuality.meets(3840,1080,"2160p"),"long edge alone is insufficient");
         check(MediaQuality.cacheVid("1004","auto").equals("1004|quality=auto|complete=2"),"auto complete-source identity excludes legacy preview");
         check(new HashSet<>(Arrays.asList(MediaQuality.cacheVid("1004","auto"),MediaQuality.cacheVid("1004","720p"),MediaQuality.cacheVid("1004","1080p"))).size()==3,"all quality namespaces distinct");
         File dir=Files.createTempDirectory("hongguo-quality-cache-").toFile();

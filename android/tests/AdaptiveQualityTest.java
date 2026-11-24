@@ -19,6 +19,9 @@ public final class AdaptiveQualityTest {
   alive[0]=true;calls.clear();try{AdaptiveQuality.prepare("1080p",q->{calls.add(q);alive[0]=false;throw new IOException("403");},e->true,()->alive[0],(q,n,e)->{},v->{});throw new AssertionError("not cancelled");}catch(InterruptedIOException expected){check(calls.size()==1,"cancel after exhausted stage prevents next lower network work");}
   calls.clear();try{AdaptiveQuality.prepare("1080p",q->{calls.add(q);return q;},e->true,()->true,(q,n,e)->Thread.currentThread().interrupt(),v->{});throw new AssertionError("not cancelled");}catch(InterruptedIOException expected){check(calls.isEmpty(),"interrupt during progress checked before transfer");}finally{Thread.interrupted();}
   check(AdaptiveQuality.next("auto").equals("720p")&&AdaptiveQuality.next("720p").equals("480p")&&AdaptiveQuality.next("360p")==null&&AdaptiveQuality.next("1080p").equals("720p"),"no upshift/cycle");
-  System.out.println("PASS AdaptiveQualityTest checks="+checks+" actualCoordinator=true stagesMax=4 transportBoundary=doubles cancellation=true networkRequests=0");
+  calls.clear();r=run("2160p",new HashSet<>(Arrays.asList("2160p","1080p","720p","480p")),calls);
+  check(calls.equals(Arrays.asList("2160p","1080p","720p","480p","360p"))&&r.stages==5,"4K can take all five stages");
+  check(AdaptiveQuality.ceiling("1080p")==2159,"4K fallback caps 1080p below UHD");
+  System.out.println("PASS AdaptiveQualityTest checks="+checks+" actualCoordinator=true stagesMax=5 transportBoundary=doubles cancellation=true networkRequests=0");
  }
 }
