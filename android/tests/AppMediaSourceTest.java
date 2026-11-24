@@ -64,6 +64,15 @@ public final class AppMediaSourceTest {
             row(encoded("h264-480"), "h264", "480p", 854, 480, null),
             row(encoded("hevc-720"), "hevc", "720p", 1280, 720, KEY_B)), "auto", 1080);
         check(inCeiling.getString("url").equals(url("hevc-720")), "bounded prefers the largest rung within a wide ceiling");
+        JSONObject mixedSizes = model(
+            row(encoded("same-short-edge"), "h264", "4k", 2160, 2880, null),
+            row(encoded("portrait-uhd"), "hevc", "4k", 2160, 3840, KEY_B),
+            row(encoded("h264-1080"), "h264", "1080p", 1920, 1080, KEY_A),
+            row(encoded("h264-480"), "h264", "480p", 854, 480, null));
+        JSONObject uhd = resolve(mixedSizes, "2160p", null);
+        check(uhd.getString("url").equals(url("portrait-uhd")) && !uhd.has("variants"), "only native UHD rows accepted");
+        JSONObject fallback = resolve(mixedSizes, "1080p", 2159);
+        check(fallback.getString("url").equals(url("h264-1080")) && !fallback.has("variants"), "bounded stage respects both limits");
         // fixed 720p: only confirmed ≥720 rows, min size ascending
         JSONObject fixed = resolve(model(
             row(encoded("h264-1080"), "h264", "1080p", 1920, 1080, KEY_A),

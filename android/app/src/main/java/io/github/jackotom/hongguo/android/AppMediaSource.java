@@ -81,7 +81,7 @@ final class AppMediaSource {
             String label = label(row, meta);
             int pixels = size[0] > 0 && size[1] > 0 ? Math.min(size[0], size[1]) : digits(label);
             if (bounded && (size[0] <= 0 || size[1] <= 0 || ceiling != null && pixels > ceiling)) continue;
-            if (!bounded && !quality.equals("auto") && !MediaQuality.meets(size[0], size[1], quality)) continue;
+            if (!quality.equals("auto") && !MediaQuality.meets(size[0], size[1], quality)) continue;
             ranked.add(new Object[]{ row, rank, pixels, size[0], size[1], label });
         }
         // Highest short edge first for bounded and auto: the video_tab model lists

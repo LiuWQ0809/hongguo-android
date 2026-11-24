@@ -948,7 +948,7 @@ public final class PlayerActivity extends Activity {
             try {
                 AdaptiveQuality.Result<PreparedMedia> result = AdaptiveQuality.prepare(startQuality,
                     stageQuality -> prepareMedia(job.episode, stageQuality, null, !stageQuality.equals(job.quality) || job.ceiling > 0, false, false, stageQuality.equals(job.quality) ? job.ceiling : stageCeiling(stageQuality, job.ceiling > 0 ? job.ceiling : AdaptiveQuality.ceiling(stageQuality)), job.window, job.generation, false),
-                    PlaybackSources::canRecoverPlayback, () -> validSwitch(job),
+                    error -> !"2160p".equals(job.quality) && PlaybackSources.canRecoverPlayback(error), () -> validSwitch(job),
                     (stageQuality, stage, error) -> main.post(() -> { if (validSwitch(job)) { status.setText((stage == 1 && startQuality.equals(job.quality) ? "后台准备 " : "当前档多次失败 · 自动降低至 ") + qualityLabel(stageQuality) + " 视频…；当前播放保持"); showControls(); } }), this::releasePrepared);
                 PreparedMedia media = result.value;
                 main.post(() -> {
@@ -996,7 +996,7 @@ public final class PlayerActivity extends Activity {
         return validSwitch(job) && job.view == candidate && job.media == stageMedia;
     }
     private boolean lowerQualitySwitch(QualitySwitch job, String reason) {
-        if (!validSwitch(job) || job.media == null) return false;
+        if (!validSwitch(job) || job.media == null || "2160p".equals(job.quality)) return false;
         String lower = AdaptiveQuality.next(job.media.quality, job.observedShortEdge); if (lower == null) return false;
         int lowerCeiling = AdaptiveQuality.ceiling(lower);
         if (job.observedShortEdge > 0) lowerCeiling = Math.min(lowerCeiling, job.observedShortEdge - 1);
