@@ -751,8 +751,8 @@ function About({ info, notify, accountFocus, announcementsRef, juguoSettings }) 
   const external = async (url) => { try { await nativeCall('openExternal', { url }); } catch (error) { notify(errorText(error)); } };
   return <>
     <header className="page-heading"><h1>关于红果短剧</h1><p>适配手机触控与电视遥控器。</p></header>
-    <AccountPanel isTv={!!info.isTv} focusRequest={accountFocus} />
     <UpdatePanel />
+    <AccountPanel isTv={!!info.isTv} focusRequest={accountFocus} />
     <AnnouncementSettings announcementsRef={announcementsRef} notify={notify} />
     {juguoSettings && <JuguoSettings config={juguoSettings} />}
     <section className="about-section"><h2>应用信息</h2><dl><div><dt>版本</dt><dd>{info.version || '读取中'}</dd></div><div><dt>设备</dt><dd>{info.isTv ? 'Android TV' : 'Android 手机 / 平板'}</dd></div></dl></section>
