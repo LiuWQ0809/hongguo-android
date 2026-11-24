@@ -358,6 +358,8 @@ final class AppUpdater {
             try {
                 current.setInstanceFollowRedirects(false); current.setConnectTimeout(remainingTimeout(deadline,8000)); current.setReadTimeout(remainingTimeout(deadline,15000));
                 current.setRequestProperty("Accept-Encoding", "identity"); current.setRequestProperty("Cache-Control", "no-cache"); current.setRequestProperty("User-Agent", "HongguoAndroid/" + BuildConfig.VERSION_NAME);
+                if (UpdatePolicy.ReleaseApiSource.isAssetEndpoint(address))
+                    current.setRequestProperty("Accept", "application/octet-stream");
                 live(operation); if (attempt != null) liveDownload(operation,attempt);
                 int status=current.getResponseCode(); live(operation);
                 if (attempt != null) liveDownload(operation,attempt); else remainingTimeout(deadline,15000);
@@ -378,19 +380,23 @@ final class AppUpdater {
     private static long nextManifestNonce(){return manifestNonces.updateAndGet(previous->Math.max(System.currentTimeMillis(),previous+1));}
     private Candidate fetchManifest(long operation) throws Exception {
         long deadline=SystemClock.elapsedRealtime()+60000;
-        List<UpdatePolicy.ManifestSource> sources=UpdatePolicy.manifestSources(BuildConfig.NATIVE_UI?"tvnative":BuildConfig.IS_TV?"tv":"local-phone",nextManifestNonce());
+        boolean local = UpdatePolicy.LOCAL_PACKAGE.equals(BuildConfig.APPLICATION_ID);
+        List<UpdatePolicy.Source> sources = new ArrayList<>(UpdatePolicy.manifestSources(
+                BuildConfig.NATIVE_UI ? "tvnative" : BuildConfig.IS_TV ? "tv" : local ? "local-phone" : "phone", nextManifestNonce()));
+        if (local)
+            sources.add(new UpdatePolicy.ReleaseApiSource(null, "update.json"));
         Candidate current=null;Exception last=null;int attempted=0;
         for(int index=0;index<sources.size();index++){
             live(operation);
             if(SystemClock.elapsedRealtime()>=deadline){last=new SocketTimeoutException();break;}
-            UpdatePolicy.ManifestSource source=sources.get(index);
+            UpdatePolicy.Source source=sources.get(index);
             long routeDeadline=Math.min(deadline,SystemClock.elapsedRealtime()+(index+1==sources.size()?20000:9000));
             DownloadAttempt attempt=new DownloadAttempt(++manifestAttempt,routeDeadline,source,index+1,sources.size());
             attempted++;
             finishManifest(operation,attempt.serial,()->{checkSource=source.label;checkRouteIndex=attempt.route;checkRouteCount=attempt.total;message="正在通过 "+source.label+" 检查更新（线路 "+attempt.route+"/"+attempt.total+"）";publish();});
             ScheduledFuture<?> timeout=deadlines.schedule(()->{attempt.expired=true;HttpURLConnection active=attempt.connection;if(active!=null)active.disconnect();},Math.max(1,routeDeadline-SystemClock.elapsedRealtime()),TimeUnit.MILLISECONDS);
             try{
-                Candidate parsed=Candidate.parse(new JSONObject(new String(readManifest(operation,attempt),StandardCharsets.UTF_8)),installedCode,installedName);
+                Candidate parsed = Candidate.parse(readUpdateJson(openUpdateFile(operation, attempt, false), operation, attempt), installedCode, installedName);
                 liveDownload(operation,attempt);
                 if(parsed.code>installedCode)return parsed;
                 current=parsed; // A cached current version must not hide a newer version on another route.
@@ -406,15 +412,34 @@ final class AppUpdater {
         if(current!=null&&attempted==sources.size())return current;
         throw new IOException("未取得有效的更新信息；"+userError(last==null?new SocketTimeoutException():last),last);
     }
-    private byte[] readManifest(long operation,DownloadAttempt attempt) throws Exception {
-        HttpURLConnection current=open(attempt.source.url,operation,attempt.deadline,false,attempt);
+    private HttpURLConnection openUpdateFile(long operation, DownloadAttempt attempt, boolean apkFile) throws Exception {
+        String address = attempt.source.url;
+        if (attempt.source instanceof UpdatePolicy.ReleaseApiSource) {
+            UpdatePolicy.ReleaseApiSource api = (UpdatePolicy.ReleaseApiSource) attempt.source;
+            JSONObject release = readUpdateJson(open(address, operation, attempt.deadline, false, attempt), operation, attempt);
+            String tag = release.getString("tag_name");
+            if (release.getBoolean("draft") || release.getBoolean("prerelease") || !api.acceptsTag(tag))
+                throw new IOException("更新附件必须来自正式发布");
+            JSONArray assets = release.getJSONArray("assets");
+            address = null;
+            for (int index = 0; index < assets.length(); index++) {
+                JSONObject asset = assets.getJSONObject(index);
+                if (!api.file.equals(asset.getString("name"))) continue;
+                address = api.assetUrl(tag, asset.getString("browser_download_url"), asset.getLong("id"));
+                break;
+            }
+            if (address == null) throw new IOException("正式发布缺少更新附件");
+        }
+        return open(address, operation, attempt.deadline, apkFile, attempt);
+    }
+    private JSONObject readUpdateJson(HttpURLConnection current, long operation, DownloadAttempt attempt) throws Exception {
         try{
             liveDownload(operation,attempt);
             try(InputStream input=current.getInputStream();ByteArrayOutputStream output=new ByteArrayOutputStream()){
                 long declared=current.getContentLength();if(declared>128*1024)throw new IOException("更新清单过大");
                 byte[] buffer=new byte[4096];int n;
                 for(;;){liveDownload(operation,attempt);current.setReadTimeout(remainingTimeout(attempt.deadline,15000));n=input.read(buffer);liveDownload(operation,attempt);if(n<0)break;if(output.size()+n>128*1024)throw new IOException("更新清单过大");output.write(buffer,0,n);}
-                return output.toByteArray();
+                return new JSONObject(new String(output.toByteArray(), StandardCharsets.UTF_8));
             }
         }finally{disconnect(current,attempt);}
     }
@@ -427,11 +452,13 @@ final class AppUpdater {
     /** Each source is a fresh complete download and full archive verification, never byte concatenation. */
     private DownloadAttempt transfer(Candidate target, long operation) throws Exception {
         long deadline=SystemClock.elapsedRealtime()+240000;
-        List<UpdatePolicy.DownloadSource> sources=UpdatePolicy.downloadSources(target.url);
+        List<UpdatePolicy.Source> sources = new ArrayList<>(UpdatePolicy.downloadSources(target.url));
+        if (UpdatePolicy.LOCAL_PACKAGE.equals(BuildConfig.APPLICATION_ID))
+            sources.add(new UpdatePolicy.ReleaseApiSource(target.name, "hongguo-android-" + target.name + ".apk"));
         Exception last=null;
         for(int index=0;index<sources.size();index++) {
             live(operation); remainingTimeout(deadline,15000);
-            UpdatePolicy.DownloadSource source=sources.get(index);
+            UpdatePolicy.Source source=sources.get(index);
             long routeDeadline=index+1==sources.size()?deadline:Math.min(deadline,SystemClock.elapsedRealtime()+45000);
             DownloadAttempt attempt=new DownloadAttempt(++downloadAttempt,routeDeadline,source,index+1,sources.size());
             final int route=index+1;
@@ -455,11 +482,11 @@ final class AppUpdater {
                 HttpURLConnection active=attempt.connection;if(active!=null)disconnect(active,attempt);
             }
         }
-        throw new IOException("5 条更新下载线路均未完成，请检查网络后重试；"+userError(last),last);
+        throw new IOException(sources.size()+" 条更新下载线路均未完成，请检查网络后重试；"+userError(last),last);
     }
     private void transferSource(Candidate target, long operation, DownloadAttempt attempt) throws Exception {
         final long[] lastProgress={0};
-        HttpURLConnection current=open(attempt.source.url,operation,attempt.deadline,true,attempt);
+        HttpURLConnection current = openUpdateFile(operation, attempt, true);
         try {
           liveDownload(operation,attempt);
           try(InputStream input=current.getInputStream();FileOutputStream output=new FileOutputStream(partial)) {
@@ -504,6 +531,7 @@ final class AppUpdater {
                 String hash = value.getString("sha256").toLowerCase(Locale.ROOT), url = value.getString("apkUrl");
                 long size = integer(value, "sizeBytes");
                 UpdatePolicy.validateLocal(schema, pkg, code, name, min, size, hash, url, Build.VERSION.SDK_INT);
+                if (code < installedCode) throw new JSONException("更新清单版本早于当前版本，请稍后重试");
                 if (code == installedCode && !name.equals(installedName)) throw new JSONException("更新版本信息不一致");
                 String notes = value.optString("notes", "");
                 return new Candidate(new JSONObject(value.toString()), code, name, min, size, url, hash, notes.substring(0, Math.min(4000, notes.length())));
