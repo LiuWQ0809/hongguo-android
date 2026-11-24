@@ -282,11 +282,11 @@ public final class AppSource {
     static void setPlaybackTabForTest(PlaybackTab tab) { playbackTab = tab == null ? AppSource::getTabModel : tab; }
     interface SinglePlayback { Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity) throws Exception; }
     private static SinglePlayback singlePlayback = AppSource::fetchPrimary;
-    private static SinglePlayback playbackTabV5 = AppSource::fetchTabV5;
+    private static SinglePlayback playbackTabV5 = AppSource::fetchNativeV5;
     private static boolean useLegacySingle = true;
     private static boolean useTabV5 = true;
     static void setPlaybackTabV5ForTest(SinglePlayback playback) {
-        playbackTabV5 = playback == null ? AppSource::fetchTabV5 : playback;
+        playbackTabV5 = playback == null ? AppSource::fetchNativeV5 : playback;
         useTabV5 = true;
     }
     static void setSinglePlaybackForTest(SinglePlayback playback) {
@@ -634,6 +634,18 @@ public final class AppSource {
         }
     }
 
+    private static Stream.VideoTrack fetchNativeV5(String vid, String quality, PlaybackDevice.Identity identity)
+            throws Exception {
+        try {
+            return fetchV5Post(vid, quality, com.hongguo.api.playback.PlaybackPreloadV5.request(
+                    vid, identity.deviceId, identity.iid, identity.cdid, System.currentTimeMillis()));
+        } catch (Exception preload) {
+            if (isPlaybackCancelled(preload) || preload instanceof PlaybackRejectedException) throw preload;
+            try { return fetchTabV5(vid, quality, identity); }
+            catch (Exception tab) { tab.addSuppressed(preload); throw tab; }
+        }
+    }
+
     /** 使用无正文 v5 签名读取当前分集模型。 */
     private static Stream.VideoTrack fetchTabV5(String vid, String quality, PlaybackDevice.Identity identity)
             throws Exception {
@@ -662,6 +674,11 @@ public final class AppSource {
             throws Exception {
         com.hongguo.api.playback.MobilePlayerV5.Request signed =
                 com.hongguo.api.playback.MobilePlayerV5.request(vid, identity.deviceId, identity.iid, identity.cdid, System.currentTimeMillis());
+        return fetchV5Post(vid, quality, signed);
+    }
+
+    private static Stream.VideoTrack fetchV5Post(String vid, String quality,
+                                                com.hongguo.api.playback.MobilePlayerV5.Request signed) throws Exception {
         Http.Req req = new Http.Req(signed.getUrl()).method("POST").timeout(15000);
         req.followRedirect = false;
         for (Map.Entry<String, String> header : signed.getHeaders().entrySet()) req.header(header.getKey(), header.getValue());
@@ -688,6 +705,7 @@ public final class AppSource {
         if (code == null || Json.optInt(code, -1) != 0) throw new IllegalStateException("播放接口暂未提供播放信息");
         Map<String, Object> data = Json.optObj(root.get("data"));
         Map<String, Object> nested = data == null ? null : Json.optObj(data.get("1004"));
+        if (nested == null && data != null) nested = Json.optObj(data.get("video_model_data"));
         Map<String, Object> entries = nested == null ? data : nested;
         if (entries == null || !entries.containsKey(vid)) throw new IllegalStateException("当前分集未返回播放信息");
         Map<String, Object> result = Json.obj(); result.put("code", 0L); result.put("data", entries);
