@@ -28,7 +28,7 @@ public final class BackgroundPlaybackService extends Service {
     private MediaPlayer player;
     private MediaSession media;
     private PowerManager.WakeLock preparingWake;
-    private final Runnable preparationTimeout = () -> { if (!ready) park(); };
+    private final Runnable preparationTimeout = () -> { if (!this.ready) park(); };
     private LibraryStore store;
     private boolean ready;
     private final Runnable checkpoint = new Runnable() {

@@ -3,7 +3,6 @@ package io.github.jackotom.hongguo.android;
 import android.app.*;
 import android.content.*;
 import android.content.res.Configuration;
-import android.database.Cursor;
 import android.net.Uri;
 import android.media.MediaPlayer;
 import android.os.*;
@@ -954,27 +953,7 @@ public final class PlayerActivity extends Activity {
         } catch (Exception error) { failQualitySwitch(job, error.getMessage()); }
     }
     private Uri downloaded(JSONObject target) throws Exception {
-        DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE); JSONArray records = store.downloads();
-        for (int i = 0; i < records.length(); i++) {
-            JSONObject row = records.optJSONObject(i); if (row == null) continue;
-            JSONObject s = row.optJSONObject("series"), e = row.optJSONObject("episode");
-            if (s == null || e == null || !s.optString("seriesId").equals(owner(target).optString("seriesId")) || !e.optString("vid").equals(target.optString("vid"))) continue;
-            File preparedFile = LibraryStore.preparedFile(this, row);
-            if (preparedFile != null) return Uri.fromFile(preparedFile);
-            if (row.has("preparedFile")) continue;
-            long id = row.optLong("id", -1);
-            try (Cursor cursor = manager.query(new DownloadManager.Query().setFilterById(id))) {
-                if (cursor != null && cursor.moveToFirst() && cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)) == DownloadManager.STATUS_SUCCESSFUL) {
-                    Uri uri = manager.getUriForDownloadedFile(id);
-                    if (uri != null && "content".equals(uri.getScheme())) {
-                        try (ParcelFileDescriptor file = getContentResolver().openFileDescriptor(uri, "r")) {
-                            if (file != null) return uri;
-                        } catch (Exception ignored) { /* Try another completed copy, then stream/cache. */ }
-                    }
-                }
-            }
-        }
-        return null;
+        return LocalDownloadLookup.find(this, owner(target).optString("seriesId"), target.optString("vid"));
     }
     private void playbackError(int token, String message) {
         if (destroyed || token != generation || isFinishing()) return;
