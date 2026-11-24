@@ -4,11 +4,12 @@ package io.github.jackotom.hongguo.android;
 final class MediaQuality {
     static String normalize(String value) {
         if(value==null) return "auto";
-        if(!value.equals("auto")&&!value.equals("720p")&&!value.equals("1080p")&&!value.equals("480p")&&!value.equals("360p")) throw new IllegalArgumentException("播放清晰度无效");
+        if(!value.equals("auto")&&!value.equals("720p")&&!value.equals("1080p")&&!value.equals("2160p")&&!value.equals("480p")&&!value.equals("360p")) throw new IllegalArgumentException("播放清晰度无效");
         return value;
     }
     static boolean meets(int width,int height,String quality) {
         quality=normalize(quality);
+        if ("2160p".equals(quality)) return Math.min(width, height) >= 2160 && Math.max(width, height) >= 3840;
         return quality.equals("auto") || width>0&&height>0&&Math.min(width,height)>=Integer.parseInt(quality.substring(0,quality.length()-1));
     }
     static String cacheVid(String vid,String quality) {

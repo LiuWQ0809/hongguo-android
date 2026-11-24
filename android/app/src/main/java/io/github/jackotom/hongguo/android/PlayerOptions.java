@@ -27,7 +27,7 @@ final class PlayerOptions {
         return "auto";
     }
     static String quality(String input) {
-        if (!"auto".equals(input) && !"720p".equals(input) && !"1080p".equals(input)) throw new IllegalArgumentException("清晰度仅支持自动、720p 或 1080p");
+        if (!"auto".equals(input) && !"720p".equals(input) && !"1080p".equals(input) && !"2160p".equals(input)) throw new IllegalArgumentException("清晰度仅支持自动、720p、1080p 或 4K");
         return input;
     }
     static float speed(double input) {

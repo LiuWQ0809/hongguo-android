@@ -27,7 +27,7 @@ function requireCategory(value) {
   return value;
 }
 function requireQuality(value = 'auto') {
-  if (!['auto', '720p', '1080p'].includes(value)) throw error('清晰度无效，请选择自动、720p 或 1080p', 'INVALID_INPUT');
+  if (!['auto', '720p', '1080p', '2160p'].includes(value)) throw error('清晰度无效，请选择自动、720p、1080p 或 4K', 'INVALID_INPUT');
   return value;
 }
 function appQuality(info, quality) {

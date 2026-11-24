@@ -841,7 +841,9 @@ public final class PlayerActivity extends Activity {
         loadAtInternal(current, null, position, wasPaused, true, wasWeb);
         currentKind = "当前档播放未成功 · 自动降低至 " + qualityLabel(lower); renderStatus(); return true;
     }
-    private static String qualityLabel(String value) { return "auto".equals(value) ? "自动" : value; }
+    private static String qualityLabel(String value) {
+        return "auto".equals(value) ? "自动" : "2160p".equals(value) ? "4K" : value;
+    }
     private static String rateLabel(float value) { return String.format(Locale.ROOT, "%s×", value == (int) value ? Integer.toString((int) value) : Float.toString(value)); }
     private void renderStatus() {
         updateFullscreen();
@@ -888,7 +890,8 @@ public final class PlayerActivity extends Activity {
     }
     private void selectQuality() {
         if (!prepared || offline) return;
-        String[] values = { "auto", "720p", "1080p" }, labels = { "自动 · 可用片源", "720p · 实际短边至少 720", "1080p · 实际短边至少 1080" };
+        String[] values = { "auto", "720p", "1080p", "2160p" };
+        String[] labels = { "自动 · 可用片源", "720p · 实际短边至少 720", "1080p · 实际短边至少 1080", "4K · 片源和设备须支持" };
         int selected = Arrays.asList(values).indexOf(quality);
         showPlayerDialog(new AlertDialog.Builder(this).setTitle("清晰度 · 先准备，成功后切换").setSingleChoiceItems(labels, selected, (dialog, which) -> {
             dialog.dismiss(); if (!values[which].equals(quality) || !values[which].equals(actualQuality) || qualitySwitch != null) switchQuality(values[which]);

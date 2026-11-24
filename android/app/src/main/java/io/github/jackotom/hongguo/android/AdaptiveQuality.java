@@ -15,6 +15,7 @@ final class AdaptiveQuality {
     }
     static String next(String quality) {
         switch (MediaQuality.normalize(quality)) {
+            case "2160p": return "1080p";
             case "auto":
             case "1080p": return "720p";
             case "720p": return "480p";
@@ -25,6 +26,7 @@ final class AdaptiveQuality {
     /** Internal playback caps are below the previous nominal grade, never auto/highest. */
     static int ceiling(String quality) {
         switch (MediaQuality.normalize(quality)) {
+            case "1080p": return 2159;
             case "720p": return 1079;
             case "480p": return 719;
             case "360p": return 479;
@@ -44,7 +46,7 @@ final class AdaptiveQuality {
     }
     static <T> Result<T> prepare(String initial, Attempt<T> attempt, Eligible eligible, Alive alive, Progress progress, Discard<T> discard) throws Exception {
         String quality = MediaQuality.normalize(initial); Exception previous = null;
-        for (int stage = 1; stage <= 4; stage++) {
+        for (int stage = 1; stage <= 5; stage++) {
             check(alive); progress.changed(quality, stage, previous); check(alive);
             T value;
             try { value = attempt.prepare(quality); }
