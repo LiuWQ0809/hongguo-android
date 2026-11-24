@@ -374,6 +374,10 @@ final class PlaybackSignerV5 {
 
     /** who carries the same registered identity the query string carries; the server cross-checks both. */
     static String medusa(String url, byte[] body, long ts, Map<String, String> who) {
+        return medusa(url, body, ts, who, 377);
+    }
+
+    private static String medusa(String url, byte[] body, long ts, Map<String, String> who, int playbackStatus) {
         String query = url.substring(url.indexOf('?') + 1);
         byte[] bodyMd5 = body != null ? md5(body) : new byte[16];
         byte[] querySm3 = DanmakuSigner.sm3(query.getBytes(StandardCharsets.UTF_8));
@@ -389,7 +393,7 @@ final class PlaybackSignerV5 {
             str(6, LICENSE), str(7, who.get("version_name")), str(8, "v04.10.03-ml-android"), sint(9, 0x040a0300),
             field(10, flags), sint(12, ts), field(13, f13), field(14, copyOf(querySm3, 6)),
             field(15, concat(sint(1, 1), sint(2, 1), sint(3, 1), sint(5, 1))),
-            sint(17, ts), str(20, "none"), sint(21, 377), field(23, env),
+            sint(17, ts), str(20, "none"), sint(21, playbackStatus), field(23, env),
             str(24, "{\"cmr\":16777216,\"cmr2\":16777216,\"un_h\":11,\"vpn\":0,\"kd\":0,\"dyn\":\"\",\"do\":1,\"tk\":true}"));
         int nonce = rand();
         byte[] hash = DanmakuSigner.sm3(concat(SIGN_KEY, le32(unsigned(nonce)), SIGN_KEY));
@@ -436,6 +440,10 @@ final class PlaybackSignerV5 {
      * on class 12; emits only x-khronos/x-helios/x-medusa (+Content-Type/x-ss-stub for bodies).
      */
     static Request signPlayback(String base, Map<String, String> values, byte[] body, long now) {
+        return signPlayback(base, values, body, now, 377);
+    }
+
+    static Request signPlayback(String base, Map<String, String> values, byte[] body, long now, int playbackStatus) {
         long ts = now / 1000;
         Map<String, String> query = new LinkedHashMap<>(values);
         for (int offset = 0; offset < 1024; offset++) {
@@ -446,7 +454,7 @@ final class PlaybackSignerV5 {
                 Map<String, String> headers = new LinkedHashMap<>();
                 headers.put("x-khronos", Long.toString(ts));
                 headers.put("x-helios", helios(ts));
-                headers.put("x-medusa", medusa(url, body, ts, values));
+                headers.put("x-medusa", medusa(url, body, ts, values, playbackStatus));
                 if (body != null) {
                     headers.put("Content-Type", "application/json; charset=utf-8");
                     headers.put("x-ss-stub", hexText(md5(body)).toUpperCase());

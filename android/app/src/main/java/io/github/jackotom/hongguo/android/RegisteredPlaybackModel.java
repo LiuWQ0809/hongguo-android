@@ -26,7 +26,9 @@ final class RegisteredPlaybackModel implements AutoCloseable {
     }
     private final OfficialApiClient.Transport registration, modelTransport;
     private final DeviceBootstrap bootstrap, rotateBootstrap;
+    private static final String PRELOAD_API = "https://reading.snssdk.com/novel/player/multi_video_model/preload/v1";
     private final long deadline;
+    private boolean preloadEnabled;
     private final AtomicBoolean started = new AtomicBoolean();
     private volatile boolean closed;
     private volatile OfficialApiClient registering;
@@ -98,7 +100,10 @@ final class RegisteredPlaybackModel implements AutoCloseable {
     }
 
     RegisteredPlaybackModel() { this(System.nanoTime() + MAX_NANOS); }
-    RegisteredPlaybackModel(long deadline) { this(new OfficialTransport(), new ModelHttpTransport(), deadline); }
+    RegisteredPlaybackModel(long deadline) {
+        this(new OfficialTransport(), new ModelHttpTransport(), deadline);
+        preloadEnabled = true;
+    }
     RegisteredPlaybackModel(OfficialApiClient.Transport registration, OfficialApiClient.Transport modelTransport, long deadline) {
         this(registration, modelTransport, RegisteredPlaybackModel::cachedBootstrap, RegisteredPlaybackModel::freshBootstrap, deadline);
     }
@@ -301,6 +306,13 @@ final class RegisteredPlaybackModel implements AutoCloseable {
      * Returns null when the ladder is still hollow after the v5 POST answered empty —
      * the rotation signal. Any other v5 POST failure propagates unchanged. */
     private JSONObject resolve(String did, String iid, String cdid, String vid, String cookies) throws Exception {
+        if (preloadEnabled) {
+            try { return playerV5(did, iid, cdid, vid, true); }
+            catch (ModelError failed) {
+                check();
+                if (!recoverable(failed) && !"ECONNREFUSED".equals(failed.code)) throw failed;
+            } catch (IOException failed) { check(); }
+        }
         try { return videoTabV5(did, iid, cdid, vid); }
         catch (ModelError | java.util.zip.ZipException | java.io.EOFException tabFailure) { check(); }
         try { return playerV1(did, iid, cdid, vid); }
@@ -351,15 +363,23 @@ final class RegisteredPlaybackModel implements AutoCloseable {
     }
     /** v5 player request, second in the ladder: gzip JSON and no account/registration cookies. */
     private JSONObject playerV1(String did, String iid, String cdid, String vid) throws Exception {
-        Map<String, String> query = v5Query(did, iid, cdid);
+        return playerV5(did, iid, cdid, vid, false);
+    }
+    private JSONObject playerV5(String did, String iid, String cdid, String vid, boolean preload) throws Exception {
+        Map<String, String> query = preload ? query(did, iid, "74532", "7.4.5.32") : v5Query(did, iid, cdid);
+        if (preload) {
+            query.remove("dpi"); query.remove("resolution");
+            query.put("cdid", cdid); query.put("host_abi", "arm64-v8a");
+        }
         JSONObject payload = new JSONObject()
-            .put("biz_param", new JSONObject().put("detail_page_version", 0).put("device_level", 1).put("disable_digg_stat", false)
+            .put("biz_param", new JSONObject().put("detail_page_version", 0).put("device_level", preload ? 2 : 1).put("disable_digg_stat", false)
                 .put("disable_video_relate_book", false).put("need_all_video_definition", true).put("need_mp4_align", false)
                 .put("use_os_player", false).put("use_server_dns", false).put("video_platform", 1024))
             .put("mixed_video_id_map", new JSONObject().put("1004", new JSONArray().put(vid)))
-            .put("dr_scene", "player");
+            .put("dr_scene", preload ? "preload" : "player");
         byte[] body = gzip(payload.toString().getBytes(StandardCharsets.UTF_8));
-        PlaybackSignerV5.Request signed = PlaybackSignerV5.signPlayback(PlaybackSignerV5.PLAYER_V1_API, query, body, System.currentTimeMillis());
+        PlaybackSignerV5.Request signed = PlaybackSignerV5.signPlayback(preload ? PRELOAD_API : PlaybackSignerV5.PLAYER_V1_API,
+            query, body, System.currentTimeMillis(), preload ? 312 : 377);
         Map<String, String> headers = new LinkedHashMap<>(signed.headers);
         headers.put("User-Agent", PlaybackSignerV5.PLAYER_V1_UA);
         headers.put("Accept", "application/json");
@@ -373,7 +393,7 @@ final class RegisteredPlaybackModel implements AutoCloseable {
             throw new ModelError("App片源连接暂未建立，请重试", "ECONNREFUSED");
         }
         check();
-        traceV5("player/v1 vid=" + vid + " http=" + response.status + " bytes=" + response.body.length);
+        traceV5((preload ? "preload/v1 vid=" : "player/v1 vid=") + vid + " http=" + response.status + " bytes=" + response.body.length);
         // Per-attempt hollow bookkeeping (a deadline-killed fetch must still arm the
         // fast-fail): every empty v5 answer counts, every served one clears it.
         if (response.body.length == 0) noteHollowFetch(); else HOLLOW_STREAK.set(0);
@@ -567,7 +587,9 @@ final class RegisteredPlaybackModel implements AutoCloseable {
             // The v5 player/v1 form lives on the sinfonlinea host; everything else stays on sinfonlineb.
             boolean player = "/novel/player/multi_video_model/player/v1".equals(uri.getRawPath()) && request.method.equals("POST")
                 && "api5-normal-sinfonlinea.fqnovel.com".equals(uri.getHost());
-            if (!"https".equals(uri.getScheme()) || !player && !"api5-normal-sinfonlineb.fqnovel.com".equals(uri.getHost()) || !post && !tab && !player || uri.getPort() != -1 || uri.getUserInfo() != null || uri.getFragment() != null || request.body.length > 128 * 1024)
+            boolean preload = "reading.snssdk.com".equals(uri.getHost())
+                && "/novel/player/multi_video_model/preload/v1".equals(uri.getRawPath()) && request.method.equals("POST");
+            if (!"https".equals(uri.getScheme()) || !preload && !player && !"api5-normal-sinfonlineb.fqnovel.com".equals(uri.getHost()) || !post && !tab && !player && !preload || uri.getPort() != -1 || uri.getUserInfo() != null || uri.getFragment() != null || request.body.length > 128 * 1024)
                 throw new ModelError("App片源服务地址无效", "INVALID_INPUT");
             return uri;
         }
