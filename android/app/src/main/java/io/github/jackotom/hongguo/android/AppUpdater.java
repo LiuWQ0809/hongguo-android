@@ -195,7 +195,7 @@ final class AppUpdater {
                 finish(operation, () -> {
                     busy = false;
                     prefs.edit().putLong("last_checked", System.currentTimeMillis()).apply();
-                    if (latest.code == installedCode) { state = "current"; message = "已是最新版本"; candidate = null; }
+                    if (latest.code <= installedCode) { state = "current"; message = "已是最新版本"; candidate = null; }
                     else if (apk.isFile() && candidate != null && latest.same(candidate) && stateWasReady()) {
                         candidate = latest; state = "ready"; message = "更新包已下载，可继续安装";
                     } else { candidate = latest; downloaded = 0; state = "available"; message = "发现新版本 " + latest.name; }
@@ -378,7 +378,7 @@ final class AppUpdater {
     private static long nextManifestNonce(){return manifestNonces.updateAndGet(previous->Math.max(System.currentTimeMillis(),previous+1));}
     private Candidate fetchManifest(long operation) throws Exception {
         long deadline=SystemClock.elapsedRealtime()+60000;
-        List<UpdatePolicy.ManifestSource> sources=UpdatePolicy.manifestSources(BuildConfig.NATIVE_UI?"tvnative":BuildConfig.IS_TV?"tv":"phone",nextManifestNonce());
+        List<UpdatePolicy.ManifestSource> sources=UpdatePolicy.manifestSources(BuildConfig.NATIVE_UI?"tvnative":BuildConfig.IS_TV?"tv":"local-phone",nextManifestNonce());
         Candidate current=null;Exception last=null;int attempted=0;
         for(int index=0;index<sources.size();index++){
             live(operation);
@@ -404,7 +404,7 @@ final class AppUpdater {
         }
         live(operation);
         if(current!=null&&attempted==sources.size())return current;
-        throw new IOException("5 条更新检查线路均未取得有效的新版本信息；"+userError(last==null?new SocketTimeoutException():last),last);
+        throw new IOException("未取得有效的更新信息；"+userError(last==null?new SocketTimeoutException():last),last);
     }
     private byte[] readManifest(long operation,DownloadAttempt attempt) throws Exception {
         HttpURLConnection current=open(attempt.source.url,operation,attempt.deadline,false,attempt);
@@ -498,7 +498,17 @@ final class AppUpdater {
         Candidate(JSONObject json, int code, String name, int minSdk, long bytes, String url, String hash, String notes) { this.json = json; this.code = code; this.name = name; this.minSdk = minSdk; this.bytes = bytes; this.url = url; this.hash = hash; this.notes = notes; }
         static long integer(JSONObject value, String key) throws JSONException { Object v = value.get(key); if (!(v instanceof Number)) throw new JSONException("更新清单数字字段无效"); double n = ((Number) v).doubleValue(); if (!Double.isFinite(n) || n != Math.rint(n) || n < 0 || n > Integer.MAX_VALUE) throw new JSONException("更新清单数字字段无效"); return ((Number) v).longValue(); }
         static Candidate parse(JSONObject value, int installedCode, String installedName) throws Exception {
-            int schema = (int) integer(value, "schemaVersion"), code = (int) integer(value, "versionCode"), min = (int) integer(value, "minSdk"); long bytes = integer(value, "size");
+            int schema = (int) integer(value, "schemaVersion"), code = (int) integer(value, "versionCode"), min = (int) integer(value, "minSdk");
+            if (UpdatePolicy.LOCAL_PACKAGE.equals(BuildConfig.APPLICATION_ID)) {
+                String pkg = value.getString("applicationId"), name = value.getString("versionName");
+                String hash = value.getString("sha256").toLowerCase(Locale.ROOT), url = value.getString("apkUrl");
+                long size = integer(value, "sizeBytes");
+                UpdatePolicy.validateLocal(schema, pkg, code, name, min, size, hash, url, Build.VERSION.SDK_INT);
+                if (code == installedCode && !name.equals(installedName)) throw new JSONException("更新版本信息不一致");
+                String notes = value.optString("notes", "");
+                return new Candidate(new JSONObject(value.toString()), code, name, min, size, url, hash, notes.substring(0, Math.min(4000, notes.length())));
+            }
+            long bytes = integer(value, "size");
             String flavor = value.getString("flavor"), pkg = value.getString("packageName"), name = value.getString("versionName"), hash = value.getString("sha256").toLowerCase(Locale.ROOT), url = value.getString("apkUrl");
             // Per-ABI manifests: pick the first entry matching a supported ABI; plain manifests fall back to apkUrl.
             JSONObject variants = value.optJSONObject("abis");
