@@ -215,6 +215,7 @@ public final class PlayerActivity extends Activity {
         heading.addView(title); heading.addView(status); top.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
         if (!BuildConfig.IS_TV) {
             fullscreenButton = button("全屏", this::toggleFullscreen);
+            fullscreenButton.setMinimumWidth(dp(48));
             top.addView(fullscreenButton, new LinearLayout.LayoutParams(-2, dp(48)));
             updateFullscreen();
         }
@@ -228,7 +229,7 @@ public final class PlayerActivity extends Activity {
             phoneScroller.addView(content, new ScrollView.LayoutParams(-1, -2));
             bottom.addView(phoneScroller, new LinearLayout.LayoutParams(-1, -2));
             back.setText("返回"); back.setContentDescription("返回上一页");
-            title.setEllipsize(android.text.TextUtils.TruncateAt.END); status.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            title.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE); status.setEllipsize(android.text.TextUtils.TruncateAt.END);
         }
         time = label(12); content.addView(time);
         seek = new SeekBar(this); seek.setContentDescription("播放进度"); content.addView(seek, new LinearLayout.LayoutParams(-1, dp(BuildConfig.IS_TV ? 40 : 48)));
