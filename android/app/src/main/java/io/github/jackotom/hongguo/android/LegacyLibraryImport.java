@@ -32,8 +32,10 @@ final class LegacyLibraryImport {
         for (int i = 0; i < old.length() && result.length() < (history ? 100 : 200); i++) {
             JSONObject entry = old.getJSONObject(i), card = entry.getJSONObject("card");
             String id = card.getString("id"), vid = entry.optString("episode_id");
-            if (!id.matches("[0-9]{1,30}") || (history && !vid.matches("[0-9]{1,30}"))) continue;
-            JSONObject row = LibraryStore.series(new JSONObject().put("seriesId", id).put("title", card.getString("title"))
+            String title = card.getString("title").trim();
+            if (title.isEmpty() || !id.matches("[0-9]{6,30}") || (history && !vid.matches("[0-9]{6,30}"))) continue;
+            if (title.length() > 200) title = title.substring(0, 200);
+            JSONObject row = LibraryStore.series(new JSONObject().put("seriesId", id).put("title", title)
                 .put("coverUrl", card.optString("cover")).put("episodeCount", card.optInt("episode_count"))
                 .put("description", card.optString("summary")));
             if (history) row.put("vid", vid).put("index", Math.max(1, entry.optInt("episode_index")))

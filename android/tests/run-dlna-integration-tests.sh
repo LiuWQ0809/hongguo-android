@@ -15,5 +15,5 @@ for file in DlnaSession.java DlnaMediaServer.java PlaybackCachePolicy.java Media
 done
 TMP="$(mktemp -d -t hongguo-dlna-integration.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
-"$JAVA_HOME/bin/javac" -encoding UTF-8 -source 17 -target 17 -d "$TMP" "$SRC/DlnaSession.java" "$SRC/DlnaMediaServer.java" "$SRC/PlaybackCachePolicy.java" "$SRC/MediaQuality.java" "$HERE/DlnaIntegrationTest.java"
+"$JAVA_HOME/bin/javac" -encoding UTF-8 -source 17 -target 17 -d "$TMP" "$SRC/DlnaSession.java" "$SRC/DlnaMediaServer.java" "$SRC/PlaybackCachePolicy.java" "$SRC/LegacyFiles.java" "$SRC/MediaQuality.java" "$HERE/DlnaIntegrationTest.java"
 "$JAVA_HOME/bin/java" -cp "$TMP" io.github.jackotom.hongguo.android.DlnaIntegrationTest
