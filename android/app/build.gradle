@@ -19,7 +19,7 @@ if (releaseSigning == 'external') {
 
 android {
     namespace 'io.github.jackotom.hongguo.android'
-    compileSdk 35
+    compileSdk 36
     defaultConfig {
         applicationId 'io.github.jackotom.hongguo.android'
         // tvNative's Android 6.0 envelope; phone/tv override to their shipped API26.
@@ -35,7 +35,15 @@ android {
     productFlavors {
         // WebView lines keep their shipped API26 envelope; minSdk 23 belongs to
         // the tvNative Android 6.0 compat line only.
-        phone { dimension 'device'; minSdk 26; buildConfigField 'boolean', 'IS_TV', 'false'; buildConfigField 'boolean', 'NATIVE_UI', 'false' }
+        phone {
+            dimension 'device'
+            applicationId 'com.hongguo.android'
+            minSdk 26
+            versionCode 51
+            versionName '0.7.12-local.20'
+            buildConfigField 'boolean', 'IS_TV', 'false'
+            buildConfigField 'boolean', 'NATIVE_UI', 'false'
+        }
         tv { dimension 'device'; minSdk 26; applicationIdSuffix '.tv'; buildConfigField 'boolean', 'IS_TV', 'true'; buildConfigField 'boolean', 'NATIVE_UI', 'false' }
         // Independent WebView-free TV line: own applicationId and version series.
         tvNative {
@@ -52,8 +60,10 @@ android {
     // builds it for arm64 only, so other ABIs install without it and keep the signed-request
     // ladder. The choice is made there and not with ndk.abiFilters, which would also drop the
     // prebuilt libraries the other ABIs depend on (libVLC in the 32-bit tvNative APK).
-    ndkVersion '28.2.13676358'
-    externalNativeBuild { cmake { path file('src/main/cpp/CMakeLists.txt'); version '3.22.1' } }
+    if (providers.gradleProperty('castSdk').map { it.toBoolean() }.getOrElse(false)) {
+        ndkVersion '28.2.13676358'
+        externalNativeBuild { cmake { path file('src/main/cpp/CMakeLists.txt'); version '3.22.1' } }
+    }
     // Per-ABI APKs: libVLC ships ~60MB of native libraries per architecture, so the software
     // decoder line ships one APK per ABI and the updater picks by the device's supported ABIs.
     splits {
@@ -106,3 +116,20 @@ dependencies { tvNativeImplementation 'org.videolan.android:libvlc-all:3.6.2' }
 // HttpURLConnection requests (HTTP/1.1, no ALPN) with empty 200s; OkHttp negotiates
 // h2 like the working clients. Used only by the registered model transport.
 dependencies { implementation 'com.squareup.okhttp3:okhttp:4.12.0' }
+
+
+def verifyPhoneReleaseSigning = tasks.register('verifyPhoneReleaseSigning') {
+    doLast {
+        def signing = android.buildTypes.release.signingConfig
+        if (signing == null || !signing.storeFile?.isFile()) throw new GradleException('缺少原签名密钥')
+        def store = java.security.KeyStore.getInstance(signing.storeFile, signing.storePassword.toCharArray())
+        def cert = store.getCertificate(signing.keyAlias)
+        def digest = cert == null ? '' : java.security.MessageDigest.getInstance('SHA-256').digest(cert.encoded).encodeHex().toString()
+        if (digest != '2eb75370e7dee27afc7297eb7c3ef2ddbef0e37144780414825b5f11421dcb13') {
+            throw new GradleException('手机版签名与 0.7.12-local.19 不一致')
+        }
+    }
+}
+tasks.matching { it.name in ['packagePhoneRelease', 'bundlePhoneRelease'] }.configureEach {
+    dependsOn verifyPhoneReleaseSigning
+}
