@@ -1614,7 +1614,12 @@ public final class PlayerActivity extends Activity {
         if (browserCastBound) { unbindService(browserCastConnection); browserCastBound = false; }
         browserCastService = null;
     }
-    private void exitPlayer() { if (controlsHud != null) controlsHud.suspend(); saveProgress(); finish(); }
+    private void exitPlayer() {
+        if (surfaceTaps != null) surfaceTaps.cancel();
+        if (controlsHud != null) controlsHud.suspend();
+        saveProgress();
+        finish();
+    }
     @Override public void onBackPressed() { if (fullscreen) toggleFullscreen(); else exitPlayer(); }
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) { if (event.getAction() == KeyEvent.ACTION_UP) onBackPressed(); return true; }
@@ -1657,7 +1662,10 @@ public final class PlayerActivity extends Activity {
         super.onPictureInPictureModeChanged(inPip, configuration);
         updateFullscreen();
         if (surfaceTaps != null) surfaceTaps.cancel();
-        if (controlsHud != null) controlsHud.interact();
+        if (controlsHud != null) {
+            controlsHud.hold(false);
+            controlsHud.interact();
+        }
         updateResumeOverlay();
         if (danmaku != null && inPip) danmaku.suspend();
     }
