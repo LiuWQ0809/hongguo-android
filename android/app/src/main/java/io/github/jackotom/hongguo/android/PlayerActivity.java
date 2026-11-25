@@ -55,7 +55,7 @@ public final class PlayerActivity extends Activity {
     private PlayerHud controlsHud;
     private boolean buffering, touchingControls;
     private float swipeX, swipeY;
-    private boolean swipeAllowed;
+    private boolean swipeAllowed, tapAllowed;
     private int hudDialogs, wakeKey = KeyEvent.KEYCODE_UNKNOWN;
     private SeekBar seek;
     private Button previous, toggle, next, autoplayButton, qualityButton, speedButton;
@@ -388,6 +388,8 @@ public final class PlayerActivity extends Activity {
     private void installVideoTouch(View view) {
         if (!BuildConfig.IS_TV && view instanceof VideoView) {
             view.addOnLayoutChangeListener((target, l, t, r, b, oldL, oldT, oldR, oldB) -> applyVideoFill(target));
+            view.setContentDescription("播放画面，点按播放或暂停");
+            view.setOnClickListener(target -> { togglePlayback(); showControls(); });
             view.setOnTouchListener((target, event) -> true);
             return;
         }
@@ -425,17 +427,21 @@ public final class PlayerActivity extends Activity {
     }
     @Override public boolean dispatchTouchEvent(MotionEvent event) {
         int action = event.getActionMasked();
+        boolean toggleOnTouch = false;
         if (!BuildConfig.IS_TV && phoneScroller != null && !isInPictureInPictureMode()) {
             if (action == MotionEvent.ACTION_DOWN) {
                 swipeX = event.getRawX();
                 swipeY = event.getRawY();
                 boolean scrolls = phoneScroller.canScrollVertically(1) || phoneScroller.canScrollVertically(-1);
                 swipeAllowed = !underTouch(seek, swipeX, swipeY) && !(scrolls && underTouch(phoneScroller, swipeX, swipeY));
-            } else if (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_CANCEL) swipeAllowed = false;
-            else if (action == MotionEvent.ACTION_UP && swipeAllowed) {
-                swipeAllowed = false;
+                tapAllowed = !underTouch(top, swipeX, swipeY) && !underTouch(bottom, swipeX, swipeY);
+            } else if (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_CANCEL) {
+                swipeAllowed = tapAllowed = false;
+            } else if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP) {
                 float dx = event.getRawX() - swipeX, dy = event.getRawY() - swipeY;
-                if (Math.abs(dy) >= dp(72) && Math.abs(dy) >= Math.abs(dx) * 2) {
+                if (Math.hypot(dx, dy) > dp(12)) tapAllowed = false;
+                if (action == MotionEvent.ACTION_UP && swipeAllowed && Math.abs(dy) >= dp(72) && Math.abs(dy) >= Math.abs(dx) * 2) {
+                    swipeAllowed = tapAllowed = false;
                     MotionEvent cancel = MotionEvent.obtain(event);
                     cancel.setAction(MotionEvent.ACTION_CANCEL);
                     super.dispatchTouchEvent(cancel);
@@ -445,12 +451,17 @@ public final class PlayerActivity extends Activity {
                     showControls();
                     return true;
                 }
+                if (action == MotionEvent.ACTION_UP) {
+                    toggleOnTouch = tapAllowed;
+                    swipeAllowed = tapAllowed = false;
+                }
             }
         }
         if (action == MotionEvent.ACTION_DOWN) touchingControls = true;
         else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) touchingControls = false;
         // Dispatch before revealing: a tap on hidden controls is only a reveal, never a click.
         boolean handled = super.dispatchTouchEvent(event);
+        if (toggleOnTouch && video != null) video.performClick();
         if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) showControls();
         return handled;
     }
