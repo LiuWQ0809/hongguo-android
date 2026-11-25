@@ -250,10 +250,10 @@ try {
     await call('Emulation.setDeviceMetricsOverride',{width:tv?1280:width,height:tv?720:height,deviceScaleFactor:1,mobile:!tv});
     await call('Emulation.setTouchEmulationEnabled',{enabled:!tv});
     await call('Page.navigate',{url:base+`?tv=${tv?1:0}&scenario=${encodeURIComponent(scenario)}`});
-    await wait('document.querySelectorAll(".poster").length===3&&window.__seasonFixture.calls.some(c=>c.method==="getLibrary")');
+    await wait('document.querySelectorAll(".poster:not(.home-continue .poster)").length===3&&window.__seasonFixture.calls.some(c=>c.method==="getLibrary")');
     await sleep(20);
     if(large)await evaluate('document.documentElement.style.fontSize="24px"');
-    if(open){await evaluate(`document.querySelectorAll('.poster')[${index}].click()`);await ready(SID[index===0?0:index===1?6:7]);}
+    if(open){await evaluate(`document.querySelectorAll('.poster:not(.home-continue .poster)')[${index}].click()`);await ready(SID[index===0?0:index===1?6:7]);}
     await evaluate('window.__seasonFixture.calls=[];window.__seasonFixture.resolves=[];');
   };
   const more = async () => { await wait('document.querySelector("[data-season-action=more]")&&!document.querySelector("[data-season-action=more]").disabled');await evaluate('document.querySelector("[data-season-action=more]").click()'); };
@@ -285,6 +285,24 @@ try {
   const accountCalls = method => evaluate(`window.__seasonFixture.calls.filter(c=>c.method===${q(method)}).map(c=>c.params)`);
   const retiredCalls = () => evaluate('window.__seasonFixture.calls.filter(c=>["accountLogin","accountLogout","syncHistory","importGuestHistory"].includes(c.method))');
   const signedAccount = () => evaluate('var f=window.__seasonFixture;f.account={...f.account,authenticated:true,phase:"logged_in",revision:f.account.revision+1,user:{name:"合成官方账号",maskedPhone:"138****0000",idSuffix:"尾号 5678"}};window.__androidAccountChanged({owner:f.owner()})');
+  await group('HISTORY short viewing sessions appear with identical progress on both screens', async () => {
+    await reset({open:false});
+    const captions = scope => evaluate(`[...${scope}.querySelectorAll('.poster-caption')].map(e=>e.textContent)`);
+    await wait('document.querySelectorAll(".home-continue .poster").length===2');
+    const homeProgress = await captions('document.querySelector(".home-continue")');
+    eq(homeProgress, ['看到第 32 集 · 0:03', '看到第 9 集 · 0:09'], 'short sessions appear in Continue Watching');
+    await nav('我的追剧'); await button('观看历史 (2)'); await button('未看完 (2)');
+    eq(await captions('document'), homeProgress, 'both screens show the same episode and position');
+  });
+  await group('SETTINGS phone autoplay defaults on and persists across remount', async () => {
+    await reset({open:false}); await about();
+    const control = 'document.querySelector(\'[role="switch"][aria-label="自动连播"]\')';
+    eq(await evaluate(`${control}.getAttribute('aria-checked')`), 'true', 'autoplay defaults on');
+    await evaluate(`${control}.click()`);
+    await nav('发现'); await about();
+    eq(await evaluate(`${control}.getAttribute('aria-checked')`), 'false', 'off survives remount');
+    await evaluate(`${control}.click()`);
+  });
   await group('LOGIN the panel shows only the website QR entry with no short-message controls', async () => {
     for(const width of [320,390]){
       await reset({width,large:true,open:false});await about();

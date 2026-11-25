@@ -48,6 +48,7 @@ for name in (['RecoveryBudget','PreparedMedia','QualitySwitch'] if modern else [
     nested+=found
 header='''package io.github.jackotom.hongguo.android;
 import java.io.*;import java.util.*;import java.util.concurrent.*;import org.json.*;
+final class BuildConfig { static final boolean IS_TV = false; }
 final class AdaptiveActivityHarness {
  final MainLoop main=new MainLoop();final Worker resolver=new Worker(),cacheWorker=new Worker();
  Future<?> resolution,prefetch;int prefetchedIndex=-1;

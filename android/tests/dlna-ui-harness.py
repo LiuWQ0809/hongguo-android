@@ -38,7 +38,7 @@ header='''package io.github.jackotom.hongguo.android;
 import org.json.*;import java.util.*;import java.util.concurrent.*;
 final class BuildConfig {static boolean IS_TV=false;static final String VERSION_NAME="fixture";}
 class TextView {String text="";boolean enabled;void setText(String s){text=s;}String getText(){return text;}void setEnabled(boolean b){enabled=b;}void setContentDescription(String s){}}
-class Button extends TextView {}
+class Button extends TextView {boolean selected;void setSelected(boolean value){selected=value;}}
 class SeekBar extends TextView {int max,progress;void setMax(int n){max=n;}void setProgress(int n){progress=n;}}
 class VideoView {boolean playing;int position=27000,duration=100000,stops,starts,seeks;boolean isPlaying(){return playing;}int getCurrentPosition(){return position;}int getDuration(){return duration;}void stopPlayback(){playing=false;stops++;}void pause(){playing=false;}void start(){playing=true;starts++;}void seekTo(int n){position=n;seeks++;}}
 class Toast {static final int LENGTH_LONG=1;static final List<String>shown=new ArrayList<>();final String text;Toast(String s){text=s;}static Toast makeText(Object c,String s,int d){return new Toast(s);}void show(){shown.add(text);}}
@@ -69,11 +69,11 @@ class DlnaUiHarness {
  final DlnaCastService.Listener castListener=s->{};final Object castConnection=new Object();final ExecutorService castDiscoveryWorker=Executors.newSingleThreadExecutor();
  final VideoView video=new VideoView();final LibraryStore store=new LibraryStore();Object mediaPlayer;
  final List<JSONObject>queue=new ArrayList<>();JSONObject series,episode,queueSeries;String queueIdentity="123";PlaybackCache.QueueWindow localWindow;int current,generation=3,resumeAt,lastGoodPosition,loads,loadedAt,loadedPosition,cancelled,released,discards,unbinds;
- boolean destroyed,prepared=true,completed,buffering,dragging,autoplay=true,active=true,userPaused,touchingControls,offline;int hudDialogs;Object qualitySwitch;String quality="1080p",actualQuality="1080p";
+ boolean destroyed,prepared=true,completed,buffering,dragging,autoplay=true,active=true,userPaused,touchingControls,offline,decoderPreparing,handedOff;int hudDialogs;Object qualitySwitch;String quality="1080p",actualQuality="1080p";
  final TextView title=new TextView(),status=new TextView(),time=new TextView();final Button previous=new Button(),next=new Button(),toggle=new Button(),qualityButton=new Button(),speedButton=new Button(),autoplayButton=new Button(),castButton=new Button();final SeekBar seek=new SeekBar();Future<?> resolution;
  DlnaUiHarness()throws Exception {series=new JSONObject().put("seriesId","123").put("title","MOCK剧");for(int i=1;i<=4;i++)queue.add(new JSONObject().put("vid","v"+i).put("index",i));episode=queue.get(0);queueSeries=series;video.playing=true;}
  void showPlayerDialog(AlertDialog d){dialog=d;}void searchCastDevices(){searches++;}
- boolean isFinishing(){return false;}void cancelQualitySwitch(){cancelled++;}void discardPendingMedia(){discards++;}void releaseCurrent(){released++;}void showControls(){}void updateControlsState(){}void updateButtons(){renderCastControls();}void cancelCastDiscovery(){}void unbindService(Object c){unbinds++;}
+ boolean isFinishing(){return false;}void cancelQualitySwitch(){cancelled++;}void cancelPlaybackWatchdogs(){}void discardPendingMedia(){discards++;}void releaseCurrent(){released++;}void showControls(){}void updateControlsState(){}void updateButtons(){renderCastControls();}void cancelCastDiscovery(){}void unbindService(Object c){unbinds++;}
  void loadAtInternal(int n,String u,int p,boolean paused,boolean recovering,boolean failedWeb){loads++;loadedAt=n;loadedPosition=p;}
  METHODS
 }
