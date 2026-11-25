@@ -499,8 +499,48 @@ final class RegisteredPlaybackModel implements AutoCloseable {
         else if (raw instanceof String) { try { model = OfficialApiClient.parse(((String) raw).getBytes(StandardCharsets.UTF_8)); } catch (Exception invalid) { throw new ModelError("App片源模型响应格式无效", "APP_INVALID_RESPONSE"); } }
         else throw new ModelError("App接口未返回本集片源模型", "APP_INVALID_RESPONSE");
         identity(model, vid); rejectTrial(model);
-        JSONObject projected = project(model); check();
+        JSONObject projected = project(model);
+        if (byteVc2Only(projected.getJSONArray("video_list"))) {
+            JSONObject alternate = compatibleModel(model, vid, deadline);
+            if (alternate != null) projected = alternate;
+        }
+        check();
         return projected;
+    }
+    /** Ask the same VOD service for a codec the system player can decode. */
+    private JSONObject compatibleModel(JSONObject model, String vid, long deadline) throws Exception {
+        Object fallback = model.opt("fallback_api");
+        if (fallback instanceof JSONObject) fallback = ((JSONObject) fallback).opt("fallback_api");
+        if (!(fallback instanceof String) || ((String) fallback).isEmpty()) return null;
+        String query;
+        try { query = compatibleQuery((String) fallback); }
+        catch (Exception invalid) { return null; }
+        for (String codec : new String[]{"codec_type=1", "codec_type=0&force_codec=h264"}) {
+            check();
+            try {
+                JSONObject request = new JSONObject().put("url", query + codec)
+                    .put("timeoutMs", NetworkGuard.remaining(deadline, 2200))
+                    .put("headers", new JSONObject().put("User-Agent", PlaybackSignerV5.PLAYER_V1_UA));
+                JSONObject reply = AppTransport.request(request);
+                if (reply.optInt("status") != 200) continue;
+                JSONObject result = adoptCompatibility(new JSONObject(reply.optString("body")), model, vid);
+                if (result != null) return result;
+            } catch (Exception error) {
+                check();
+                if (error instanceof ModelError && "BUSINESS_REJECTED".equals(((ModelError) error).code)) throw error;
+            }
+        }
+        return null;
+    }
+    private static String compatibleQuery(String fallback) throws Exception {
+        URI uri = NetworkGuard.validate(fallback, false);
+        String address = uri.toASCIIString().split("\\?", 2)[0];
+        StringJoiner params = new StringJoiner("&");
+        if (uri.getRawQuery() != null) for (String param : uri.getRawQuery().split("&")) {
+            String key = URLDecoder.decode(param.split("=", 2)[0], "UTF-8");
+            if (!param.isEmpty() && !key.equals("codec_type") && !key.equals("force_codec")) params.add(param);
+        }
+        return address + "?" + (params.length() == 0 ? "" : params + "&");
     }
     static JSONObject adoptCompatibility(JSONObject outer, JSONObject model, String vid) throws Exception {
         JSONObject info = outer.optJSONObject("video_info");
