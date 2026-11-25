@@ -46,7 +46,7 @@ public final class PlayerActivity extends Activity {
     private volatile QualitySwitch qualitySwitch;
     private TextView title, status, time;
     private LinearLayout top, bottom;
-    private LinearLayout phoneContent, phoneActions, phoneOptions, heading;
+    private LinearLayout phoneContent, phoneActions, heading;
     private ScrollView phoneScroller;
     private Button[] episodeActions;
     private int safeLeft, safeTop, safeRight, safeBottom;
@@ -257,16 +257,24 @@ public final class PlayerActivity extends Activity {
         previous = button("上一集", () -> move(-1)); toggle = button("暂停", this::togglePlayback); next = button("下一集", () -> move(1));
         Button select = button("选集", this::selectEpisode);
         autoplayButton = button("连播 开", () -> { autoplay = !autoplay; if (!castCommand("autoplay", autoplay ? 1 : 0) && autoplay && prepared && !offline) schedulePrefetch(generation); updateButtons(); });
-        episodeActions = new Button[]{previous, toggle, next, select, autoplayButton};
+        qualityButton = button("清晰度 自动", this::selectQuality); speedButton = button("倍速 1×", this::selectSpeed);
+        danmakuButton = button("弹幕 关", this::toggleDanmaku);
+        episodeActions = BuildConfig.IS_TV ? new Button[]{previous, toggle, next, select, autoplayButton}
+            : new Button[]{select, danmakuButton, qualityButton, speedButton};
         for (Button b : episodeActions) actions.addView(b, new LinearLayout.LayoutParams(0, dp(50), 1));
         content.addView(actions); phoneActions = BuildConfig.IS_TV ? null : actions;
-        LinearLayout options = new LinearLayout(this);
-        qualityButton = button("清晰度 自动", this::selectQuality); speedButton = button("倍速 1×", this::selectSpeed);
-        options.addView(qualityButton, new LinearLayout.LayoutParams(0, dp(46), 1));
-        options.addView(speedButton, new LinearLayout.LayoutParams(0, dp(46), 1));
-        danmakuButton = button("弹幕 关", this::toggleDanmaku);
-        options.addView(danmakuButton, new LinearLayout.LayoutParams(0, dp(46), 1)); updateDanmakuButton();
-        content.addView(options); phoneOptions = BuildConfig.IS_TV ? null : options;
+        if (BuildConfig.IS_TV) {
+            LinearLayout options = new LinearLayout(this);
+            for (Button option : new Button[]{qualityButton, speedButton, danmakuButton})
+                options.addView(option, new LinearLayout.LayoutParams(0, dp(46), 1));
+            content.addView(options);
+        } else {
+            PlayerChrome.icon(select, R.drawable.ic_player_episodes);
+            PlayerChrome.icon(danmakuButton, R.drawable.ic_player_danmaku);
+            PlayerChrome.text(qualityButton);
+            PlayerChrome.text(speedButton);
+        }
+        updateDanmakuButton();
         root.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         setContentView(root);
         if (!BuildConfig.IS_TV) installPhoneLayout();
@@ -338,15 +346,6 @@ public final class PlayerActivity extends Activity {
             for (int i = start; i < Math.min(episodeActions.length, start + layout.columns); i++) addPhoneButton(row, episodeActions[i], layout.buttonHeight, true);
             phoneActions.addView(row, new LinearLayout.LayoutParams(-1, -2));
         }
-        phoneOptions.removeAllViews(); phoneOptions.setOrientation(LinearLayout.VERTICAL);
-        // Keep existing long quality/speed labels at their original half-width.
-        // Danmaku gets a separate phone row instead of squeezing all three into thirds.
-        LinearLayout mediaOptions = new LinearLayout(this);
-        mediaOptions.setOrientation(layout.optionColumns == 1 ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
-        addPhoneButton(mediaOptions, qualityButton, layout.buttonHeight, layout.optionColumns == 2);
-        addPhoneButton(mediaOptions, speedButton, layout.buttonHeight, layout.optionColumns == 2);
-        phoneOptions.addView(mediaOptions, new LinearLayout.LayoutParams(-1, -2));
-        addPhoneButton(phoneOptions, danmakuButton, layout.buttonHeight, false);
         top.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         phoneContent.measure(View.MeasureSpec.makeMeasureSpec(contentWidth, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         int maxHeight = layout.controlsHeight(availableHeight, (int) Math.ceil(phoneContent.getMeasuredHeight() / density),
@@ -1120,7 +1119,8 @@ public final class PlayerActivity extends Activity {
     private void updateDanmakuButton() {
         if (danmakuButton == null) return;
         String value = !danmakuEnabled ? "关" : offline ? "离线停用" : casting() || castWasActive ? "投屏停用" : danmakuNotice.contains("未载入") ? "未载入" : danmakuNotice.contains("正在") ? "读取中" : danmakuNotice.contains("暂无") ? "本段无" : "开";
-        danmakuButton.setText("弹幕 " + value);
+        if (BuildConfig.IS_TV) danmakuButton.setText("弹幕 " + value);
+        else danmakuButton.setSelected("开".equals(value));
         danmakuButton.setContentDescription("时间轴弹幕：" + value + "；" + danmakuNotice + "；点击" + (danmakuEnabled ? "关闭" : "开启"));
     }
     private void toggleDanmaku() {

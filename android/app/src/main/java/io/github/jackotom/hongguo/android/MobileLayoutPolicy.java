@@ -31,7 +31,7 @@ final class MobileLayoutPolicy {
         float scale = Float.isFinite(fontScale) && fontScale > 0 ? fontScale : 1f;
         boolean compact = height < 420 && width > height;
         int minButtonWidth = Math.max(80, (int) Math.ceil(42 * scale + 20));
-        int columns = Math.max(1, Math.min(compact ? 5 : 3, width / minButtonWidth));
+        int columns = Math.max(1, Math.min(4, width / minButtonWidth));
         int optionColumns = width >= Math.ceil(280 * scale) ? 2 : 1;
         int buttonHeight = Math.max(48, (int) Math.ceil(36 * scale + 8));
         int backWidth = Math.min(Math.max(48, width / 2), Math.max(80, (int) Math.ceil(28 * scale + 24)));
