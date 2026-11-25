@@ -47,11 +47,12 @@ def method(name,optional=False):
 modern='controlsHud = new PlayerHud(' in source
 methods='\n'.join(method(name) for name in ['installVideoTouch','showControls','exitPlayer','onBackPressed','dispatchKeyEvent','onKeyDown','onPause','onResume','onDestroy'])
 methods+='\n'+ '\n'.join(method(name,True) for name in ['canHideControls','updateControlsState','showPlayerDialog','dispatchTouchEvent','cancelPlaybackWatchdogs','validPlaybackCallback','armPreparationTimeout','updateBufferingWatchdog'])
-methods+='\n'+'\n'.join(method(name,True) for name in ['underTouch','switchBySwipe'])
+methods+='\n'+'\n'.join(method(name,True) for name in ['underTouch','switchBySwipe','togglePictureControls','updateResumeOverlay'])
 methods=methods.replace('android.util.Log.i(', 'HudLog.i(')
 setup=''
 if modern:
-    start=source.index('controlsHud = new PlayerHud(')
+    marker='PlayerHud.Scheduler hudScheduler' if 'PlayerHud.Scheduler hudScheduler' in source else 'controlsHud = new PlayerHud('
+    start=source.index(marker)
     end=source.index('        video.requestFocus(); showControls();',start)
     setup=source[start:end]
 info=method('bindPlayback')
@@ -67,9 +68,14 @@ final class KeyEvent {
  static final int ACTION_DOWN=0,ACTION_UP=1,KEYCODE_UNKNOWN=0,KEYCODE_BACK=4,KEYCODE_DPAD_UP=19,KEYCODE_DPAD_DOWN=20,KEYCODE_DPAD_LEFT=21,KEYCODE_DPAD_RIGHT=22,KEYCODE_DPAD_CENTER=23,KEYCODE_ENTER=66,KEYCODE_MEDIA_PLAY_PAUSE=85,KEYCODE_MEDIA_NEXT=87,KEYCODE_MEDIA_PREVIOUS=88,KEYCODE_MEDIA_REWIND=89,KEYCODE_MEDIA_FAST_FORWARD=90,KEYCODE_MEDIA_PLAY=126,KEYCODE_MEDIA_PAUSE=127;
  final int action,key; KeyEvent(int action,int key){this.action=action;this.key=key;} int getAction(){return action;}int getKeyCode(){return key;}
 }
+final class ViewConfiguration {
+ static int getDoubleTapTimeout(){return 300;}static int getLongPressTimeout(){return 500;}
+ static ViewConfiguration get(Object context){return new ViewConfiguration();}int getScaledDoubleTapSlop(){return 100;}
+}
 final class MotionEvent {
  static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_POINTER_DOWN=5;int action;final float x,y;
  MotionEvent(int action){this(action,0,0);}MotionEvent(int action,float x,float y){this.action=action;this.x=x;this.y=y;}
+ long getEventTime(){return 0;}long getDownTime(){return 0;}
  int getAction(){return action;}int getActionMasked(){return action;}float getRawX(){return x;}float getRawY(){return y;}
  static MotionEvent obtain(MotionEvent e){return new MotionEvent(e.action,e.x,e.y);}void setAction(int value){action=value;}void recycle(){}
 }
@@ -115,7 +121,8 @@ class HudActivityBase {
 final class PlayerHudHarness extends HudActivityBase {
  final MainLoop main=new MainLoop();final Worker resolver=new Worker(),cacheWorker=new Worker();
  final View top=new View(),bottom=new View(),toggle=new View(),back=new View();VideoView video=new VideoView();
- final View phoneScroller=new View(),seek=new View();
+ final View phoneScroller=new View(),seek=new View(),resumeOverlay=new View();
+ PlayerSurfaceTaps surfaceTaps;
  boolean fullscreen,swipeAllowed,tapAllowed,handedOff,softActive;float swipeX,swipeY;Object softLayer;
  java.util.concurrent.Future<?> prefetch;int prefetchedIndex=-1;
  void applyVideoFill(View view){}void toggleFullscreen(){fullscreen=!fullscreen;}
@@ -153,7 +160,7 @@ Path(sys.argv[2]).write_text(text)
 print('HUD_ACTIVITY_BINDING actualMethods=true baselineWithoutPolicy='+str(not modern).lower()+' source='+sys.argv[1])
 PY
 printf '%s\n' 'package android.graphics; public final class Rect { public boolean contains(int x,int y){return true;} }' > "$TMP/Rect.java"
-SOURCES=("$TMP/PlayerHudHarness.java" "$TMP/Rect.java" "$ROOT/android/tests/PlayerHudActivityTest.java")
+SOURCES=("$TMP/PlayerHudHarness.java" "$TMP/Rect.java" "$ROOT/android/tests/PlayerHudActivityTest.java" "$SRC/PlayerSurfaceTaps.java")
 if [[ -f "$SRC/PlayerHud.java" ]]; then SOURCES+=("$SRC/PlayerHud.java" "$ROOT/android/tests/PlayerHudTest.java"); fi
 "$JAVA_HOME/bin/javac" -encoding UTF-8 -source 17 -target 17 -d "$TMP/classes" "${SOURCES[@]}"
 "$JAVA_HOME/bin/java" -cp "$TMP/classes" io.github.jackotom.hongguo.android.PlayerHudActivityTest
