@@ -499,11 +499,14 @@ public final class PlayerActivity extends Activity {
             autoplayButton.setContentDescription(autoplay ? "自动连播已开启" : "自动连播已关闭");
         }
         qualityButton.setEnabled(prepared && !offline && !softActive);
-        qualityButton.setText(offline ? "本地 · 清晰度不可切" : softActive ? "软解播放 · 清晰度不可切" : "清晰度 " + qualityLabel(quality) + (quality.equals(actualQuality) ? "" : " · 当前 " + qualityLabel(actualQuality)) + (qualitySwitch == null ? "" : " · 准备中"));
-        qualityButton.setContentDescription(qualityButton.getText());
+        String qualityStatus = offline ? "本地 · 清晰度不可切" : softActive ? "软解播放 · 清晰度不可切" : "清晰度 " + qualityLabel(quality) + (quality.equals(actualQuality) ? "" : " · 当前 " + qualityLabel(actualQuality)) + (qualitySwitch == null ? "" : " · 准备中");
+        qualityButton.setText(BuildConfig.IS_TV ? qualityStatus : offline ? "离线" : qualityLabel(actualQuality));
+        qualityButton.setContentDescription(qualityStatus);
         speedButton.setEnabled(prepared && !softActive);
-        speedButton.setText(Float.isNaN(actualSpeed) ? prepared ? "倍速 设备未确认" : "倍速 待确认" : "倍速 " + rateLabel(actualSpeed));
-        speedButton.setContentDescription(speedButton.getText());
+        String speedLabel = Float.isNaN(actualSpeed) ? "—×" : rateLabel(actualSpeed);
+        String speedStatus = "倍速 " + (Float.isNaN(actualSpeed) ? "待确认" : speedLabel);
+        speedButton.setText(BuildConfig.IS_TV ? speedStatus : speedLabel);
+        speedButton.setContentDescription(speedStatus);
         updateControlsState();
     }
     private void recordProgress(JSONObject selectedSeries, JSONObject selectedEpisode, long position) {
@@ -859,7 +862,7 @@ public final class PlayerActivity extends Activity {
             cancelPlaybackWatchdogs(); decoderPreparing = false;
             completed = true; resumeAt = 0; recordProgress(targetSeries, target, 0);
             if (autoplay && current + 1 < queue.size()) loadAt(current + 1, null, 0);
-            else { currentKind = current + 1 == queue.size() ? "本剧已播完" : "本集已播完 · 可点击下一集"; renderStatus(); showControls(); updateButtons(); }
+            else { currentKind = current + 1 == queue.size() ? "本剧已播完" : "本集已播完 · " + (BuildConfig.IS_TV ? "按下一集" : "上滑切集"); renderStatus(); showControls(); updateButtons(); }
         });
         view.setOnErrorListener((player, what, extra) -> {
             if (token == generation && !destroyed && video == view) {
@@ -911,6 +914,10 @@ public final class PlayerActivity extends Activity {
     private static String rateLabel(float value) { return String.format(Locale.ROOT, "%s×", value == (int) value ? Integer.toString((int) value) : Float.toString(value)); }
     private void renderStatus() {
         updateFullscreen();
+        if (!BuildConfig.IS_TV && prepared && !completed && !buffering && qualitySwitch == null) {
+            status.setText("");
+            return;
+        }
         String size = videoWidth > 0 && videoHeight > 0 ? "实际 " + videoWidth + "×" + videoHeight : "实际分辨率待解码确认";
         status.setText(currentKind + " · 当前 " + qualityLabel(actualQuality) + (quality.equals(actualQuality) ? "" : "（首选 " + qualityLabel(quality) + "）") + " · " + size);
     }
@@ -1106,7 +1113,7 @@ public final class PlayerActivity extends Activity {
             completed = true;
             recordProgress(PlayerActivity.this.series, PlayerActivity.this.episode, 0);
             if (autoplay && current + 1 < queue.size()) loadAt(current + 1, null, 0);
-            else { currentKind = current + 1 == queue.size() ? "本剧已播完" : "本集已播完 · 可点击下一集"; renderStatus(); showControls(); updateButtons(); }
+            else { currentKind = current + 1 == queue.size() ? "本剧已播完" : "本集已播完 · " + (BuildConfig.IS_TV ? "按下一集" : "上滑切集"); renderStatus(); showControls(); updateButtons(); }
         }
         @Override public void onSoftClosed() {
             softActive = false; softLayer = null;
@@ -1318,8 +1325,9 @@ public final class PlayerActivity extends Activity {
         prepared = snapshot.durationMs > 0 && !snapshot.preparing
             && (!browserCastSelected || "PLAYING".equals(snapshot.state) || "PAUSED".equals(snapshot.state) || "BUFFERING".equals(snapshot.state) || "ENDED".equals(snapshot.state));
         completed = "ENDED".equals(snapshot.state);
-        qualityButton.setEnabled(false); qualityButton.setText("投屏 " + qualityLabel(snapshot.actualQuality));
-        speedButton.setEnabled(false); speedButton.setText(browserCastSelected ? "倍速 · 接收端控制" : "倍速 · 电视控制");
+        qualityButton.setEnabled(false); qualityButton.setText(qualityLabel(snapshot.actualQuality));
+        speedButton.setEnabled(false); speedButton.setText("—×");
+        speedButton.setContentDescription("倍速由投屏接收端控制");
         if (castButton != null) { castButton.setSelected(true); castButton.setContentDescription("投屏到 " + castDiagnosticValue(snapshot.deviceName) + "，点击管理或断开"); }
         if (!dragging) {
             int position = (int) Math.min(Integer.MAX_VALUE, Math.max(0, snapshot.positionMs));
