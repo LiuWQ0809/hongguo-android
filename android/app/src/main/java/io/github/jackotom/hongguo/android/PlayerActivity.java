@@ -430,7 +430,7 @@ public final class PlayerActivity extends Activity {
     }
     private boolean canHideControls() {
         if (casting()) return false;
-        if (!active || destroyed || isFinishing() || !prepared || completed || userPaused || buffering || dragging || touchingControls || hudDialogs > 0 || qualitySwitch != null || video == null) return false;
+        if (!active || destroyed || isFinishing() || !prepared || completed || userPaused || buffering || dragging || (BuildConfig.IS_TV && touchingControls) || hudDialogs > 0 || qualitySwitch != null || video == null) return false;
         try { return video.isPlaying(); } catch (RuntimeException ignored) { return false; }
     }
     private void updateControlsState() { if (controlsHud != null) controlsHud.playback(canHideControls()); }
@@ -450,19 +450,23 @@ public final class PlayerActivity extends Activity {
     }
     @Override public boolean dispatchTouchEvent(MotionEvent event) {
         int action = event.getActionMasked();
-        boolean toggleOnTouch = false;
-        if (!BuildConfig.IS_TV && phoneScroller != null && !isInPictureInPictureMode()) {
+        boolean surfaceTap = false;
+        boolean phoneTouch = surfaceTaps != null && !isInPictureInPictureMode();
+        if (phoneTouch) {
             if (action == MotionEvent.ACTION_DOWN) {
                 swipeX = event.getRawX();
                 swipeY = event.getRawY();
-                boolean scrolls = phoneScroller.canScrollVertically(1) || phoneScroller.canScrollVertically(-1);
-                swipeAllowed = !underTouch(seek, swipeX, swipeY) && !(scrolls && underTouch(phoneScroller, swipeX, swipeY));
-                tapAllowed = !underTouch(top, swipeX, swipeY) && !underTouch(bottom, swipeX, swipeY);
+                swipeAllowed = tapAllowed = !underTouch(top, swipeX, swipeY) && !underTouch(bottom, swipeX, swipeY);
+                if (!tapAllowed) surfaceTaps.cancel();
             } else if (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_CANCEL) {
                 swipeAllowed = tapAllowed = false;
+                surfaceTaps.cancel();
             } else if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP) {
                 float dx = event.getRawX() - swipeX, dy = event.getRawY() - swipeY;
-                if (Math.hypot(dx, dy) > dp(12)) tapAllowed = false;
+                if (Math.hypot(dx, dy) > dp(12)) {
+                    if (tapAllowed) surfaceTaps.cancel();
+                    tapAllowed = false;
+                }
                 if (action == MotionEvent.ACTION_UP && swipeAllowed && Math.abs(dy) >= dp(72) && Math.abs(dy) >= Math.abs(dx) * 2) {
                     swipeAllowed = tapAllowed = false;
                     MotionEvent cancel = MotionEvent.obtain(event);
@@ -470,22 +474,26 @@ public final class PlayerActivity extends Activity {
                     super.dispatchTouchEvent(cancel);
                     cancel.recycle();
                     touchingControls = false;
+                    controlsHud.hold(false);
                     switchBySwipe(dy < 0 ? 1 : -1);
                     showControls();
                     return true;
                 }
                 if (action == MotionEvent.ACTION_UP) {
-                    toggleOnTouch = tapAllowed;
+                    surfaceTap = tapAllowed && event.getEventTime() - event.getDownTime() < ViewConfiguration.getLongPressTimeout();
                     swipeAllowed = tapAllowed = false;
                 }
             }
         }
         if (action == MotionEvent.ACTION_DOWN) touchingControls = true;
         else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) touchingControls = false;
-        // Dispatch before revealing: a tap on hidden controls is only a reveal, never a click.
+        // Keep the hit targets stable until the child has handled the event.
         boolean handled = super.dispatchTouchEvent(event);
-        if (toggleOnTouch && video != null) video.performClick();
-        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) showControls();
+        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            if (phoneTouch) controlsHud.hold(touchingControls);
+            else showControls();
+        }
+        if (surfaceTap) surfaceTaps.tap(event.getRawX(), event.getRawY());
         return handled;
     }
     private static boolean underTouch(View view, float x, float y) {
