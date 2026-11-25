@@ -209,14 +209,22 @@ public final class PlayerActivity extends Activity {
         danmaku = new DanmakuController(this, main, danmakuOverlay, value -> { danmakuNotice = value; updateDanmakuButton(); });
         top = new LinearLayout(this); top.setGravity(Gravity.CENTER_VERTICAL); top.setPadding(dp(8), dp(8), dp(8), dp(8)); top.setBackgroundColor(0xbb101014);
         back = button("‹ 返回", this::exitPlayer);
+        if (!BuildConfig.IS_TV) {
+            PlayerChrome.icon(back, R.drawable.ic_player_back);
+            back.setContentDescription("返回上一页");
+            top.setBackground(PlayerChrome.shade(true));
+        }
         top.addView(back, new LinearLayout.LayoutParams(dp(86), dp(48)));
         heading = new LinearLayout(this); heading.setOrientation(LinearLayout.VERTICAL); heading.setPadding(dp(8), 0, 0, 0);
         title = label(BuildConfig.IS_TV ? 20 : 17); title.setMaxLines(1); status = label(12); status.setMaxLines(2);
         heading.addView(title); heading.addView(status); top.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
         if (!BuildConfig.IS_TV) {
+            castButton = button("投屏", this::showCastChoices);
+            PlayerChrome.icon(castButton, R.drawable.ic_player_cast);
+            top.addView(castButton, new LinearLayout.LayoutParams(dp(48), dp(48)));
             fullscreenButton = button("全屏", this::toggleFullscreen);
-            fullscreenButton.setMinimumWidth(dp(48));
-            top.addView(fullscreenButton, new LinearLayout.LayoutParams(-2, dp(48)));
+            PlayerChrome.icon(fullscreenButton, R.drawable.ic_player_fullscreen);
+            top.addView(fullscreenButton, new LinearLayout.LayoutParams(dp(48), dp(48)));
             updateFullscreen();
         }
         root.addView(top, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
@@ -224,15 +232,16 @@ public final class PlayerActivity extends Activity {
         LinearLayout content = bottom;
         if (BuildConfig.IS_TV) bottom.setPadding(dp(10), dp(8), dp(10), dp(12));
         else {
+            bottom.setBackground(PlayerChrome.shade(false));
             phoneContent = new LinearLayout(this); phoneContent.setOrientation(LinearLayout.VERTICAL); content = phoneContent;
             phoneScroller = new ScrollView(this); phoneScroller.setFillViewport(false); phoneScroller.setClipToPadding(false);
             phoneScroller.addView(content, new ScrollView.LayoutParams(-1, -2));
             bottom.addView(phoneScroller, new LinearLayout.LayoutParams(-1, -2));
-            back.setText("返回"); back.setContentDescription("返回上一页");
             title.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE); status.setEllipsize(android.text.TextUtils.TruncateAt.END);
         }
         time = label(12); content.addView(time);
         seek = new SeekBar(this); seek.setContentDescription("播放进度"); content.addView(seek, new LinearLayout.LayoutParams(-1, dp(BuildConfig.IS_TV ? 40 : 48)));
+        if (!BuildConfig.IS_TV) PlayerChrome.progress(seek);
         seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             public void onStartTrackingTouch(SeekBar bar) { dragging = true; showControls(); }
             public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
@@ -248,8 +257,7 @@ public final class PlayerActivity extends Activity {
         previous = button("上一集", () -> move(-1)); toggle = button("暂停", this::togglePlayback); next = button("下一集", () -> move(1));
         Button select = button("选集", this::selectEpisode);
         autoplayButton = button("连播 开", () -> { autoplay = !autoplay; if (!castCommand("autoplay", autoplay ? 1 : 0) && autoplay && prepared && !offline) schedulePrefetch(generation); updateButtons(); });
-        castButton = BuildConfig.IS_TV ? null : button("投屏", this::showCastChoices);
-        episodeActions = BuildConfig.IS_TV ? new Button[]{previous, toggle, next, select, autoplayButton} : new Button[]{previous, toggle, next, select, autoplayButton, castButton};
+        episodeActions = new Button[]{previous, toggle, next, select, autoplayButton};
         for (Button b : episodeActions) actions.addView(b, new LinearLayout.LayoutParams(0, dp(50), 1));
         content.addView(actions); phoneActions = BuildConfig.IS_TV ? null : actions;
         LinearLayout options = new LinearLayout(this);
@@ -320,7 +328,7 @@ public final class PlayerActivity extends Activity {
         View focused = playerRoot.findFocus();
         top.setPadding(dp(8) + safeLeft, dp(layout.padding) + safeTop, dp(8) + safeRight, dp(layout.padding));
         back.setMinHeight(dp(layout.buttonHeight)); back.setMinimumHeight(dp(layout.buttonHeight));
-        back.setLayoutParams(new LinearLayout.LayoutParams(dp(layout.backWidth), -2));
+        back.setLayoutParams(new LinearLayout.LayoutParams(dp(48), -2));
         title.setTextSize(layout.titleSize); status.setTextSize(layout.statusSize); status.setMaxLines(layout.compact ? 1 : 2);
         phoneContent.setPadding(dp(8), dp(layout.padding), dp(8), dp(layout.padding + 4));
         bottom.setPadding(safeLeft, 0, safeRight, safeBottom);
@@ -364,7 +372,10 @@ public final class PlayerActivity extends Activity {
     private void updateFullscreen() {
         if (fullscreenButton == null) return;
         String label = fullscreen ? "退出全屏" : "全屏";
-        fullscreenButton.setText(label);
+        if (fullscreenButton.isSelected() != fullscreen) {
+            fullscreenButton.setSelected(fullscreen);
+            PlayerChrome.icon(fullscreenButton, fullscreen ? R.drawable.ic_player_fullscreen_exit : R.drawable.ic_player_fullscreen);
+        }
         fullscreenButton.setContentDescription(label);
         applyVideoFill(video);
         if (isInPictureInPictureMode() || fullscreen && (videoWidth <= 0 || videoHeight <= 0)) return;
@@ -479,7 +490,7 @@ public final class PlayerActivity extends Activity {
     private void updateButtons() {
         if (renderCastControls()) return;
         seek.setEnabled(prepared);
-        if (castButton != null) { castButton.setText("投屏"); castButton.setContentDescription("选择 DLNA 电视投屏"); }
+        if (castButton != null) { castButton.setSelected(false); castButton.setContentDescription("投屏"); }
         previous.setEnabled(current > 0); next.setEnabled(current + 1 < queue.size());
         toggle.setEnabled(prepared); toggle.setText(prepared && video.isPlaying() ? "暂停" : completed ? "重播" : "播放");
         qualityButton.setEnabled(prepared && !offline && !softActive);
@@ -1287,7 +1298,7 @@ public final class PlayerActivity extends Activity {
             // A stopped cast returns at the last receiver-confirmed position, not local 00:00.
             prepared = false;
             loadAtInternal(current, null, Math.max(0, resumeAt), false, false, false);
-            if (castButton != null) castButton.setText("投屏");
+            if (castButton != null) castButton.setSelected(false);
         }
     }
     private void saveProgressBeforeCast() {
@@ -1307,7 +1318,7 @@ public final class PlayerActivity extends Activity {
         qualityButton.setEnabled(false); qualityButton.setText("投屏 " + qualityLabel(snapshot.actualQuality));
         speedButton.setEnabled(false); speedButton.setText(browserCastSelected ? "倍速 · 接收端控制" : "倍速 · 电视控制");
         autoplayButton.setText(autoplay ? "连播 开" : "连播 关");
-        if (castButton != null) { castButton.setText("投屏中"); castButton.setContentDescription("投屏到 " + castDiagnosticValue(snapshot.deviceName) + "，点击管理或断开"); }
+        if (castButton != null) { castButton.setSelected(true); castButton.setContentDescription("投屏到 " + castDiagnosticValue(snapshot.deviceName) + "，点击管理或断开"); }
         if (!dragging) {
             int position = (int) Math.min(Integer.MAX_VALUE, Math.max(0, snapshot.positionMs));
             int duration = (int) Math.min(Integer.MAX_VALUE, Math.max(0, snapshot.durationMs));
