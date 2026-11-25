@@ -22,7 +22,11 @@ public final class PlayerHudActivityTest {
         p.dispatchTouchEvent(new MotionEvent(MotionEvent.ACTION_DOWN));
         check(visible(p) && p.baseTouchCalls == calls + 1 && p.baseSawTop == View.GONE, "first tap dispatches to video before showing controls, no accidental button activation");
         p.main.advance(10000); check(visible(p), "a held touch prevents hiding");
-        p.dispatchTouchEvent(new MotionEvent(MotionEvent.ACTION_UP)); p.main.advance(3999); check(visible(p), "touch release arms a full new deadline");
+        p.dispatchTouchEvent(new MotionEvent(MotionEvent.ACTION_UP));
+        check(!p.video.playing && p.toggleCalls == 1 && visible(p), "tap on hidden player pauses exactly once after revealing");
+        swipe(p, 120, 280, 120, 280);
+        check(p.video.playing && p.toggleCalls == 2, "second tap resumes");
+        p.main.advance(3999); check(visible(p), "resuming arms a full new deadline");
         p.main.advance(1); check(!visible(p), "idle playback hides after touch release");
         p.dispatchTouchEvent(new MotionEvent(MotionEvent.ACTION_DOWN)); p.dispatchTouchEvent(new MotionEvent(MotionEvent.ACTION_CANCEL));
         p.main.advance(4000); check(!visible(p) && !p.touchingControls, "cancelled touch releases interaction lock");
@@ -83,6 +87,14 @@ public final class PlayerHudActivityTest {
         swipe(swipes, 100, 200, 100, 430);
         check(swipes.moveCalls == 2 && swipes.lastMove == -1 && swipes.current == 1, "a downward swipe returns to the previous episode");
         int moves = swipes.moveCalls;
+        swipes.bottom.insideControl = true;
+        swipe(swipes, 100, 720, 100, 720);
+        swipes.bottom.insideControl = false;
+        check(swipes.toggleCalls == 0, "a tap on visible controls does not pause");
+        swipes.dispatchTouchEvent(new MotionEvent(MotionEvent.ACTION_DOWN, 100, 200));
+        swipes.dispatchTouchEvent(new MotionEvent(MotionEvent.ACTION_MOVE, 150, 200));
+        swipes.dispatchTouchEvent(new MotionEvent(MotionEvent.ACTION_UP, 100, 200));
+        check(swipes.toggleCalls == 0, "a drag back to the start is not a tap");
         swipe(swipes, 100, 200, 320, 210);
         check(swipes.moveCalls == moves && Toast.messages.isEmpty(), "a horizontal drag never switches episodes");
         swipe(swipes, 100, 200, 100, 230);

@@ -68,7 +68,7 @@ final class KeyEvent {
  final int action,key; KeyEvent(int action,int key){this.action=action;this.key=key;} int getAction(){return action;}int getKeyCode(){return key;}
 }
 final class MotionEvent {
- static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_CANCEL=3,ACTION_POINTER_DOWN=5;int action;final float x,y;
+ static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_POINTER_DOWN=5;int action;final float x,y;
  MotionEvent(int action){this(action,0,0);}MotionEvent(int action,float x,float y){this.action=action;this.x=x;this.y=y;}
  int getAction(){return action;}int getActionMasked(){return action;}float getRawX(){return x;}float getRawY(){return y;}
  static MotionEvent obtain(MotionEvent e){return new MotionEvent(e.action,e.x,e.y);}void setAction(int value){action=value;}void recycle(){}
@@ -81,9 +81,13 @@ final class Toast {
 class View {
  static final int VISIBLE=0,GONE=8;static View focused; int visibility=VISIBLE;boolean enabled=true;
  interface Layout {void change(View v,int l,int t,int r,int b,int oldL,int oldT,int oldR,int oldB);}
+ interface Click {void click(View view);}
+ Click click; boolean insideControl;
+ void setOnClickListener(Click listener){click=listener;} void setContentDescription(String label){}
+ boolean performClick(){if(click==null)return false;click.click(this);return true;}
  VideoView.Touch touch;void setOnTouchListener(VideoView.Touch listener){touch=listener;}void addOnLayoutChangeListener(Layout listener){}
  boolean isShown(){return visibility==VISIBLE;}boolean canScrollVertically(int direction){return false;}
- boolean getGlobalVisibleRect(android.graphics.Rect bounds){return false;}
+ boolean getGlobalVisibleRect(android.graphics.Rect bounds){return insideControl;}
  void setVisibility(int value){visibility=value;}int getVisibility(){return visibility;}boolean requestFocus(){focused=this;return true;}boolean hasFocus(){return focused==this;}boolean isEnabled(){return enabled;}
 }
 final class VideoView extends View {
@@ -112,7 +116,7 @@ final class PlayerHudHarness extends HudActivityBase {
  final MainLoop main=new MainLoop();final Worker resolver=new Worker(),cacheWorker=new Worker();
  final View top=new View(),bottom=new View(),toggle=new View(),back=new View();VideoView video=new VideoView();
  final View phoneScroller=new View(),seek=new View();
- boolean fullscreen,swipeAllowed,handedOff,softActive;float swipeX,swipeY;Object softLayer;
+ boolean fullscreen,swipeAllowed,tapAllowed,handedOff,softActive;float swipeX,swipeY;Object softLayer;
  java.util.concurrent.Future<?> prefetch;int prefetchedIndex=-1;
  void applyVideoFill(View view){}void toggleFullscreen(){fullscreen=!fullscreen;}
  boolean isInPictureInPictureMode(){return false;}void handoffPlayback(){}boolean resumeFromService(){return false;}
@@ -148,7 +152,7 @@ text=text.replace('HUD_INFO',info).replace('ACTIVITY_METHODS',methods)
 Path(sys.argv[2]).write_text(text)
 print('HUD_ACTIVITY_BINDING actualMethods=true baselineWithoutPolicy='+str(not modern).lower()+' source='+sys.argv[1])
 PY
-printf '%s\n' 'package android.graphics; public final class Rect { public boolean contains(int x,int y){return false;} }' > "$TMP/Rect.java"
+printf '%s\n' 'package android.graphics; public final class Rect { public boolean contains(int x,int y){return true;} }' > "$TMP/Rect.java"
 SOURCES=("$TMP/PlayerHudHarness.java" "$TMP/Rect.java" "$ROOT/android/tests/PlayerHudActivityTest.java")
 if [[ -f "$SRC/PlayerHud.java" ]]; then SOURCES+=("$SRC/PlayerHud.java" "$ROOT/android/tests/PlayerHudTest.java"); fi
 "$JAVA_HOME/bin/javac" -encoding UTF-8 -source 17 -target 17 -d "$TMP/classes" "${SOURCES[@]}"
