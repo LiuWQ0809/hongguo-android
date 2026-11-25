@@ -218,9 +218,7 @@ function Discover({ onOpen, library, onSearch, onUpdates, polishUi }) {
     loadPage(next);
   };
   // Keep real in-progress episodes above the recommendation catalogue.
-  const continueRows = useMemo(() => (library?.history || [])
-    .filter(row => (row.positionMs || 0) > 30_000 && !completedEpisode(row))
-    .slice(0, 12), [library?.history]);
+  const continueRows = useMemo(() => filterHistory(library?.history || [], 'watching'), [library?.history]);
   const feedMode = feed !== null;
   const searchButton = <button type="button" className="home-search" onClick={onSearch}><Search size={17} /><span>搜索短剧名称</span></button>;
   return <>
@@ -723,9 +721,18 @@ function Downloads({ notify }) {
   </>;
 }
 
+function AutoplaySetting({ enabled, onChange, disabled }) {
+  return <div className="playback-setting">
+    <div><h2>自动连播</h2><p>自动播放本季下一集。</p></div>
+    <button className="setting-switch" type="button" role="switch" aria-checked={enabled}
+      aria-label="自动连播" disabled={disabled} onClick={onChange}>{enabled ? '开启' : '关闭'}</button>
+  </div>;
+}
+
 function About({ info, notify, accountFocus, announcementsRef, juguoSettings }) {
   const [cache, setCache] = useState({ busy: true });
   const [clearing, setClearing] = useState(false);
+  const [autoplay, setAutoplay] = useState(() => getPlaybackPreferences().autoplay);
   const mounted = useRef(true);
   const refreshCache = useCallback(async () => {
     try { const result = await nativeCall('getPlaybackCache'); if (mounted.current) setCache({ ...result, busy: false }); }
@@ -752,6 +759,9 @@ function About({ info, notify, accountFocus, announcementsRef, juguoSettings }) 
   return <>
     <header className="page-heading"><h1>关于红果短剧</h1><p>适配手机触控与电视遥控器。</p></header>
     <UpdatePanel />
+    {!info.isTv && <section className="about-section playback-settings" aria-label="播放设置">
+      <AutoplaySetting enabled={autoplay} onChange={() => setAutoplay(setPlaybackPreference('autoplay', !autoplay).autoplay)} />
+    </section>}
     <AccountPanel isTv={!!info.isTv} focusRequest={accountFocus} />
     <AnnouncementSettings announcementsRef={announcementsRef} notify={notify} />
     {juguoSettings && <JuguoSettings config={juguoSettings} />}
@@ -1258,7 +1268,7 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onLibrary, no
         <div className="playback-setting"><div><h2>播放倍速</h2><p>仅影响播放，不改变缓存文件。</p></div><select aria-label="播放倍速" value={mediaOptions.speed} disabled={!!operation || mediaBusy} onChange={event => changeMediaOption('speed', Number(event.target.value))}>{[0.75, 1, 1.25, 1.5, 2].map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></div>
         {mediaError && <p className="text-error" role="alert">{mediaError}</p>}
       </section>
-      <section className="playback-settings" aria-label="播放设置"><div className="playback-setting"><div><h2>自动连播</h2><p>自动播放本季下一集，不跨季。</p></div><button className="setting-switch" type="button" role="switch" aria-checked={preferences.autoplay} aria-label="自动连播" disabled={!!operation} onClick={() => changePreference('autoplay')}>{preferences.autoplay ? '开启' : '关闭'}</button></div><div className="playback-setting"><div><h2>清理已看播放缓存</h2><p>保留当前集和前一集，手动下载不受影响。</p></div><button className="setting-switch" type="button" role="switch" aria-checked={preferences.cleanupPlaybackCache} aria-label="清理已看播放缓存" disabled={!!operation} onClick={() => changePreference('cleanupPlaybackCache')}>{preferences.cleanupPlaybackCache ? '开启' : '关闭'}</button></div></section>
+      <section className="playback-settings" aria-label="播放设置">{isTv && <AutoplaySetting enabled={preferences.autoplay} onChange={() => changePreference('autoplay')} disabled={!!operation} />}<div className="playback-setting"><div><h2>清理已看播放缓存</h2><p>保留当前集和前一集，手动下载不受影响。</p></div><button className="setting-switch" type="button" role="switch" aria-checked={preferences.cleanupPlaybackCache} aria-label="清理已看播放缓存" disabled={!!operation} onClick={() => changePreference('cleanupPlaybackCache')}>{preferences.cleanupPlaybackCache ? '开启' : '关闭'}</button></div></section>
       </details>
       {opError && <div ref={operationError} className="operation-error" role="alert"><p>{opError.text}</p><button className="button" onClick={() => run(opError.action, opError.episode)}>重试{opError.action === 'play' ? '播放' : '下载'}</button></div>}
     </>}
