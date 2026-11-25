@@ -11,10 +11,9 @@ final class MobileLayoutPolicy {
 
     static final class Layout {
         final boolean compact;
-        final int columns, optionColumns, buttonHeight, backWidth, padding, titleSize, statusSize;
-        Layout(boolean compact, int columns, int optionColumns, int buttonHeight, int backWidth) {
-            this.compact = compact; this.columns = columns; this.optionColumns = optionColumns;
-            this.buttonHeight = buttonHeight; this.backWidth = backWidth;
+        final int columns, buttonHeight, padding, titleSize, statusSize;
+        Layout(boolean compact, int columns, int buttonHeight) {
+            this.compact = compact; this.columns = columns; this.buttonHeight = buttonHeight;
             padding = compact ? 4 : 8; titleSize = compact ? 15 : 17; statusSize = compact ? 11 : 12;
         }
 
@@ -32,9 +31,7 @@ final class MobileLayoutPolicy {
         boolean compact = height < 420 && width > height;
         int minButtonWidth = Math.max(80, (int) Math.ceil(42 * scale + 20));
         int columns = Math.max(1, Math.min(4, width / minButtonWidth));
-        int optionColumns = width >= Math.ceil(280 * scale) ? 2 : 1;
         int buttonHeight = Math.max(48, (int) Math.ceil(36 * scale + 8));
-        int backWidth = Math.min(Math.max(48, width / 2), Math.max(80, (int) Math.ceil(28 * scale + 24)));
-        return new Layout(compact, columns, optionColumns, buttonHeight, backWidth);
+        return new Layout(compact, columns, buttonHeight);
     }
 }

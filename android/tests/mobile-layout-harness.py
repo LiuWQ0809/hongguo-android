@@ -34,7 +34,8 @@ def method(source, name):
     raise SystemExit('unclosed actual method: ' + name)
 
 modern = method(main, 'applyWebInsets') is not None and method(player, 'applyPhoneLayout') is not None
-phone_has_cast = bool(re.search(r'episodeActions\s*=\s*BuildConfig\.IS_TV\s*\?\s*new Button\[\]\{[^}]*\}\s*:\s*new Button\[\]\{[^}]*\bcastButton\b', player))
+phone_controls = re.search(r'episodeActions\s*=\s*BuildConfig\.IS_TV\s*\?\s*new Button\[\]\{[^}]*\}\s*:\s*new Button\[\]\{([^}]*)', player)
+phone_count = len(phone_controls.group(1).split(',')) if phone_controls else 5
 main_methods = method(main, 'applyWebInsets')
 if main_methods is None:
     # The 0.9 baseline has this statement inside its real WindowInsets listener.
@@ -60,8 +61,7 @@ final class PlayerLayoutHarness extends LayoutActivityBase {
     ScrollView phoneScroller = new ScrollView(this);
     TextView title = new TextView(this), status = new TextView(this), time = new TextView(this);
     Button back = new Button(this), qualityButton = new Button(this), speedButton = new Button(this), danmakuButton = new Button(this);
-    final boolean phoneHasCast = PHONE_HAS_CAST;
-    Button[] episodeActions = new Button[BuildConfig.IS_TV || !phoneHasCast ? 5 : 6];
+    Button[] episodeActions = new Button[BuildConfig.IS_TV ? 5 : PHONE_COUNT];
     int safeLeft, safeTop, safeRight, safeBottom;
     int generation = 9, position = 47000, mediaReloads;
     boolean userPaused = true, autoplay = true;
@@ -78,7 +78,8 @@ final class PlayerLayoutHarness extends LayoutActivityBase {
         View seek=new View(this); seek.minimumHeight=48; phoneContent.addView(seek,new LinearLayout.LayoutParams(-1,48));
         phoneContent.addView(phoneActions); phoneContent.addView(phoneOptions);
         qualityButton.text="清晰度 1080p · 当前 720p"; speedButton.text="倍速 1.5×"; danmakuButton.text="弹幕 读取中";
-        String[] labels={"上一集","暂停","下一集","选集","连播 开","投屏"};
+        String[] labels=BuildConfig.IS_TV ? new String[]{"上一集","暂停","下一集","选集","连播 开"}
+            : new String[]{"选集","弹幕","画质","倍速","连播","投屏"};
         for(int i=0;i<episodeActions.length;i++){episodeActions[i]=new Button(this);episodeActions[i].text=labels[i];}
         phoneScroller.addView(phoneContent); bottom.addView(phoneScroller);
         playerRoot.addView(top); playerRoot.addView(bottom);
@@ -88,6 +89,6 @@ final class PlayerLayoutHarness extends LayoutActivityBase {
     void saveProgress(){mediaReloads++;}
     PLAYER_METHODS
 }
-'''.replace('PLAYER_METHODS', methods).replace('PHONE_HAS_CAST', str(phone_has_cast).lower())
+'''.replace('PLAYER_METHODS', methods).replace('PHONE_COUNT', str(phone_count))
 output.write_text(text)
 print('MOBILE_LAYOUT_BINDING actualMethods=true modern=' + str(modern).lower() + ' baselineInlineInsets=' + str(not modern).lower())

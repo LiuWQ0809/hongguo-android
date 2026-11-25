@@ -28,10 +28,10 @@ public final class MobileLayoutTest {
         main.onConfigurationChanged(new Configuration());eq(1,main.webContainer.insetRequests,"TV does not take phone rotation path");
         BuildConfig.IS_TV=false;
         MobileLayoutPolicy.Layout portrait=MobileLayoutPolicy.phone(360,800,1);
-        eq(3,portrait.columns,"portrait readable 3+2 actions");eq(2,portrait.optionColumns,"normal options two columns");
+        eq(4,portrait.columns,"portrait puts the four compact actions in one row");
         MobileLayoutPolicy.Layout landscape=MobileLayoutPolicy.phone(740,330,1);
-        eq(5,landscape.columns,"short landscape compact five actions");check(landscape.compact,"landscape compact");
-        check(MobileLayoutPolicy.phone(360,640,2).optionColumns==1,"large-font options stack");
+        eq(4,landscape.columns,"short landscape keeps four actions");check(landscape.compact,"landscape compact");
+        check(MobileLayoutPolicy.phone(360,640,2).columns<4,"large-font options reflow");
         for(int width:new int[]{240,280,320,360,411,480,600,740,960})for(int height:new int[]{220,280,330,420,640,800,1000})for(float scale:new float[]{.8f,1,1.3f,1.5f,2,2.5f,3}){
             MobileLayoutPolicy.Layout layout=MobileLayoutPolicy.phone(width,height,scale);
             check(layout.columns>=1&&layout.columns<=5,"bounded columns");check(layout.buttonHeight>=48,"minimum touch height");
@@ -39,25 +39,16 @@ public final class MobileLayoutTest {
             check(control+80+48<=height||height<176,"controls leave Back bar and video strip");
         }
         PlayerLayoutHarness player=new PlayerLayoutHarness();player.applyPhoneLayout();
-        eq(2,player.phoneActions.children.size(),"actual production portrait actions have two rows");
-        eq(3,((LinearLayout)player.phoneActions.children.get(0)).children.size(),"actual first row has three");
-        int actionCount=player.phoneHasCast?6:5;
-        eq(actionCount,player.episodeActions.length,"phone action fixture follows production cast affordance");
-        eq(actionCount-3,((LinearLayout)player.phoneActions.children.get(1)).children.size(),"actual second row retains all actions");
-        if(player.phoneHasCast)check(player.episodeActions[5].text.equals("投屏"),"phone sixth action is casting");
+        eq(1,player.phoneActions.children.size(),"actual production portrait has a single row");
+        eq(4,player.episodeActions.length,"production phone row has four actions");
         allActionsReachable(player,"portrait");
-        eq(2,player.phoneOptions.children.size(),"phone keeps media row plus separate danmaku row");
-        LinearLayout mediaOptions=(LinearLayout)player.phoneOptions.children.get(0);
-        eq(2,mediaOptions.children.size(),"quality and speed retain original two-column width");
-        check(player.phoneOptions.children.get(1)==player.danmakuButton,"danmaku remains focusable separate row");
         for(Button b:player.episodeActions){check(b.minimumHeight>=48,"production action touch min");check(b.params.height==-2,"action grows for font rather than fixed clipping");}
         check(player.back.minimumHeight>=48&&player.back.params.width>=48,"Back has actual >=48 target");
         Object originalVideo=player.video;player.episodeActions[2].requestFocus();
         player.playerRoot.width=740;player.playerRoot.height=330;
         player.onConfigurationChanged(new Configuration());
-        eq((actionCount+4)/5,player.phoneActions.children.size(),"actual rotation keeps compact five-column rows");
-        eq(5,((LinearLayout)player.phoneActions.children.get(0)).children.size(),"all five original actions stay in compact first row");
-        allActionsReachable(player,"short landscape with cast action");
+        eq(1,player.phoneActions.children.size(),"rotation keeps compact row");
+        allActionsReachable(player,"short landscape");
         check(player.playerRoot.findFocus()==player.episodeActions[2],"focused existing button preserved during reparent");
         check(player.video==originalVideo&&player.mediaReloads==0&&player.generation==9&&player.position==47000,"rotation retains video object/generation/position without reload");
         check(player.userPaused&&player.autoplay&&player.requestedSpeed==1.5f&&player.quality.equals("1080p")&&player.actualQuality.equals("720p"),"rotation retains pause, speed, queue and fallback stage");
@@ -65,14 +56,14 @@ public final class MobileLayoutTest {
         player.setPhoneSafeArea(36,0,18,24);
         eq(36,player.bottom.left,"bottom cutout left");eq(18,player.bottom.right,"bottom cutout right");eq(24,player.bottom.bottom,"bottom nav protection");eq(44,player.top.left,"top padding plus left safe area");
         player.playerRoot.width=320;player.playerRoot.height=420;player.onConfigurationChanged(new Configuration(2.5f));
-        eq(LinearLayout.VERTICAL,player.phoneOptions.orientation,"actual large-font options stack");
+        check(player.phoneActions.children.size()>1,"actual large-font actions reflow");
         check(player.phoneContent.getMeasuredHeight()>player.phoneScroller.params.height,"oversized production controls scroll instead of covering heading");
         check(player.phoneScroller.params.height+player.top.getMeasuredHeight()+24<=player.playerRoot.height,"actual bounded controls and Back remain disjoint");
         for(Button b:player.episodeActions)check(b.minimumHeight>=98&&b.maxLines==2,"large font gets growing wrapped touch controls");
         allActionsReachable(player,"short screen large font");
         PlayerLayoutHarness highDensity=new PlayerLayoutHarness();highDensity.resources.metrics.density=2.75f;
         highDensity.playerRoot.width=990;highDensity.playerRoot.height=2200;highDensity.applyPhoneLayout();
-        eq(2,highDensity.phoneActions.children.size(),"fractional-density phone keeps dp columns");
+        eq(1,highDensity.phoneActions.children.size(),"fractional-density phone keeps dp columns");
         check(highDensity.back.minimumHeight>=132,"fractional-density Back target >=48dp");
         allActionsReachable(highDensity,"fractional density");
         check(highDensity.phoneScroller.params.height+highDensity.top.getMeasuredHeight()<=highDensity.playerRoot.height,"fractional-density controls fit viewport");
