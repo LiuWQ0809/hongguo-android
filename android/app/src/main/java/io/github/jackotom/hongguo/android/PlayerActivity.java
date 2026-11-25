@@ -53,6 +53,7 @@ public final class PlayerActivity extends Activity {
     private Button back, fullscreenButton;
     private boolean fullscreen;
     private PlayerHud controlsHud;
+    private PlayerSurfaceTaps surfaceTaps;
     private boolean buffering, touchingControls;
     private float swipeX, swipeY;
     private boolean swipeAllowed, tapAllowed;
@@ -280,15 +281,20 @@ public final class PlayerActivity extends Activity {
         root.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         setContentView(root);
         if (!BuildConfig.IS_TV) installPhoneLayout();
-        controlsHud = new PlayerHud(new PlayerHud.Scheduler() {
+        PlayerHud.Scheduler hudScheduler = new PlayerHud.Scheduler() {
             public void cancel(Runnable action) { main.removeCallbacks(action); }
             public void later(Runnable action, long delay) { main.postDelayed(action, delay); }
-        }, visible -> {
+        };
+        controlsHud = new PlayerHud(hudScheduler, visible -> {
             boolean show = visible && !isInPictureInPictureMode();
             top.setVisibility(show ? View.VISIBLE : View.GONE);
             bottom.setVisibility(show ? View.VISIBLE : View.GONE);
             if (!visible && video != null) video.requestFocus();
         });
+        if (!BuildConfig.IS_TV) {
+            surfaceTaps = new PlayerSurfaceTaps(hudScheduler, this::togglePictureControls, () -> video.performClick(),
+                ViewConfiguration.getDoubleTapTimeout(), ViewConfiguration.get(this).getScaledDoubleTapSlop());
+        }
         video.requestFocus(); showControls();
     }
     private void installPhoneLayout() {
@@ -400,7 +406,7 @@ public final class PlayerActivity extends Activity {
     private void installVideoTouch(View view) {
         if (!BuildConfig.IS_TV && view instanceof VideoView) {
             view.addOnLayoutChangeListener((target, l, t, r, b, oldL, oldT, oldR, oldB) -> applyVideoFill(target));
-            view.setContentDescription("播放画面，点按播放或暂停");
+            view.setContentDescription("播放画面，单点显示控制栏，双点播放或暂停");
             view.setOnClickListener(target -> { togglePlayback(); showControls(); });
             view.setOnTouchListener((target, event) -> true);
             return;
@@ -431,6 +437,11 @@ public final class PlayerActivity extends Activity {
     private void showControls() {
         if (controlsHud == null) return;
         controlsHud.interact(); updateControlsState();
+    }
+    private void togglePictureControls() {
+        if (!active || destroyed || isFinishing() || isInPictureInPictureMode()) return;
+        if (!prepared || completed || buffering || qualitySwitch != null || hudDialogs > 0 || casting()) showControls();
+        else controlsHud.toggle();
     }
     private void showPlayerDialog(AlertDialog dialog) {
         ++hudDialogs; showControls();
@@ -1655,6 +1666,7 @@ public final class PlayerActivity extends Activity {
         if (!active) cancelPlaybackWatchdogs();
         if (danmaku != null) danmaku.suspend();
         touchingControls = false;
+        if (surfaceTaps != null) surfaceTaps.cancel();
         wakeKey = KeyEvent.KEYCODE_UNKNOWN;
         if (controlsHud != null) controlsHud.suspend();
         saveProgress();
