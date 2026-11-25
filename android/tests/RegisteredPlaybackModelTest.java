@@ -57,6 +57,16 @@ public final class RegisteredPlaybackModelTest {
   @Override public Map<String,List<String>> getHeaderFields(){return Collections.singletonMap("Content-Type",Collections.singletonList("application/json"));}
  }
  public static void main(String[]args)throws Exception{
+  group("compatibility requires ByteVC2-only tracks and the same full VOD",()->{
+   JSONObject bytevc2=new JSONObject().put("video_meta",new JSONObject().put("codec_type","ByteVC2"));
+   JSONObject avc=new JSONObject().put("codec_type","h264");
+   check(RegisteredPlaybackModel.byteVc2Only(new JSONArray().put(bytevc2)),"ByteVC2 only");
+   check(!RegisteredPlaybackModel.byteVc2Only(new JSONArray().put(bytevc2).put(avc)),"leave supported tracks alone");
+   JSONObject original=new JSONObject().put("video_id","fixture").put("video_duration",120);
+   check(RegisteredPlaybackModel.sameVod(original,new JSONObject(original.toString()).put("video_duration",120.2)),"same VOD");
+   check(!RegisteredPlaybackModel.sameVod(original,new JSONObject(original.toString()).put("video_duration",60)),"shorter VOD");
+   check(!RegisteredPlaybackModel.sameVod(original,new JSONObject(original.toString()).put("video_id","other")),"different VOD");
+  });
   group("compatibility ConnectException is typed for the existing outer retry owner",()->{
    AtomicInteger requests=new AtomicInteger();Exception error=reject(()->operation(r->registration(),r->{requests.incrementAndGet();if(r.method.equals("GET"))return response(200,"");throw new ConnectException("synthetic connection refusal");}).fetch(VID));
    String code=error instanceof RegisteredPlaybackModel.ModelError?((RegisteredPlaybackModel.ModelError)error).code:error.getClass().getSimpleName();

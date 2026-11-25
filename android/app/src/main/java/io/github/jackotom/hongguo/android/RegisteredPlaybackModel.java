@@ -502,6 +502,32 @@ final class RegisteredPlaybackModel implements AutoCloseable {
         JSONObject projected = project(model); check();
         return projected;
     }
+    private static String trackCodec(JSONObject track) {
+        JSONObject meta = track.optJSONObject("video_meta");
+        String codec = track.optString("codec_type", "");
+        if (codec.isEmpty() && meta != null) codec = meta.optString("codec_type", "");
+        return codec.toLowerCase(Locale.ROOT);
+    }
+    static boolean byteVc2Only(JSONArray tracks) throws JSONException {
+        for (int i = 0; i < tracks.length(); i++) {
+            String codec = trackCodec(tracks.getJSONObject(i));
+            if (!"bytevc2".equals(codec) && !"bvc2".equals(codec)) return false;
+        }
+        return tracks.length() > 0;
+    }
+    private static boolean nativeCodecPresent(JSONArray tracks) throws JSONException {
+        List<String> supported = Arrays.asList("h264", "avc", "avc1", "hevc", "h265", "hvc1", "hev1", "bytevc1");
+        for (int i = 0; i < tracks.length(); i++)
+            if (supported.contains(trackCodec(tracks.getJSONObject(i)))) return true;
+        return false;
+    }
+    static boolean sameVod(JSONObject original, JSONObject alternative) {
+        Object id = original.opt("video_id");
+        double duration = original.optDouble("video_duration", 0);
+        double otherDuration = alternative.optDouble("video_duration", 0);
+        return id instanceof String && !((String) id).isEmpty() && id.equals(alternative.opt("video_id"))
+            && duration > 0 && otherDuration > 0 && Math.abs(duration - otherDuration) <= 0.5;
+    }
     private static boolean zero(Object value) { return value instanceof Number && Double.isFinite(((Number) value).doubleValue()) && ((Number) value).doubleValue() == 0 || value instanceof String && value.equals("0"); }
     // VOD video_id/vid strings are not the numeric episode item_id namespace.
     private static void identity(JSONObject object, String vid) throws IOException {
