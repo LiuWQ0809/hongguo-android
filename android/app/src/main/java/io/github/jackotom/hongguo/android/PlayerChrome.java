@@ -33,6 +33,14 @@ final class PlayerChrome {
         button.setText("");
     }
 
+    static void resume(Button button) {
+        icon(button, R.drawable.ic_player_play);
+        GradientDrawable disc = new GradientDrawable();
+        disc.setShape(GradientDrawable.OVAL);
+        disc.setColor(0xb8000000);
+        button.setBackground(new LayerDrawable(new Drawable[]{disc, button.getBackground()}));
+    }
+
     static void text(Button button) { button.setBackground(ripple(null)); }
 
     private static RippleDrawable ripple(Drawable content) {

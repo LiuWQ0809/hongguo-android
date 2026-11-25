@@ -50,7 +50,7 @@ public final class PlayerActivity extends Activity {
     private ScrollView phoneScroller;
     private Button[] episodeActions;
     private int safeLeft, safeTop, safeRight, safeBottom;
-    private Button back, fullscreenButton;
+    private Button back, fullscreenButton, resumeOverlay;
     private boolean fullscreen;
     private PlayerHud controlsHud;
     private PlayerSurfaceTaps surfaceTaps;
@@ -208,6 +208,12 @@ public final class PlayerActivity extends Activity {
         });
         root.addView(danmakuOverlay, new FrameLayout.LayoutParams(-1, -1));
         danmaku = new DanmakuController(this, main, danmakuOverlay, value -> { danmakuNotice = value; updateDanmakuButton(); });
+        if (!BuildConfig.IS_TV) {
+            resumeOverlay = button("继续播放", () -> { if (userPaused) togglePlayback(); });
+            PlayerChrome.resume(resumeOverlay);
+            resumeOverlay.setVisibility(View.GONE);
+            root.addView(resumeOverlay, new FrameLayout.LayoutParams(dp(64), dp(64), Gravity.CENTER));
+        }
         top = new LinearLayout(this); top.setGravity(Gravity.CENTER_VERTICAL); top.setPadding(dp(8), dp(8), dp(8), dp(8)); top.setBackgroundColor(0xbb101014);
         back = button("‹ 返回", this::exitPlayer);
         if (!BuildConfig.IS_TV) {
@@ -433,7 +439,15 @@ public final class PlayerActivity extends Activity {
         if (!active || destroyed || isFinishing() || !prepared || completed || userPaused || buffering || dragging || (BuildConfig.IS_TV && touchingControls) || hudDialogs > 0 || qualitySwitch != null || video == null) return false;
         try { return video.isPlaying(); } catch (RuntimeException ignored) { return false; }
     }
-    private void updateControlsState() { if (controlsHud != null) controlsHud.playback(canHideControls()); }
+    private void updateResumeOverlay() {
+        if (resumeOverlay == null) return;
+        boolean show = prepared && userPaused && !completed && !casting() && !isInPictureInPictureMode();
+        resumeOverlay.setVisibility(show ? View.VISIBLE : View.GONE);
+    }
+    private void updateControlsState() {
+        if (controlsHud != null) controlsHud.playback(canHideControls());
+        updateResumeOverlay();
+    }
     private void showControls() {
         if (controlsHud == null) return;
         controlsHud.interact(); updateControlsState();
@@ -456,7 +470,8 @@ public final class PlayerActivity extends Activity {
             if (action == MotionEvent.ACTION_DOWN) {
                 swipeX = event.getRawX();
                 swipeY = event.getRawY();
-                swipeAllowed = tapAllowed = !underTouch(top, swipeX, swipeY) && !underTouch(bottom, swipeX, swipeY);
+                swipeAllowed = !underTouch(top, swipeX, swipeY) && !underTouch(bottom, swipeX, swipeY);
+                tapAllowed = swipeAllowed && (resumeOverlay == null || !underTouch(resumeOverlay, swipeX, swipeY));
                 if (!tapAllowed) surfaceTaps.cancel();
             } else if (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_CANCEL) {
                 swipeAllowed = tapAllowed = false;
@@ -1641,7 +1656,9 @@ public final class PlayerActivity extends Activity {
     @Override public void onPictureInPictureModeChanged(boolean inPip, android.content.res.Configuration configuration) {
         super.onPictureInPictureModeChanged(inPip, configuration);
         updateFullscreen();
+        if (surfaceTaps != null) surfaceTaps.cancel();
         if (controlsHud != null) controlsHud.interact();
+        updateResumeOverlay();
         if (danmaku != null && inPip) danmaku.suspend();
     }
 
