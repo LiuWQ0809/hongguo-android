@@ -87,25 +87,42 @@ function Poster({ item, onOpen, history, onDelete }) {
   const [failed, setFailed] = useState(false);
   const cover = !item.sourceId && isRetiredSeriesId(item.seriesId) ? '' : item.coverUrl;
   const [src, setSrc] = useState(cover);
+  const [nearby, setNearby] = useState(false);
+  const artRef = useRef(null);
   const imageRef = useRef(null);
   useEffect(() => { setSrc(cover); setFailed(false); }, [cover]);
-  // IPv6 黑洞等网络下图片请求可能无限挂起：限时未出图按失败处理，显示占位不留白块。
+  // Start both the request and its deadline when the artwork enters the scroll area.
   useEffect(() => {
-    if (!src || failed) return undefined;
+    if (!cover || nearby) return undefined;
+    const art = artRef.current;
+    if (!art || typeof IntersectionObserver !== 'function') { setNearby(true); return undefined; }
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) setNearby(true);
+    }, { root: art.closest('.main-content'), rootMargin: '160px 0px' });
+    observer.observe(art);
+    return () => observer.disconnect();
+  }, [cover, nearby]);
+  const coverError = useCallback(() => {
+    const twin = webpCover(src);
+    if (twin) setSrc(twin);
+    else setFailed(true);
+  }, [src]);
+  useEffect(() => {
+    if (!nearby || !src || failed) return undefined;
     const timer = setTimeout(() => {
       const image = imageRef.current;
-      if (image && !(image.complete && image.naturalWidth > 0)) setFailed(true);
+      if (image && !(image.complete && image.naturalWidth > 0)) coverError();
     }, 8000);
     return () => clearTimeout(timer);
-  }, [src, failed]);
-  const coverError = () => { const twin = webpCover(src); if (twin) setSrc(twin); else setFailed(true); };
+  }, [nearby, src, failed, coverError]);
   const open = () => onOpen(item, history?.vid);
   // 卡片可携带删除入口：外层用可聚焦 div（避免按钮嵌套），删除键独立成按钮并阻断冒泡。
   return <div className="poster" role="button" tabIndex={0} aria-label={`打开${item.title}`}
     onClick={event => { if (event.target.closest('.poster-delete')) return; open(); }}
     onKeyDown={event => { if ((event.key !== 'Enter' && event.key !== ' ') || event.target.closest('.poster-delete')) return; event.preventDefault(); open(); }}>
-    <span className="poster-art">
-      {src && !failed ? <img ref={imageRef} src={src} alt="" loading="lazy" onError={coverError} /> : <span className="poster-fallback"><Film size={32} /><span>暂无封面</span></span>}
+    <span className="poster-art" ref={artRef}>
+      {!src || failed ? <span className="poster-fallback"><Film size={32} /><span>暂无封面</span></span>
+        : nearby ? <img ref={imageRef} src={src} alt="" onError={coverError} /> : null}
       {item.episodeLabel || item.episodeCount ? <span className="poster-label">{item.episodeLabel || `${item.episodeCount} 集`}</span> : null}
       {onDelete ? <button type="button" className="poster-delete" onClick={event => { event.stopPropagation(); onDelete(item); }} aria-label={`删除${item.title}的观看记录`}>×</button> : null}
     </span>
