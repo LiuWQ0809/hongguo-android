@@ -254,9 +254,11 @@ public final class PlayerActivity extends Activity {
             public void onStopTrackingTouch(SeekBar bar) { dragging = false; if (prepared && !castCommand("seek", bar.getProgress())) video.seekTo(bar.getProgress()); showControls(); }
         });
         LinearLayout actions = new LinearLayout(this); actions.setGravity(Gravity.CENTER_VERTICAL);
-        previous = button("上一集", () -> move(-1)); toggle = button("暂停", this::togglePlayback); next = button("下一集", () -> move(1));
         Button select = button("选集", this::selectEpisode);
-        autoplayButton = button("连播 开", () -> { autoplay = !autoplay; if (!castCommand("autoplay", autoplay ? 1 : 0) && autoplay && prepared && !offline) schedulePrefetch(generation); updateButtons(); });
+        if (BuildConfig.IS_TV) {
+            previous = button("上一集", () -> move(-1)); toggle = button("暂停", this::togglePlayback); next = button("下一集", () -> move(1));
+            autoplayButton = button("连播 开", () -> { autoplay = !autoplay; if (autoplay && prepared && !offline) schedulePrefetch(generation); updateButtons(); });
+        }
         qualityButton = button("清晰度 自动", this::selectQuality); speedButton = button("倍速 1×", this::selectSpeed);
         danmakuButton = button("弹幕 关", this::toggleDanmaku);
         episodeActions = BuildConfig.IS_TV ? new Button[]{previous, toggle, next, select, autoplayButton}
@@ -490,15 +492,18 @@ public final class PlayerActivity extends Activity {
         if (renderCastControls()) return;
         seek.setEnabled(prepared);
         if (castButton != null) { castButton.setSelected(false); castButton.setContentDescription("投屏"); }
-        previous.setEnabled(current > 0); next.setEnabled(current + 1 < queue.size());
-        toggle.setEnabled(prepared); toggle.setText(prepared && video.isPlaying() ? "暂停" : completed ? "重播" : "播放");
+        if (BuildConfig.IS_TV) {
+            previous.setEnabled(current > 0); next.setEnabled(current + 1 < queue.size());
+            toggle.setEnabled(prepared); toggle.setText(prepared && video.isPlaying() ? "暂停" : completed ? "重播" : "播放");
+            autoplayButton.setText(autoplay ? "连播 开" : "连播 关");
+            autoplayButton.setContentDescription(autoplay ? "自动连播已开启" : "自动连播已关闭");
+        }
         qualityButton.setEnabled(prepared && !offline && !softActive);
         qualityButton.setText(offline ? "本地 · 清晰度不可切" : softActive ? "软解播放 · 清晰度不可切" : "清晰度 " + qualityLabel(quality) + (quality.equals(actualQuality) ? "" : " · 当前 " + qualityLabel(actualQuality)) + (qualitySwitch == null ? "" : " · 准备中"));
         qualityButton.setContentDescription(qualityButton.getText());
         speedButton.setEnabled(prepared && !softActive);
         speedButton.setText(Float.isNaN(actualSpeed) ? prepared ? "倍速 设备未确认" : "倍速 待确认" : "倍速 " + rateLabel(actualSpeed));
         speedButton.setContentDescription(speedButton.getText());
-        autoplayButton.setText(autoplay ? "连播 开" : "连播 关"); autoplayButton.setContentDescription(autoplay ? "自动连播已开启" : "自动连播已关闭");
         updateControlsState();
     }
     private void recordProgress(JSONObject selectedSeries, JSONObject selectedEpisode, long position) {
@@ -1313,11 +1318,8 @@ public final class PlayerActivity extends Activity {
         prepared = snapshot.durationMs > 0 && !snapshot.preparing
             && (!browserCastSelected || "PLAYING".equals(snapshot.state) || "PAUSED".equals(snapshot.state) || "BUFFERING".equals(snapshot.state) || "ENDED".equals(snapshot.state));
         completed = "ENDED".equals(snapshot.state);
-        previous.setEnabled(current > 0); next.setEnabled(current + 1 < queue.size());
-        toggle.setEnabled(!snapshot.preparing); toggle.setText(snapshot.playing ? "暂停" : completed ? "重播" : "播放");
         qualityButton.setEnabled(false); qualityButton.setText("投屏 " + qualityLabel(snapshot.actualQuality));
         speedButton.setEnabled(false); speedButton.setText(browserCastSelected ? "倍速 · 接收端控制" : "倍速 · 电视控制");
-        autoplayButton.setText(autoplay ? "连播 开" : "连播 关");
         if (castButton != null) { castButton.setSelected(true); castButton.setContentDescription("投屏到 " + castDiagnosticValue(snapshot.deviceName) + "，点击管理或断开"); }
         if (!dragging) {
             int position = (int) Math.min(Integer.MAX_VALUE, Math.max(0, snapshot.positionMs));
@@ -1579,7 +1581,7 @@ public final class PlayerActivity extends Activity {
         if (navigation && key == wakeKey) { showControls(); if (event.getAction() == KeyEvent.ACTION_UP) wakeKey = KeyEvent.KEYCODE_UNKNOWN; return true; }
         if (navigation && event.getAction() == KeyEvent.ACTION_DOWN && controlsHud != null && !controlsHud.isVisible()) {
             wakeKey = key; showControls();
-            if (toggle.isEnabled()) toggle.requestFocus(); else back.requestFocus();
+            if (toggle != null && toggle.isEnabled()) toggle.requestFocus(); else back.requestFocus();
             return true;
         }
         if (event.getAction() == KeyEvent.ACTION_DOWN || event.getAction() == KeyEvent.ACTION_UP) showControls();
@@ -1594,7 +1596,7 @@ public final class PlayerActivity extends Activity {
         if (key == KeyEvent.KEYCODE_MEDIA_PAUSE) { if (!castCommand("pause", 0) && prepared) { userPaused = true; video.pause(); saveProgress(); updateButtons(); } return true; }
         if (key == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD || key == KeyEvent.KEYCODE_MEDIA_REWIND) { seekBy(key == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD ? 30000 : -10000); return true; }
         if (video.hasFocus() && (key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT)) { seekBy(key == KeyEvent.KEYCODE_DPAD_LEFT ? -10000 : 10000); return true; }
-        if (video.hasFocus() && (key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN)) { showControls(); toggle.requestFocus(); return true; }
+        if (video.hasFocus() && (key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN)) { showControls(); (toggle == null ? back : toggle).requestFocus(); return true; }
         return super.onKeyDown(key, event);
     }
     @Override protected void onUserLeaveHint() {
