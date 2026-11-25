@@ -27,6 +27,10 @@ public final class SpadeDecoderTest {
         same(SpadeDecoder.registeredMediaUrl("https://v.qznovelvod.com/x.mp4"), "https://v.qznovelvod.com/x.mp4", "plain https passthrough");
         try { SpadeDecoder.registeredMediaUrl("aGVsbG8="); throw new AssertionError("accepted non-https"); } catch (Exception expected) { check(expected.getMessage().contains("片源地址"), "non-https rejected"); }
         try { SpadeDecoder.registeredMediaUrl("****"); throw new AssertionError("accepted bad b64"); } catch (Exception expected) { check(expected.getMessage().contains("片源编码"), "bad b64 rejected"); }
+        same(SpadeDecoder.modelMediaUrl("qAABADfq/Wzy9AlfkBrHJRr21NpXc7qkQw0eOiI4mPjkaPPNPyJr94tRXJn6sAd58i6lFQ==",
+            "MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="), "https://v.qznovelvod.com/x.mp4?sig=fixture", "wrapped URL");
+        try { SpadeDecoder.modelMediaUrl("aGVsbG8=", "MTEx"); throw new AssertionError("accepted invalid wrapped URL"); }
+        catch (SpadeDecoder.DecodeException expected) { check(true, "invalid wrapped URL rejected"); }
         System.out.println("SPADE_DECODER_OK checks=" + checks + " networkRequests=0");
     }
 }

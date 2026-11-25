@@ -2,8 +2,13 @@ package io.github.jackotom.hongguo.android;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Base64;
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 /** Registered-model media decoding: spade_a content keys and base64 media URLs. Mirrors src/native/app-source.js. */
 final class SpadeDecoder {
@@ -11,6 +16,38 @@ final class SpadeDecoder {
         DecodeException(String message) { super(message); }
     }
     private SpadeDecoder() { }
+    private static final byte[] URL_CONSTANTS = Base64.getDecoder().decode(
+        "TdTC5rgxYgkOUrPHpnM7pByyRiuCmrWKGWs521cXdST0m69/COjWjSanLjfBqVovHwWlGJKu8pSXMrYqOKrdWA==");
+
+    /** Some VOD models wrap their media URLs with their own key_seed. */
+    static String modelMediaUrl(String encoded, String seed) throws IOException {
+        try { return registeredMediaUrl(encoded); }
+        catch (DecodeException invalid) {
+            if (seed.isEmpty() || seed.length() > 1024 || encoded.length() > 32768) throw invalid;
+        }
+        byte[] raw = base64(encoded.trim().replace('-', '+').replace('_', '/'));
+        int length = ((raw.length - 4) / 16) * 16;
+        if (length < 16 || (raw[0] & 255) != 0xa8 || raw[2] != 1 || raw[3] != 0)
+            throw new DecodeException("备用片源地址编码无效");
+        try {
+            MessageDigest hash = MessageDigest.getInstance("SHA-512");
+            hash.update(hash.digest(base64(seed.trim().replace('-', '+').replace('_', '/'))));
+            byte[] key = hash.digest(URL_CONSTANTS);
+            Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
+            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, 0, 16, "AES"), new IvParameterSpec(key, 16, 16));
+            byte[] plain = cipher.doFinal(raw, 4, length);
+            int end = plain.length;
+            int padding = plain[end - 1] & 255;
+            if (padding >= 1 && padding <= 16) {
+                int cursor = end - padding;
+                while (cursor < end && (plain[cursor] & 255) == padding) cursor++;
+                if (cursor == end) end -= padding;
+            }
+            while (end > 0 && plain[end - 1] == 0) end--;
+            return registeredMediaUrl(new String(plain, 0, end, StandardCharsets.UTF_8));
+        } catch (GeneralSecurityException invalid) { throw new DecodeException("备用片源地址编码无效"); }
+    }
+
     private static byte[] base64(String text) throws DecodeException {
         StringBuilder padded = new StringBuilder(text);
         while (padded.length() % 4 != 0) padded.append('=');

@@ -36,7 +36,7 @@ final class AppMediaSource {
         List<Object[]> ranked = rank(videoRows(model), quality, bounded, playbackCeiling);
         if (ranked.isEmpty()) throw new AppSourceException(bounded ? "本集暂无尺寸可确认且满足播放清晰度边界的片源"
             : quality.equals("auto") ? "本集暂未提供兼容的 H.264/HEVC 片源" : "本集暂无尺寸可确认且满足 " + quality + " 的片源，未降级", "QUALITY_UNAVAILABLE");
-        List<JSONObject> variants = decode(ranked, vid);
+        List<JSONObject> variants = decode(ranked, vid, model.optString("key_seed"));
         if (variants.isEmpty()) throw new AppSourceException("本集片源地址或密钥无法解析", "INVALID_RESPONSE");
         JSONObject primary = variants.remove(0);
         JSONObject result = new JSONObject();
@@ -95,7 +95,7 @@ final class AppMediaSource {
         return ranked;
     }
     /** Decode every candidate URL of every ranked row; dedupe on url:contentKey like the shared Mac module. */
-    private static List<JSONObject> decode(List<Object[]> ranked, String vid) throws JSONException {
+    private static List<JSONObject> decode(List<Object[]> ranked, String vid, String seed) throws JSONException {
         List<JSONObject> variants = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (Object[] selected : ranked) {
@@ -119,7 +119,7 @@ final class AppMediaSource {
             if (backups != null) for (int i = 0; i < Math.min(backups.length(), 16); i++) addCandidate(candidates, backups.opt(i));
             for (String candidate : candidates) {
                 try {
-                    String media = SpadeDecoder.registeredMediaUrl(candidate);
+                    String media = SpadeDecoder.modelMediaUrl(candidate, seed);
                     if (!allowedMedia(media)) continue;
                     if (!seen.add(media + ":" + (contentKey == null ? "" : contentKey))) continue;
                     JSONObject variant = new JSONObject().put("url", media)
