@@ -66,6 +66,15 @@ public final class RegisteredPlaybackModelTest {
    check(RegisteredPlaybackModel.sameVod(original,new JSONObject(original.toString()).put("video_duration",120.2)),"same VOD");
    check(!RegisteredPlaybackModel.sameVod(original,new JSONObject(original.toString()).put("video_duration",60)),"shorter VOD");
    check(!RegisteredPlaybackModel.sameVod(original,new JSONObject(original.toString()).put("video_id","other")),"different VOD");
+   JSONObject alt=new JSONObject(original.toString()).put("video_list",new JSONArray().put(avc.put("spade_a","")));
+   JSONObject wrapper=new JSONObject().put("data",alt), outer=new JSONObject().put("video_info",wrapper);
+   JSONObject accepted=RegisteredPlaybackModel.adoptCompatibility(outer,original,VID);
+   check(Boolean.FALSE.equals(accepted.getJSONArray("video_list").getJSONObject(0).getJSONObject("encrypt_info").get("encrypt")),"explicit empty spade marks fallback's clear path");
+   avc.remove("spade_a");
+   accepted=RegisteredPlaybackModel.adoptCompatibility(outer,original,VID);
+   check(!accepted.getJSONArray("video_list").getJSONObject(0).has("encrypt_info"),"missing spade never marks clear");
+   wrapper.put("is_trial_video",true);
+   check(reject(()->RegisteredPlaybackModel.adoptCompatibility(outer,original,VID)) instanceof RegisteredPlaybackModel.ModelError,"trial alternate rejected");
   });
   group("compatibility ConnectException is typed for the existing outer retry owner",()->{
    AtomicInteger requests=new AtomicInteger();Exception error=reject(()->operation(r->registration(),r->{requests.incrementAndGet();if(r.method.equals("GET"))return response(200,"");throw new ConnectException("synthetic connection refusal");}).fetch(VID));

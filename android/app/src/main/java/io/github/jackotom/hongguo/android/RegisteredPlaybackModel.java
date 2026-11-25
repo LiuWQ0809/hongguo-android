@@ -502,6 +502,27 @@ final class RegisteredPlaybackModel implements AutoCloseable {
         JSONObject projected = project(model); check();
         return projected;
     }
+    static JSONObject adoptCompatibility(JSONObject outer, JSONObject model, String vid) throws Exception {
+        JSONObject info = outer.optJSONObject("video_info");
+        JSONObject alternate = info == null ? null : info.optJSONObject("data");
+        if (alternate == null || !sameVod(model, alternate)) return null;
+        for (JSONObject level : new JSONObject[]{outer, info, alternate}) {
+            identity(level, vid);
+            rejectTrial(level);
+            for (String code : new String[]{"Code", "code", "error_code"})
+                if (level.has(code) && !zero(level.opt(code))) return null;
+        }
+        JSONObject result = project(alternate);
+        JSONArray tracks = result.getJSONArray("video_list");
+        if (!nativeCodecPresent(tracks)) return null;
+        for (int i = 0; i < tracks.length(); i++) {
+            JSONObject track = tracks.getJSONObject(i);
+            // This VOD response explicitly uses an empty spade_a for clear media.
+            if (!track.has("encrypt_info") && "".equals(track.opt("spade_a")))
+                track.put("encrypt_info", new JSONObject().put("encrypt", false));
+        }
+        return result;
+    }
     private static String trackCodec(JSONObject track) {
         JSONObject meta = track.optJSONObject("video_meta");
         String codec = track.optString("codec_type", "");
