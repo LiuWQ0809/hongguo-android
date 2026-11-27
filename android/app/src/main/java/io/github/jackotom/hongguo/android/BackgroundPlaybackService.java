@@ -89,9 +89,21 @@ public final class BackgroundPlaybackService extends Service {
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? null : intent.getAction();
-        if (BackgroundPlaybackNotification.STOP.equals(action)) {
-            park();
-        } else if (TAKEOVER.equals(action) && pending != null && pending.id.equals(intent.getStringExtra("id"))) {
+        if (!TAKEOVER.equals(action)) {
+            if (action != null && session != null && (session.id.equals(intent.getStringExtra("id"))
+                    || BackgroundPlaybackNotification.STOP.equals(action) && !intent.hasExtra("id"))) {
+                switch (action) {
+                    case BackgroundPlaybackNotification.PLAY: setPaused(false); break;
+                    case BackgroundPlaybackNotification.PAUSE: setPaused(true); break;
+                    case BackgroundPlaybackNotification.PREVIOUS: switchEpisode(-1); break;
+                    case BackgroundPlaybackNotification.NEXT: switchEpisode(1); break;
+                    case BackgroundPlaybackNotification.STOP: park(); break;
+                }
+            }
+            if (session == null) stopSelf(startId);
+            return START_NOT_STICKY;
+        }
+        if (pending != null && pending.id.equals(intent.getStringExtra("id"))) {
             clearSession();
             session = pending;
             pending = null;
@@ -186,11 +198,12 @@ public final class BackgroundPlaybackService extends Service {
     }
 
     private void setPaused(boolean paused) {
-        if (session == null || session.completed) return;
+        if (session == null || session.completed || session.paused == paused) return;
         session.paused = paused;
         if (ready) { if (paused) player.pause(); else player.start(); }
         savePosition();
         updateMediaState();
+        startForeground(BackgroundPlaybackNotification.ID, BackgroundPlaybackNotification.build(this, session, media));
     }
 
     private void updateMediaState() {

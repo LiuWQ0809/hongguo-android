@@ -10,7 +10,8 @@ import android.media.session.MediaSession;
 
 final class BackgroundPlaybackNotification {
     static final int ID = 18441;
-    static final String STOP = "background.stop";
+    static final String STOP = "background.stop", PLAY = "background.play", PAUSE = "background.pause";
+    static final String PREVIOUS = "background.previous", NEXT = "background.next";
     private static final String CHANNEL = "hongguo_background_playback";
     private BackgroundPlaybackNotification() {}
 
