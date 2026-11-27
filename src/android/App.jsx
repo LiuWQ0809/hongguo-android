@@ -997,6 +997,13 @@ function SeasonDetails({ seed, initialVid, ...props }) {
   return <Detail key={`${selection.seed.seriesId}-${selection.epoch}`} {...props} seed={selection.seed} initialVid={selection.initialVid} resumeIntent={selection.resumeIntent} seasonSelector={seasonSelector} seasonPanel={seasonWanted && directory.items.some(candidate => sameSeries(candidate, selection.seed)) ? { id: `season-panel-${selection.seed.seriesId}`, role: 'tabpanel', 'aria-labelledby': `season-tab-${selection.seed.seriesId}` } : null} selectionGuard={selectionGuard} isSeasonCurrent={isSeasonCurrent} onSeasonLock={onSeasonLock} onDetailResolved={onDetailResolved} />;
 }
 
+function DetailCover({ url }) {
+  const [src, setSrc] = useState(() => webpCover(url) || url);
+  return <div className="detail-cover">
+    {src ? <img src={src} alt="" onError={() => setSrc(src === url ? '' : url)} /> : <Film size={48} />}
+  </div>;
+}
+
 function Detail({ seed, initialVid, resumeIntent, library, onBack, onLibrary, notify, isTv = false, polishUi, seasonSelector = null, seasonPanel = null, selectionGuard, isSeasonCurrent = () => true, onSeasonLock = () => {}, onDetailResolved = () => {} }) {
   const [state, setState] = useState({ busy: true });
   const [reload, setReload] = useState(0);
@@ -1247,7 +1254,7 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onLibrary, no
     {resumeError && <p className="resume-error" role="alert">{resumeError}</p>}
     <Status busy={state.busy} error={state.error} onRetry={() => setReload((n) => n + 1)}>
       <section className="detail-summary">
-        <div className="detail-cover">{item.coverUrl ? <img src={item.coverUrl} alt="" /> : <Film size={48} />}</div>
+        <DetailCover key={item.coverUrl} url={item.coverUrl} />
         <div className="detail-copy">
           <h1 className="title-clamp">{item.title}</h1>
           <div className="detail-chips">

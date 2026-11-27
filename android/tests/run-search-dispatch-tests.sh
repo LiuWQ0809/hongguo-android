@@ -45,6 +45,7 @@ public final class SearchDispatchTest {
     private volatile boolean closed;
     // Account cancellation is a collaborator, not the search executor under test.
     static final class AccountSync { static final AccountSync instance=new AccountSync(); static AccountSync get(){return instance;} void cancelLogin(){} }
+    private void closeRegisteredModels() {}
     PRODUCTION_FIELDS
     HTTP_REGISTRY
     HTTP_CLOSE
@@ -58,6 +59,7 @@ public final class SearchDispatchTest {
         try {
             ThreadPoolExecutor search=bridge.executor("searchQuery"),ordinary=bridge.executor("appRequest"),download=bridge.executor("download");
             check(search!=ordinary&&search!=download,"search pool must be isolated from media and downloads");
+            check(bridge.executor("nativeSeriesDetail")==search,"native catalogue shares bounded metadata workers");
             check(search.getCorePoolSize()==2&&search.getMaximumPoolSize()==2,"two bounded search workers");
             check(search.getQueue() instanceof SynchronousQueue,"no stale search backlog");
             check(search.getRejectedExecutionHandler() instanceof ThreadPoolExecutor.AbortPolicy,"search overload rejects instead of caller-thread blocking");
