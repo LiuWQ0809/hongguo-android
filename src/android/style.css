@@ -832,6 +832,9 @@
 .poster-rank { position: absolute; top: 8px; left: 8px; min-width: 28px; padding: 3px 6px; border-radius: 6px; background: #162c27; color: #fff; font-weight: 700; text-align: center; }
 .phone-layout .share-chip { min-width: 44px; min-height: 44px; justify-content: center; }
 .phone-layout .library-search { margin: 8px 0 14px; }
+.publisher-panel { margin-bottom: 14px; }
+.publisher-works { margin-top: 10px; }
+.publisher-works>p { margin: 8px 0; color: var(--muted); }
 .phone-layout .nav-items > button:not([aria-current="page"]) { color: #d0c7c6; }
 @media (max-width: 560px) and (orientation: portrait) {
   .phone-layout .poster-grid, .phone-layout .skeleton-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

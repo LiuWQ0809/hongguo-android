@@ -283,7 +283,7 @@ function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi }) {
     <h1 className="visually-hidden">发现短剧</h1>
     {update && <button type="button" className="home-update" onClick={onUpdates}><RefreshCw size={16} /><span>新版本 {update.versionName} 已发布 · 查看更新</span></button>}
     {onSearch && searchButton}
-    {onSearch && <div className="section-tabs theater-tabs" role="group" aria-label="剧场入口">
+    {onPlay && <div className="section-tabs theater-tabs" role="group" aria-label="剧场入口">
       <button type="button" aria-pressed={!rank} onClick={() => setRank(null)}>推荐</button>
       {RANKINGS.map(item => <button type="button" key={item.id} aria-pressed={item === rank} onClick={() => setRank(item)}>{item.label}</button>)}
     </div>}
@@ -1063,7 +1063,38 @@ function DetailCover({ url }) {
   </div>;
 }
 
-function Detail({ seed, initialVid, resumeIntent, library, onBack, onLibrary, notify, isTv = false, polishUi, seasonSelector = null, seasonPanel = null, selectionGuard, isSeasonCurrent = () => true, onSeasonLock = () => {}, onDetailResolved = () => {} }) {
+function PublisherPanel({ series, onOpen }) {
+  const [state, setState] = useState({});
+  const [open, setOpen] = useState(false);
+  const load = async () => {
+    setState({ ...state, busy: true, error: '' });
+    try {
+      const publisher = state.publisher ?? (await nativeCall('seriesPublishers', { seriesIds: [series.seriesId] }, 20000))[series.seriesId];
+      if (!publisher) { setState({ unavailable: true }); return; }
+      setState({ publisher, busy: true });
+      const { items } = await source.search(publisher.name, 1);
+      const candidates = items.filter(item => !sameSeries(item, series)).slice(0, 20);
+      const matches = candidates.length
+        ? await nativeCall('seriesPublishers', { seriesIds: candidates.map(item => item.seriesId) }, 20000) : {};
+      setState({ publisher, works: candidates.filter(item => matches[item.seriesId]?.id === publisher.id) });
+    } catch (cause) { setState(current => ({ ...current, busy: false, error: errorText(cause) })); }
+  };
+  return <section className="publisher-panel">
+    <button type="button" className="button" aria-expanded={open} onClick={() => {
+      setOpen(!open);
+      if (!open && !state.busy && !state.works && !state.unavailable) load();
+    }}>{state.publisher?.name || '发布账号'}</button>
+    {open && <div className="publisher-works" aria-live="polite">
+      {state.busy && <p>正在查找发布账号与作品…</p>}
+      {state.unavailable && <p>来源暂未提供这部剧的发布账号。</p>}
+      {state.error && <p>{state.error} <button className="button" onClick={load}>重试</button></p>}
+      {state.works && <><p>同账号的其他作品</p>{state.works.length
+        ? <PosterGrid items={state.works} onOpen={onOpen} /> : <p>当前搜索未找到可确认归属的其他作品。</p>}</>}
+    </div>}
+  </section>;
+}
+
+function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLibrary, notify, isTv = false, polishUi, seasonSelector = null, seasonPanel = null, selectionGuard, isSeasonCurrent = () => true, onSeasonLock = () => {}, onDetailResolved = () => {} }) {
   const [state, setState] = useState({ busy: true });
   const [reload, setReload] = useState(0);
   const [selectedVid, setSelectedVid] = useState(initialVid || null);
@@ -1333,6 +1364,7 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onLibrary, no
         {separateSynopsis && <div className="detail-synopsis">{synopsis}</div>}
       </section>
     </Status>
+    {!isTv && !state.busy && !state.error && state.item && <PublisherPanel key={state.item.seriesId} series={state.item} onOpen={onOpen} />}
     {seasonSelector}
     {!state.busy && !state.error && state.item && <>
       <section className="episode-section"><header><h2>选集</h2><span className="episode-count">{state.item?.episodes?.length || 0} 集</span><button className="text-toggle" type="button" disabled={!!batch?.running || mediaBusy} onClick={() => setBatchPanel(value => !value)}>{batchPanel ? '收起' : '批量下载'}</button></header>
@@ -1618,7 +1650,7 @@ export default function App() {
     <nav className="app-nav" aria-label="主要导航"><div className="nav-brand"><span><Play size={21} /></span><strong>红果短剧</strong></div><div className="nav-items">{navItems.map(({ id, label, Icon }) => <button key={id} aria-current={!detail && currentTab === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={22} /><span>{label === '我的追剧' ? <><span className="nav-word">我的</span><span className="nav-word">追剧</span></> : label}</span></button>)}</div>{info.isTv && <p className="nav-version">遥控器方向键选择<br />v{info.version || '—'}</p>}</nav>
     <div className="content-shell"><div className="phone-brand"><span><Play size={18} /></span>{searchInHeader ? <button type="button" className="home-search" onClick={() => navigate('search')}><Search size={18} /><span>搜索短剧名称</span></button>
       : <strong>红果短剧</strong>}{!detail && !searchInHeader && tab !== 'search' && <button className="brand-search" type="button" aria-label="搜索短剧" onClick={() => navigate('search')}><Search size={20} /></button>}</div>{infoError && <div className="environment-error" role="alert"><span>{infoError}</span><button onClick={loadInfo}>重试连接</button></div>}<main ref={content} className={`main-content${detail ? ' detail-open' : ''}`} id="main-content" data-page={detail ? 'detail' : tab}>
-      {detail && <SeasonDetails key={detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi} />}
+      {detail && <SeasonDetails key={detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onOpen={openDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi} />}
       <div className="page-slot" hidden={!!detail}>
         {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} />}
         {tab === 'juguo' && juguoEnabled && <JuguoPage api={juguoApi} PosterGrid={PosterGrid} Status={Status} />}
