@@ -1184,6 +1184,12 @@ public final class PlayerActivity extends Activity {
     }
     private void move(int delta) { if (current + delta >= 0 && current + delta < queue.size()) loadAt(current + delta, null, 0); }
     private void selectEpisode() {
+        if (!BuildConfig.IS_TV) {
+            showPlayerDialog(EpisodePicker.create(this, queue, current, index -> {
+                if (index != current) loadAt(index, null, 0);
+            }));
+            return;
+        }
         String[] labels = new String[queue.size()];
         for (int i = 0; i < labels.length; i++) labels[i] = owner(queue.get(i)).optString("title") + " · 第 " + queue.get(i).optInt("index") + " 集" + (i == current ? " · 当前" : "");
         showPlayerDialog(new AlertDialog.Builder(this).setTitle(offline ? "已下载分集" : "选集 · 逐集核验片源").setSingleChoiceItems(labels, current, (dialog, which) -> {
