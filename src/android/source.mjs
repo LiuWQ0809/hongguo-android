@@ -2,6 +2,10 @@
 import { createFallbackSearch } from './search-fallback.mjs';
 import { loadDetail } from './detail-loader.mjs';
 export const SITE_ORIGIN = 'https://hongguoduanju.com';
+export const RANKINGS = Object.freeze([
+  Object.freeze({ id: 'hot-drama', key: 'hongguo', label: '热播榜' }),
+  Object.freeze({ id: 'new-drama', key: 'hongguo-new', label: '新剧榜' }),
+]);
 export const CATEGORIES = Object.freeze([
   Object.freeze({ id: 'real-drama', label: '真人剧' }),
   Object.freeze({ id: 'comic-drama', label: '漫剧' }),
@@ -107,6 +111,25 @@ function uniqueSeries(items, search = false) {
     seen.add(item.seriesId);
     return true;
   });
+}
+
+export function parseRanking(html, ranking, page) {
+  const data = extractRouterData(html)?.loaderData?.[`rank_${ranking.id}/page`];
+  const content = data?.content;
+  if (data?.rankKey !== ranking.key || data?.pageNum !== page ||
+      content?.isSuccess !== true || !Array.isArray(content.rankList))
+    throw error('榜单目录未返回有效数据');
+  const seen = new Set();
+  const items = content.rankList.flatMap(row => {
+    const item = series({ series_id: row?.seriesId, series_name: row?.title,
+      series_cover: row?.cover, series_intro: row?.description, episode_cnt: row?.episodeCount,
+      tags: row?.tags, episode_right_text: row?.primaryMetricText });
+    if (!item || !Number.isSafeInteger(row.rank) || row.rank < 1 || seen.has(item.seriesId)) return [];
+    seen.add(item.seriesId);
+    return [{ ...item, rank: row.rank }];
+  });
+  if (content.rankList.length && !items.length) throw error('榜单剧集编号未通过校验');
+  return { items, totalPages: Math.max(page, count(content.pagination?.totalPages)), updated: text(data.updatedText) };
 }
 
 export function parseCatalog(html, { category = 'real-drama', page = 1 } = {}) {
@@ -237,6 +260,12 @@ export function createSource(request, { fallback, webFallback = !!fallback, sear
     catalog(category = 'real-drama', page = 1, options = {}) {
       requireCategory(category); requirePage(page);
       return load(`/category/${category}${page > 1 ? `?page=${page}` : ''}`, html => parseCatalog(html, { category, page }), undefined, undefined, options);
+    },
+    ranking(id, page = 1, options = {}) {
+      const ranking = RANKINGS.find(rank => rank.id === id);
+      if (!ranking) throw error('榜单分类无效', 'INVALID_INPUT');
+      requirePage(page);
+      return load(`/rank/${id}?page=${page}`, html => parseRanking(html, ranking, page), undefined, undefined, options);
     },
     search(keyword, page = 1, options = {}) {
       if (typeof keyword !== 'string' || !keyword.trim() || keyword.trim().length > 100) throw error('请输入 1 至 100 字的搜索词', 'INVALID_INPUT');
