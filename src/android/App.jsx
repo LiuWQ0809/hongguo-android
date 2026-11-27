@@ -1000,6 +1000,7 @@ function SeasonDetails({ seed, initialVid, resumeIntent, ...props }) {
   };
   const chooseSeason = candidate => {
     if (locked || sameSeries(candidate, selection.seed)) return;
+    if (candidate.upcoming && props.onReserveSeason) { props.onReserveSeason(candidate); return; }
     if (candidate.playable === false || candidate.upcoming) { props.notify(candidate.upcoming ? "这一季尚未上线" : "这一季暂不可播放"); return; }
     // The guard reads refs, not a possibly stale rendered disabled state. In
     // particular, invalidate an old options promise before React can remount.
@@ -1657,7 +1658,7 @@ export default function App() {
   }, [loadInfo, loadLibrary]);
   useEffect(() => { document.documentElement.dataset.tv = String(!!info.isTv); }, [info.isTv]);
   useTvNavigation(!!info.isTv);
-  const closeDetail = useCallback(() => { setDetail(null); setTimeout(() => lastDetailFocus.current?.isConnected && lastDetailFocus.current.focus(), 0); }, []);
+  const closeDetail = useCallback(() => { setDetail(current => current?.parent || null); setTimeout(() => lastDetailFocus.current?.isConnected && lastDetailFocus.current.focus(), 0); }, []);
   const openDetail = (series, vid, direct = false) => {
     if (isRetiredSeriesId(series?.seriesId)) { notify('原黄果来源已移除，观看记录仍保留。'); return; }
     lastDetailFocus.current = document.activeElement;
@@ -1713,7 +1714,8 @@ export default function App() {
       : <strong>红果短剧</strong>}{!detail && !searchInHeader && tab !== 'search' && <button className="brand-search" type="button" aria-label="搜索短剧" onClick={() => navigate('search')}><Search size={20} /></button>}</div>{infoError && <div className="environment-error" role="alert"><span>{infoError}</span><button onClick={loadInfo}>重试连接</button></div>}<main ref={content} className={`main-content${detail ? ' detail-open' : ''}`} id="main-content" data-page={detail ? 'detail' : tab}>
       {detail?.seed.upcoming && reservationEnabled
         ? <ReservedDetail series={detail.seed} reservations={reservations} Cover={DetailCover} onBack={closeDetail} onPlay={openPlayback} />
-        : detail && <SeasonDetails key={detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onOpen={openDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi} />}
+        : detail && <SeasonDetails key={detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onOpen={openDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi}
+          onReserveSeason={reservationEnabled ? seed => setDetail(parent => ({ seed, parent })) : undefined} />}
       <div className="page-slot" hidden={!!detail}>
         {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} />}
         {tab === 'juguo' && juguoEnabled && <JuguoPage api={juguoApi} PosterGrid={PosterGrid} Status={Status} />}
