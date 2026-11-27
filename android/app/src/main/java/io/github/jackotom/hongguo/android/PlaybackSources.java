@@ -267,7 +267,8 @@ final class PlaybackSources {
         if(ceiling==0&&(requested.equals("480p")||requested.equals("360p")))ceiling=defaultPlaybackCeiling(requested);
         if(Thread.currentThread().isInterrupted())throw new InterruptedIOException("播放恢复已取消");
         if(failedWeb)markWebFailure(sid,vid);
-        if(ceiling==0&&!fresh)return resolve(sid,vid,requested,true,lookup).withPlaybackLookup(lookup);
+        // The Android player supplies a registered App lookup for foreground and background playback.
+        if(ceiling==0&&!fresh&&lookup==null)return resolve(sid,vid,requested,true,null);
         // Explicit native recovery already has an outer retry owner. Do not add
         // another delay or retry ladder to its single fresh request.
         if(fresh&&lookup==null)recoveryPause();

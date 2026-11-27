@@ -292,14 +292,14 @@ public final class GuestPlaybackIntegrationTest {
                     "manual auto does not use the new foreground-only fallback");
             PlaybackSources.Plan playback=PlaybackSources.resolvePlayback(SID,VID,"auto",0,false,false,lookup);
             check(playback.url.equals(nativeUrl)&&playback.source.equals("app")&&!playback.guestPlayback,
-                    "missing public data uses explicit native App model without inventing guest provenance");
-            check(nativeCalls.equals(List.of("auto:0"))&&webCalls.isEmpty()&&EpisodeResolver.calls==2,
-                    "one selected native model lookup and no WebView for foreground fallback");
+                    "explicit playback uses the native App model");
+            check(nativeCalls.equals(List.of("auto:0"))&&webCalls.isEmpty()&&EpisodeResolver.calls==1,
+                    "foreground App playback does not open the public episode page or WebView");
 
             PlaybackSources.Plan retry=PlaybackSources.resolvePlayback(SID,VID,"720p",1079,true,true,lookup);
             check(retry.url.equals(nativeUrl)&&retry.playbackCeiling==1079&&retry.requestedQuality.equals("720p"),
                     "fresh lower quality reconnect retains explicit native ownership and limits");
-            check(nativeCalls.equals(List.of("auto:0","720p:1079"))&&webCalls.isEmpty()&&EpisodeResolver.calls==2,
+            check(nativeCalls.equals(List.of("auto:0","720p:1079"))&&webCalls.isEmpty()&&EpisodeResolver.calls==1,
                     "fresh reconnect uses no guest or WebView request");
 
             PlaybackSources.Plan manual=PlaybackSources.resolve(SID,VID,"720p");
@@ -308,29 +308,21 @@ public final class GuestPlaybackIntegrationTest {
             check(webCalls.equals(List.of("720p"))&&nativeCalls.size()==2,
                     "foreground strategy does not leak into legacy source calls");
 
-            // Clear the failed-web marker before checking the normal public-first route.
             reset();PlaybackSources.attachNative(null);PlaybackSources.attach(activity);
             EpisodeResolver.info=guest(System.currentTimeMillis()/1000L+3600);
-            PlaybackSources.Plan guest=PlaybackSources.resolvePlayback(SID,VID,"auto",0,false,false,lookup);
-            check(guest.guestPlayback&&guest.url.equals(URL),"valid public plan still wins before the explicit App lookup");
-            check(nativeCalls.size()==2&&webCalls.size()==1,"valid public plan makes no App lookup");
-
-            EpisodeResolver.failure=missing;
+            PlaybackSources.Plan app=PlaybackSources.resolvePlayback(SID,VID,"auto",0,false,false,lookup);
+            check(app.source.equals("app")&&app.url.equals(nativeUrl),"registered playback stays on the App source");
+            check(nativeCalls.size()==3&&webCalls.size()==1&&EpisodeResolver.calls==0,
+                    "registered playback never probes the public player");
             PlaybackSources.NativeLookup appDenied=(sid,vid,quality,ceiling,timeout)->{
                 Fixture.appCalls++;
                 throw new AppMediaSource.AppSourceException("fixture: App playback not authorized","BUSINESS_REJECTED");
             };
             Exception appError=fails(()->PlaybackSources.resolvePlayback(SID,VID,"auto",0,false,false,appDenied),"explicit App refusal");
             check(appError.getMessage().equals("fixture: App playback not authorized"),"explicit App refusal retains its real reason");
-            check(Fixture.appCalls==1&&!PlaybackSources.canRecoverPlayback(appError)&&webCalls.size()==1,
-                    "explicit App refusal neither retries nor switches to the WebView");
-
-            Exception denied=new EpisodeResolver.GuestFailure("fixture: explicit public refusal");
-            EpisodeResolver.failure=denied;
-            check(fails(()->PlaybackSources.resolvePlayback(SID,VID,"auto",0,false,false,lookup),"public denial")==denied,
-                    "explicit public refusal still blocks foreground App fallback");
-            check(nativeCalls.size()==2&&webCalls.size()==1&&NetworkGuard.transfers.isEmpty()&&PublicPlaybackVerifier.calls==0,
-                    "denial invokes neither lookup nor transfer");
+            check(Fixture.appCalls==1&&!PlaybackSources.canRecoverPlayback(appError)
+                    &&webCalls.size()==1&&EpisodeResolver.calls==0&&NetworkGuard.transfers.isEmpty(),
+                    "App refusal ends native playback without a public or WebView fallback");
         } finally { PlaybackSources.detach(activity); }
     }
     private static void fixedQuality() throws Exception {
