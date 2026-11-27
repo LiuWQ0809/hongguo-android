@@ -53,6 +53,7 @@ public final class PlayerActivity extends Activity {
     private Button back, fullscreenButton, resumeOverlay;
     private boolean fullscreen;
     private Runnable systemBackCleanup;
+    private PipPlaybackControls pipControls;
     private PlayerHud controlsHud;
     private PlayerSurfaceTaps surfaceTaps;
     private boolean buffering, touchingControls;
@@ -516,6 +517,7 @@ public final class PlayerActivity extends Activity {
         else Toast.makeText(this, delta > 0 ? "已经是最后一集" : "已经是第一集", Toast.LENGTH_SHORT).show();
     }
     private void updateButtons() {
+        updatePipControls();
         if (renderCastControls()) return;
         seek.setEnabled(prepared);
         if (castButton != null) { castButton.setSelected(false); castButton.setContentDescription("投屏"); }
@@ -1650,14 +1652,48 @@ public final class PlayerActivity extends Activity {
             || !prepared || video == null || !video.isPlaying() || isFinishing()
             || !getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) return;
         try {
-            enterPictureInPictureMode(new android.app.PictureInPictureParams.Builder().build());
-        } catch (IllegalStateException | SecurityException ignored) {
-            // Android may disallow PiP for the current user or window.
+            closePipControls();
+            pipControls = new PipPlaybackControls(this, this::setPipPaused, this::skipPipEpisode);
+            updatePipControls();
+            if (!enterPictureInPictureMode(new android.app.PictureInPictureParams.Builder().build())) closePipControls();
+        } catch (IllegalStateException | SecurityException denied) {
+            closePipControls();
         }
+    }
+
+    private void updatePipControls() {
+        if (pipControls == null || episode == null) return;
+        String title = series.optString("title") + " · 第 " + episode.optInt("index") + " 集";
+        int position = prepared ? Math.max(0, video.getCurrentPosition()) : resumeAt;
+        pipControls.update(title, current, queue.size(), userPaused || completed, prepared && !buffering,
+            position, Float.isNaN(actualSpeed) ? requestedSpeed : actualSpeed);
+    }
+
+    private void setPipPaused(boolean paused) {
+        if (pipControls == null || !isInPictureInPictureMode() || destroyed) return;
+        if (!paused && completed) { togglePlayback(); return; }
+        userPaused = paused;
+        if (prepared) {
+            if (paused) { video.pause(); saveProgress(); }
+            else video.start();
+        }
+        updateButtons();
+    }
+
+    private void skipPipEpisode(int delta) {
+        int target = current + delta;
+        if (pipControls != null && isInPictureInPictureMode() && target >= 0 && target < queue.size())
+            loadAt(target, null, 0, userPaused);
+    }
+
+    private void closePipControls() {
+        if (pipControls != null) pipControls.close();
+        pipControls = null;
     }
 
     @Override public void onPictureInPictureModeChanged(boolean inPip, android.content.res.Configuration configuration) {
         super.onPictureInPictureModeChanged(inPip, configuration);
+        if (!inPip) closePipControls();
         updateFullscreen();
         if (surfaceTaps != null) surfaceTaps.cancel();
         if (controlsHud != null) {
@@ -1707,6 +1743,7 @@ public final class PlayerActivity extends Activity {
     }
     @Override protected void onResume() { super.onResume(); active = true; resumeFromService(); if (decoderPreparing && !casting() && !castWasActive) armPreparationTimeout(generation, video); updateBufferingWatchdog(generation, video); if (!casting() && prepared && !completed && !userPaused) video.start(); showControls(); }
     @Override protected void onStop() {
+        closePipControls();
         saveProgress();
         handoffPlayback();
         if (handedOff && video != null && prepared) video.pause();
@@ -1715,6 +1752,7 @@ public final class PlayerActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle state) { savePlaybackState(state); super.onSaveInstanceState(state); }
     @Override protected void onDestroy() {
         if (systemBackCleanup != null) systemBackCleanup.run();
+        closePipControls();
         if (handedOff) android.util.Log.i("HongguoBackground", "播放器页面已销毁，服务继续持有播放会话");
         // Keep file deletion/update blocked until all media handles have been released.
         SoftDecoder.stop(softLayer); softLayer = null; softActive = false;
