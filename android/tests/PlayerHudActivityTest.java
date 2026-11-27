@@ -56,6 +56,13 @@ public final class PlayerHudActivityTest {
         key(back, KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_DOWN); check(back.finishes == 0 && back.baseKeyCalls == 0, "Back down never pauses or opens a HUD layer");
         key(back, KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP); check(back.finishes == 1 && back.saves == 1, "one Back exits and saves exactly once even when controls hidden");
         check(back.main.jobs.isEmpty(), "exit cancels idle callback immediately");
+        PlayerHudHarness full = ready(); full.fullscreen = true; full.main.advance(4000);
+        key(full, KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_DOWN);
+        key(full, KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP);
+        check(!full.fullscreen && full.finishes == 0 && full.saves == 0 && full.video.playing && visible(full),
+                "full-screen Back restores the playback view and retains playback");
+        full.onBackPressed();
+        check(full.finishes == 1 && full.saves == 1, "Back in the restored view exits and saves playback");
         for (int mode = 0; mode < 9; mode++) {
             PlayerHudHarness state = ready(); state.main.advance(4000);
             switch (mode) {

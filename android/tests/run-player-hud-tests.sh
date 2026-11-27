@@ -125,7 +125,7 @@ final class PlayerHudHarness extends HudActivityBase {
  PlayerSurfaceTaps surfaceTaps;
  boolean fullscreen,swipeAllowed,tapAllowed,handedOff,softActive;float swipeX,swipeY;Object softLayer;
  java.util.concurrent.Future<?> prefetch;int prefetchedIndex=-1;
- void applyVideoFill(View view){}void toggleFullscreen(){fullscreen=!fullscreen;}
+ void toggleFullscreen(){fullscreen=!fullscreen;}
  boolean isInPictureInPictureMode(){return false;}void handoffPlayback(){}boolean resumeFromService(){return false;}
  boolean active,prepared,completed,userPaused,buffering,dragging,touchingControls,destroyed,decoderPreparing,castWasActive;Runnable playbackPrepareTimeout,bufferingTimeout;int generation,hudDialogs,wakeKey=KeyEvent.KEYCODE_UNKNOWN,toggleCalls,seekCalls;Object qualitySwitch;
  // Independent danmaku and install-lock lifecycle boundaries.

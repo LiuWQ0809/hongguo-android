@@ -199,6 +199,7 @@ public final class PlayerActivity extends Activity {
     private void buildViews() {
         FrameLayout root = new FrameLayout(this); playerRoot = root; root.setBackgroundColor(0xff000000);
         video = new VideoView(this); video.setFocusable(true); video.setFocusableInTouchMode(true);
+        // VideoView fits the decoded aspect ratio within the available bounds.
         root.addView(video, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
         installVideoTouch(video);
         if (!BuildConfig.IS_TV) root.setOnTouchListener((view, event) -> true);
@@ -215,10 +216,9 @@ public final class PlayerActivity extends Activity {
             root.addView(resumeOverlay, new FrameLayout.LayoutParams(dp(64), dp(64), Gravity.CENTER));
         }
         top = new LinearLayout(this); top.setGravity(Gravity.CENTER_VERTICAL); top.setPadding(dp(8), dp(8), dp(8), dp(8)); top.setBackgroundColor(0xbb101014);
-        back = button("‹ 返回", this::exitPlayer);
+        back = button("‹ 返回", this::onBackPressed);
         if (!BuildConfig.IS_TV) {
             PlayerChrome.icon(back, R.drawable.ic_player_back);
-            back.setContentDescription("返回上一页");
             top.setBackground(PlayerChrome.shade(true));
         }
         top.addView(back, new LinearLayout.LayoutParams(dp(86), dp(48)));
@@ -327,7 +327,6 @@ public final class PlayerActivity extends Activity {
         playerRoot.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
             if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) {
                 applyPhoneLayout();
-                applyVideoFill(video);
             }
         });
         top.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
@@ -390,28 +389,15 @@ public final class PlayerActivity extends Activity {
             PlayerChrome.icon(fullscreenButton, fullscreen ? R.drawable.ic_player_fullscreen_exit : R.drawable.ic_player_fullscreen);
         }
         fullscreenButton.setContentDescription(label);
-        applyVideoFill(video);
+        back.setContentDescription(fullscreen ? "退出全屏并继续播放" : "返回上一页");
         if (isInPictureInPictureMode() || fullscreen && (videoWidth <= 0 || videoHeight <= 0)) return;
         int orientation = !fullscreen ? ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             : videoWidth > videoHeight ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             : ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
         if (getRequestedOrientation() != orientation) setRequestedOrientation(orientation);
     }
-    private void applyVideoFill(View view) {
-        if (view == null || playerRoot == null) return;
-        int width = view.getWidth(), height = view.getHeight();
-        int windowWidth = playerRoot.getWidth(), windowHeight = playerRoot.getHeight();
-        float scale = 1f;
-        if (fullscreen && !isInPictureInPictureMode() && width > 0 && height > 0
-                && windowWidth > 0 && windowHeight > 0 && (width > height) == (windowWidth > windowHeight)) {
-            scale = Math.max((float) windowWidth / width, (float) windowHeight / height);
-        }
-        view.setScaleX(scale);
-        view.setScaleY(scale);
-    }
     private void installVideoTouch(View view) {
         if (!BuildConfig.IS_TV && view instanceof VideoView) {
-            view.addOnLayoutChangeListener((target, l, t, r, b, oldL, oldT, oldR, oldB) -> applyVideoFill(target));
             view.setContentDescription("播放画面，单点显示控制栏，双点播放或暂停");
             view.setOnClickListener(target -> { togglePlayback(); showControls(); });
             view.setOnTouchListener((target, event) -> true);
@@ -1620,7 +1606,12 @@ public final class PlayerActivity extends Activity {
         saveProgress();
         finish();
     }
-    @Override public void onBackPressed() { if (fullscreen) toggleFullscreen(); else exitPlayer(); }
+    @Override public void onBackPressed() {
+        if (fullscreen) {
+            toggleFullscreen();
+            showControls();
+        } else exitPlayer();
+    }
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) { if (event.getAction() == KeyEvent.ACTION_UP) onBackPressed(); return true; }
         int key = event.getKeyCode();
