@@ -32,9 +32,10 @@ final class NativeBridge {
     // Slow search/registration must not occupy playback's request workers.
     // No queued searches: reject overload promptly rather than exceed the JS deadline.
     private final ThreadPoolExecutor searchWorker = new ThreadPoolExecutor(2, 2, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
+    private final ThreadPoolExecutor coverWorker = new ThreadPoolExecutor(2, 2, 30, TimeUnit.SECONDS, new ArrayBlockingQueue<>(12));
     // Login/cloud control never occupies source or media request workers.
     private final ThreadPoolExecutor accountWorker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
-    private static final Set<String> METHODS = new HashSet<>(Arrays.asList("getInfo", "httpGet", "cancelHttp", "appRequest", "appDeviceIdentity", "appRegisteredModel", "appResolveResult", "getLibrary", "getSeriesHistory", "removeHistory", "clearHistory", "toggleFavorite", "play", "download", "getDownloads", "deleteDownload", "playDownload", "getPlaybackCache", "clearPlaybackCache", "getPlaybackOptions", "setPlaybackOptions", "getSearchHistory", "addSearchHistory", "removeSearchHistory", "clearSearchHistory", "searchQuery", "openExternal", "shareSeries", "resetPlaybackIdentity", "getAccount", "officialSendCode", "officialLoginSMS", "officialVerifyMFA", "officialCancelLogin", "officialLogout", "officialSync", "officialImportGuest", "officialWebQrcode", "officialWebPoll", "officialWebLogout", "officialWebCancel", "getAnnouncements", "searchNewReleases", "homeFeed", "nativeSeriesDetail", "seriesPublishers", "mergeDownloads", "getMergedVideos", "deleteMergedVideo", "playMergedVideo"));
+    private static final Set<String> METHODS = new HashSet<>(Arrays.asList("getInfo", "httpGet", "cancelHttp", "appRequest", "appDeviceIdentity", "appRegisteredModel", "appResolveResult", "getLibrary", "getSeriesHistory", "removeHistory", "clearHistory", "toggleFavorite", "play", "download", "getDownloads", "deleteDownload", "playDownload", "getPlaybackCache", "clearPlaybackCache", "getPlaybackOptions", "setPlaybackOptions", "getSearchHistory", "addSearchHistory", "removeSearchHistory", "clearSearchHistory", "searchQuery", "openExternal", "shareSeries", "resetPlaybackIdentity", "getAccount", "officialSendCode", "officialLoginSMS", "officialVerifyMFA", "officialCancelLogin", "officialLogout", "officialSync", "officialImportGuest", "officialWebQrcode", "officialWebPoll", "officialWebLogout", "officialWebCancel", "getAnnouncements", "searchNewReleases", "homeFeed", "coverThumbnail", "nativeSeriesDetail", "seriesPublishers", "mergeDownloads", "getMergedVideos", "deleteMergedVideo", "playMergedVideo"));
     NativeBridge(MainActivity activity) { this.activity = activity; store = new LibraryStore(activity); downloads = (DownloadManager) activity.getSystemService(Context.DOWNLOAD_SERVICE); }
     @JavascriptInterface public void postMessage(String message) {
         if (message == null || message.length() > 256 * 1024 || message.getBytes(StandardCharsets.UTF_8).length > 256 * 1024) return;
@@ -68,6 +69,7 @@ final class NativeBridge {
                 return;
             }
             if (method.equals("httpGet")) { startHttp(id, params); return; }
+            if (method.equals("coverThumbnail")) { startCover(id, params); return; }
             if (method.equals("appRegisteredModel")) { startRegisteredModel(id, params); return; }
             // Completion callbacks must not wait behind HTTP or full-media preparation.
             if (method.equals("appResolveResult")) {
@@ -244,6 +246,15 @@ final class NativeBridge {
         }
     }
     private static final String[] COVER_HOSTS = {".fqnovelpic.com", ".byteimg.com", ".fqnovelstatic.com"};
+    private void startCover(Object id, JSONObject params) {
+        try {
+            String url = NetworkGuard.validate(LibraryStore.text(params, "url", 4096), false).toString();
+            coverWorker.execute(() -> {
+                String data = coverDataUrl(url);
+                respond(id, data, data == null ? "封面暂未读取" : null);
+            });
+        } catch (Exception unavailable) { respond(id, null, "封面暂未读取"); }
+    }
     /**
      * The official home covers are HEIC, which the WebView cannot decode. Each cover is
      * fetched, decoded, downscaled and inlined as a JPEG data URL; a HEIC template can
@@ -299,6 +310,7 @@ final class NativeBridge {
             for (String suffix : COVER_HOSTS) if (host.endsWith(suffix)) { trusted = true; break; }
             if (!trusted) return null;
             java.net.HttpURLConnection connection = (java.net.HttpURLConnection) uri.toURL().openConnection();
+            connection.setInstanceFollowRedirects(false);
             connection.setConnectTimeout(4000);
             connection.setReadTimeout(4000);
             connection.setRequestProperty("User-Agent", NetworkGuard.UA);
@@ -734,5 +746,5 @@ final class NativeBridge {
     private static String callbackScript(JSONObject response) {
         return "window.__androidResponse && window.__androidResponse(" + response.toString().replace("\u2028", "\\u2028").replace("\u2029", "\\u2029") + ")";
     }
-    void close() { closed = true; closeRegisteredModels(); closeHttp(); worker.shutdownNow(); downloadWorker.shutdownNow(); searchWorker.shutdownNow(); accountWorker.shutdownNow(); try { AccountSync.get().cancelLogin(); } catch (Exception ignored) { } }
+    void close() { closed = true; closeRegisteredModels(); closeHttp(); worker.shutdownNow(); downloadWorker.shutdownNow(); searchWorker.shutdownNow(); coverWorker.shutdownNow(); accountWorker.shutdownNow(); try { AccountSync.get().cancelLogin(); } catch (Exception ignored) { } }
 }
