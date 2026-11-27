@@ -33,7 +33,7 @@ const NAV = [
 ];
 const PHONE_NAV = [
   { id: 'discover', label: '剧场', Icon: Home },
-  { id: 'library', label: '追剧', Icon: Bookmark },
+  { id: 'library', label: '收藏', Icon: Bookmark },
   { id: 'about', label: '我的', Icon: User },
 ];
 const errorText = (error) => error?.message || String(error || '请求未完成，请重试。');
@@ -153,7 +153,9 @@ function Poster({ item, onOpen, onPlay, history, onDelete }) {
       {onDelete ? <button type="button" className="poster-delete" onClick={event => { event.stopPropagation(); onDelete(item); }} aria-label={`删除${item.title}的观看记录`}>×</button> : null}
     </span>
     <strong>{item.title || '未命名短剧'}</strong>
-    {history ? <span className="poster-caption">看到第 {history.index} 集 · {timeText(history.positionMs)}</span> : item.tags?.length ? <span className="poster-caption">{item.tags.slice(0, 2).join(' / ')}</span> : null}
+    {history ? <span className="poster-caption">看到第 {history.index} 集 · {timeText(history.positionMs)}</span>
+      : item.upcoming ? <span className="poster-caption">{item.expected || '即将上线'}</span>
+      : item.tags?.length ? <span className="poster-caption">{item.tags.slice(0, 2).join(' / ')}</span> : null}
     {play && history?.durationMs > 0 && <progress className="poster-progress" aria-label="已看进度" max={history.durationMs} value={history.positionMs || 0} />}
     {history?.hint ? <span className="poster-hint">{history.hint}</span> : null}
   </div>;
@@ -493,8 +495,8 @@ function SearchPage({ onOpen, onPlay }) {
   </>;
 }
 
-function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onReservations, onLibrary, notify }) {
-  const [selectedView, setView] = useState(null);
+function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onReservations, onLibrary, notify, startView }) {
+  const [selectedView, setView] = useState(startView || null);
   const view = selectedView ?? (onPlay && library.history.length ? 'history' : 'favorites');
   const [historyView, setHistoryView] = useState('all');
   const [keyword, setKeyword] = useState('');
@@ -832,7 +834,7 @@ function AutoplaySetting({ enabled, onChange, disabled }) {
   </div>;
 }
 
-function About({ info, notify, accountFocus, announcementsRef, juguoSettings, onDownloads }) {
+function About({ info, notify, accountFocus, announcementsRef, juguoSettings, onDownloads, onReservations, onHistory }) {
   const [cache, setCache] = useState({ busy: true });
   const [clearing, setClearing] = useState(false);
   const [autoplay, setAutoplay] = useState(() => getPlaybackPreferences().autoplay);
@@ -862,8 +864,12 @@ function About({ info, notify, accountFocus, announcementsRef, juguoSettings, on
   return <>
     <header className="page-heading heading-actions">
       <h1>{onDownloads ? '我的' : '关于红果短剧'}</h1>
-      {onDownloads && <button className="button" onClick={onDownloads}><Download />离线下载</button>}
     </header>
+    {onDownloads && <nav className="profile-shortcuts" aria-label="我的常用入口">
+      <button className="button" onClick={onHistory}><Clock />浏览历史</button>
+      {onReservations && <button className="button" onClick={onReservations}><Bookmark />我的预约</button>}
+      <button className="button" onClick={onDownloads}><Download />离线下载</button>
+    </nav>}
     <UpdatePanel />
     {!info.isTv && <section className="about-section playback-settings" aria-label="播放设置">
       <AutoplaySetting enabled={autoplay} onChange={() => setAutoplay(setPlaybackPreference('autoplay', !autoplay).autoplay)} />
@@ -1596,6 +1602,7 @@ export default function App() {
   const restored = PROCESS_RESTORED ? readSession() : null;
   const [tab, setTab] = useState(() => restored?.tab || 'discover');
   const [detail, setDetail] = useState(null);
+  const [libraryStart, setLibraryStart] = useState(null);
   const androidPackage = typeof __HONGGUO_PACKAGED_ANDROID__ !== 'undefined' && __HONGGUO_PACKAGED_ANDROID__;
   const juguoApi = androidPackage || typeof window === 'undefined' ? undefined : window.JuguoDesktop;
   const juguoSettings = useJuguoSettings(juguoApi);
@@ -1666,8 +1673,9 @@ export default function App() {
     setDetail({ seed: series, initialVid: vid, resumeIntent: direct ? { token: 0, seriesId: String(series.seriesId), vid, direct: true } : null });
   };
   const openPlayback = info.isTv ? undefined : (series, vid) => openDetail(series, vid, true);
-  const navigate = (id) => {
+  const navigate = (id, view = null) => {
     if (id === 'juguo' && !juguoEnabled) return;
+    if (id === 'library') setLibraryStart(view);
     previousScroll.current = 0; setDetail(null); setTab(id);
   };
   // Keep the browsing position so a background process death can reopen it.
@@ -1720,10 +1728,12 @@ export default function App() {
         {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} />}
         {tab === 'juguo' && juguoEnabled && <JuguoPage api={juguoApi} PosterGrid={PosterGrid} Status={Status} />}
         {tab === 'search' && <SearchPage onOpen={openDetail} onPlay={openPlayback} />}
-        {tab === 'library' && <Library library={library} error={libraryError} busy={libraryBusy} onRetry={loadLibrary} onOpen={openDetail} onPlay={openPlayback} onAccount={() => { navigate('about'); setAccountFocus(value => value + 1); }} onReservations={reservationEnabled ? () => navigate('reservations') : undefined} onLibrary={replaceLibrary} notify={notify} />}
+        {tab === 'library' && <Library library={library} error={libraryError} busy={libraryBusy} onRetry={loadLibrary} onOpen={openDetail} onPlay={openPlayback} onAccount={() => { navigate('about'); setAccountFocus(value => value + 1); }} onReservations={reservationEnabled ? () => navigate('reservations') : undefined} onLibrary={replaceLibrary} notify={notify} startView={libraryStart} />}
         {tab === 'reservations' && reservationEnabled && <ReservationsPage reservations={reservations} onBack={() => navigate('library')} onOpen={openDetail} onPlay={openPlayback} />}
         {tab === 'downloads' && !detail && <Downloads notify={notify} onBack={info.isTv ? undefined : () => navigate('about')} />}
-        {tab === 'about' && <About info={info} notify={notify} accountFocus={accountFocus} announcementsRef={announcements} juguoSettings={juguoApi && juguoSettings} onDownloads={info.isTv ? undefined : () => navigate('downloads')} />}
+        {tab === 'about' && <About info={info} notify={notify} accountFocus={accountFocus} announcementsRef={announcements} juguoSettings={juguoApi && juguoSettings}
+          onDownloads={info.isTv ? undefined : () => navigate('downloads')}
+          onReservations={reservationEnabled ? () => navigate('reservations') : undefined} onHistory={() => navigate('library', 'history')} />}
       </div>
     </main></div>{notice && <div className="toast" role="status">{notice}</div>}
     {announcement && <AnnouncementDialog announcement={announcement} onClose={closeAnnouncement} />}
