@@ -1108,7 +1108,7 @@ function ReviewsPanel({ seriesId }) {
     <div className="reviews-content" aria-live="polite">
       {state?.busy && <p>正在读取公开剧评…</p>}
       {state?.error && <div role="alert"><p>{state.error}</p><button className="button" onClick={load}>重试剧评</button></div>}
-      {state?.items && <><p>{state.total == null ? '公开预览' : `公开总数 ${state.total}`} · 显示 ${state.items.length} 条</p>
+      {state?.items && <><p>{state.total == null ? '公开预览' : `公开总数 ${state.total}`} · 显示 {state.items.length} 条</p>
         {!state.items.length && <p>暂无公开剧评。</p>}
         {state.items.map((item, index) => <article key={index}>
           {item.author && <strong>{item.author}</strong>}
