@@ -136,6 +136,7 @@ function Poster({ item, onOpen, onPlay, history, onDelete }) {
     </span>
     <strong>{item.title || '未命名短剧'}</strong>
     {history ? <span className="poster-caption">看到第 {history.index} 集 · {timeText(history.positionMs)}</span> : item.tags?.length ? <span className="poster-caption">{item.tags.slice(0, 2).join(' / ')}</span> : null}
+    {play && history?.durationMs > 0 && <progress className="poster-progress" aria-label="已看进度" max={history.durationMs} value={history.positionMs || 0} />}
     {history?.hint ? <span className="poster-hint">{history.hint}</span> : null}
   </div>;
   return play && !history ? <div className="poster-cell">{card}
@@ -407,8 +408,8 @@ function SearchPage({ onOpen, onPlay }) {
   const submit = (event) => { event.preventDefault(); runSearch(keyword); };
   const cancelClear = () => { setConfirmClear(false); clearButton.current?.focus(); };
   return <>
-    <header className="page-heading"><h1>搜索短剧</h1><p>输入剧名，查找想看的短剧。</p></header>
-    <form className="search-form" onSubmit={submit}><label htmlFor="search-keyword">短剧名称</label><div className="search-controls"><input ref={input} id="search-keyword" type="search" value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索短剧名称" maxLength={100} enterKeyHint="search" /><button className="button primary" type="submit" disabled={!keyword.trim()}><Search />搜索</button></div></form>
+    <header className={onPlay ? 'visually-hidden' : 'page-heading'}><h1>搜索短剧</h1></header>
+    <form className="search-form" onSubmit={submit}><label className={onPlay ? 'visually-hidden' : undefined} htmlFor="search-keyword">短剧名称</label><div className="search-controls"><input ref={input} id="search-keyword" type="search" autoFocus={!!onPlay} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索短剧名称" maxLength={100} enterKeyHint="search" /><button className="button primary" type="submit" disabled={!keyword.trim()}><Search />搜索</button></div></form>
     <section className="search-history" aria-labelledby="search-history-title" aria-busy={history.busy}>
       <header><h2 id="search-history-title">最近搜索</h2><button ref={clearButton} className="history-clear" type="button" disabled={history.busy || !history.keywords.length} onClick={() => setConfirmClear(true)} aria-expanded={confirmClear} aria-controls="search-history-confirm">清空</button></header>
       {confirmClear && <div id="search-history-confirm" className="search-history-confirm" role="group" aria-label="确认清空搜索历史"><p>清空这台设备上的全部搜索历史？</p><div><button ref={confirmButton} className="button" type="button" disabled={history.busy} onClick={() => updateHistory('clearSearchHistory')}>{history.busy ? '正在更新…' : '确认清空'}</button><button className="button" type="button" disabled={history.busy} onClick={cancelClear}>取消</button></div></div>}
@@ -430,8 +431,9 @@ function SearchPage({ onOpen, onPlay }) {
   </>;
 }
 
-function Library({ library, error, busy, onRetry, onOpen, onAccount, onLibrary, notify }) {
-  const [view, setView] = useState('favorites');
+function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onLibrary, notify }) {
+  const [selectedView, setView] = useState(null);
+  const view = selectedView ?? (onPlay && library.history.length ? 'history' : 'favorites');
   const [historyView, setHistoryView] = useState('all');
   const [confirmClear, setConfirmClear] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
@@ -462,7 +464,7 @@ function Library({ library, error, busy, onRetry, onOpen, onAccount, onLibrary, 
   const shown = view === 'history' ? filterHistory(rows, historyView) : items;
   const completedCount = useMemo(() => (library.history || []).filter(row => completedEpisode(row)).length, [library.history]);
   return <>
-    <header className="page-heading heading-actions"><div><h1>我的追剧</h1><p>本机保留记录；登录红果官方账号后同步收藏、历史和进度。</p></div><div className="heading-buttons">{view === 'history' && !!(library.history || []).length && <button type="button" className="button" onClick={() => setConfirmClear(true)}>清空记录</button>}<button type="button" className="button" onClick={onAccount}>账号</button></div></header>
+    <header className="page-heading heading-actions"><h1>追剧与记录</h1><div className="heading-buttons">{view === 'history' && !!(library.history || []).length && <button type="button" className="button" onClick={() => setConfirmClear(true)}>清空记录</button>}<button type="button" className="button" onClick={onAccount}>账号</button></div></header>
     <div className="section-tabs" role="group" aria-label="我的内容"><button aria-pressed={view === 'favorites'} onClick={() => setView('favorites')}><Heart />追剧 ({library.favorites.length})</button><button aria-pressed={view === 'history'} onClick={() => { setView('history'); setConfirmClear(false); }}><Clock />观看历史 ({library.history.length})</button></div>
     {view === 'history' && <div className="section-tabs" role="group" aria-label="观看状态">
       <button aria-pressed={historyView === 'all'} onClick={() => setHistoryView('all')}>全部 ({(library.history || []).length})</button>
@@ -471,7 +473,7 @@ function Library({ library, error, busy, onRetry, onOpen, onAccount, onLibrary, 
     </div>}
     {library.projection?.[view === 'favorites' ? 'favoritesHasMore' : 'historyHasMore'] && <p className="account-note" role="status">当前展示最近 {items.length} 项；完整记录已保存在账号库，较早剧集的原生播放进度仍保留。</p>}
     {view === 'history' && confirmClear && <div className="search-history-confirm" role="group" aria-label="确认清空观看记录"><p>清空这台设备上的全部观看记录？</p><div><button className="button" type="button" disabled={historyBusy} onClick={clearAll}>{historyBusy ? '正在更新…' : '确认清空'}</button><button className="button" type="button" disabled={historyBusy} onClick={() => setConfirmClear(false)}>取消</button></div></div>}
-    <Status busy={busy} error={error} preserve={!!shown.length} onRetry={onRetry} empty={!shown.length && { title: view === 'favorites' ? '还没有追剧' : historyView === 'completed' ? '还没有看完的短剧' : historyView === 'watching' ? '没有正在观看的短剧' : '还没有观看记录', text: view === 'favorites' ? '打开短剧详情，点击「加入追剧」。' : '播放短剧后，进度会自动记录。' }}><PosterGrid items={shown} onOpen={onOpen} history={view === 'history'} onDelete={view === 'history' ? removeRow : undefined} /></Status>
+    <Status busy={busy} error={error} preserve={!!shown.length} onRetry={onRetry} empty={!shown.length && { title: view === 'favorites' ? '还没有追剧' : historyView === 'completed' ? '还没有看完的短剧' : historyView === 'watching' ? '没有正在观看的短剧' : '还没有观看记录', text: view === 'favorites' ? '打开短剧详情，点击「加入追剧」。' : '播放短剧后，进度会自动记录。' }}><PosterGrid items={shown} onOpen={onOpen} onPlay={onPlay} history={view === 'history'} onDelete={view === 'history' ? removeRow : undefined} /></Status>
   </>;
 }
 
@@ -1576,7 +1578,7 @@ export default function App() {
         {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} />}
         {tab === 'juguo' && juguoEnabled && <JuguoPage api={juguoApi} PosterGrid={PosterGrid} Status={Status} />}
         {tab === 'search' && <SearchPage onOpen={openDetail} onPlay={openPlayback} />}
-        {tab === 'library' && <Library library={library} error={libraryError} busy={libraryBusy} onRetry={loadLibrary} onOpen={openDetail} onAccount={() => { navigate('about'); setAccountFocus(value => value + 1); }} onLibrary={replaceLibrary} notify={notify} />}
+        {tab === 'library' && <Library library={library} error={libraryError} busy={libraryBusy} onRetry={loadLibrary} onOpen={openDetail} onPlay={openPlayback} onAccount={() => { navigate('about'); setAccountFocus(value => value + 1); }} onLibrary={replaceLibrary} notify={notify} />}
         {tab === 'downloads' && !detail && <Downloads notify={notify} onBack={info.isTv ? undefined : () => navigate('about')} />}
         {tab === 'about' && <About info={info} notify={notify} accountFocus={accountFocus} announcementsRef={announcements} juguoSettings={juguoApi && juguoSettings} onDownloads={info.isTv ? undefined : () => navigate('downloads')} />}
       </div>

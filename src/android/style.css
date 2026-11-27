@@ -834,3 +834,4 @@
   .phone-layout .phone-brand { display: flex; padding-block: 3px; }
   .phone-layout .phone-brand .home-search { min-height: 36px; }
 }
+.phone-layout .poster-progress { width: 100%; height: 4px; margin-top: 5px; border: 0; accent-color: var(--primary); }
