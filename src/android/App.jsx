@@ -10,7 +10,7 @@ import gplLicense from '../../LICENSE?raw';
 import AccountPanel from './AccountPanel.jsx';
 import UpdatePanel from './UpdatePanel.jsx';
 import { ReservedDetail, ReservationsPage } from './Reservations.jsx';
-import ReleaseBrowser from './ReleaseBrowser.jsx';
+import CalendarBrowser from './CalendarBrowser.jsx';
 import { useReservations } from './use-reservations.mjs';
 import { JuguoPage, JuguoSettings, useJuguoSettings } from './JuguoDesktop.jsx';
 import { createOfficialSeasonLookup, requestOfficialSeries } from './official-series.mjs';
@@ -315,7 +315,7 @@ function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi, star
         </select>
       </label>
       <RankingPage key={rank.id} rank={rank} onOpen={onOpen} onPlay={onPlay} />
-    </> : section === 'new' ? <ReleaseBrowser PosterGrid={PosterGrid} Status={Status} onOpen={onOpen} onPlay={onPlay} />
+    </> : section === 'new' ? <CalendarBrowser PosterGrid={PosterGrid} Status={Status} onOpen={onOpen} onPlay={onPlay} />
       : section === 'reserve' ? <RankingPage key={reservationRank.id} rank={reservationRank} onOpen={onOpen} /> : <>
     {feedMode && <div className="category-tabs" role="group" aria-label="短剧分类">{feedChips.map(chip => <button key={chip.id} aria-pressed={feed.genre === chip.id} disabled={!!feed.busy} onClick={() => loadFeed(0, '', false, chip.id)}>{chip.label}</button>)}</div>}
     {feedError && <div className="category-tabs" role="group" aria-label="短剧分类">{CATEGORIES.map((item) => <button key={item.id} aria-pressed={item.id === category} onClick={() => changeCategory(item.id)}>{item.label}</button>)}</div>}
