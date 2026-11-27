@@ -470,6 +470,7 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onL
   const [selectedView, setView] = useState(null);
   const view = selectedView ?? (onPlay && library.history.length ? 'history' : 'favorites');
   const [historyView, setHistoryView] = useState('all');
+  const [keyword, setKeyword] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
   const items = library[view] || [];
@@ -496,7 +497,9 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onL
     const { decorate } = withHistoryHints(library.history || []);
     return (library.history || []).map(decorate);
   }, [library.history]);
-  const shown = view === 'history' ? filterHistory(rows, historyView) : items;
+  const query = keyword.trim().toLocaleLowerCase();
+  const shown = (view === 'history' ? filterHistory(rows, historyView) : items)
+    .filter(row => String(row.title || '').toLocaleLowerCase().includes(query));
   const completedCount = useMemo(() => (library.history || []).filter(row => completedEpisode(row)).length, [library.history]);
   return <>
     <header className="page-heading heading-actions"><h1>追剧与记录</h1><div className="heading-buttons">{view === 'history' && !!(library.history || []).length && <button type="button" className="button" onClick={() => setConfirmClear(true)}>清空记录</button>}<button type="button" className="button" onClick={onAccount}>账号</button></div></header>
@@ -506,9 +509,14 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onL
       <button aria-pressed={historyView === 'watching'} onClick={() => setHistoryView('watching')}>未看完 ({(library.history || []).length - completedCount})</button>
       <button aria-pressed={historyView === 'completed'} onClick={() => setHistoryView('completed')}>已看完 ({completedCount})</button>
     </div>}
+    {onPlay && (!!items.length || keyword) && <div className="library-search search-controls">
+      <input type="search" aria-label="搜索当前列表" placeholder="搜索当前列表" value={keyword} onChange={event => setKeyword(event.target.value)} />
+      {keyword && <button className="button" type="button" onClick={() => setKeyword('')}>清除</button>}
+    </div>}
+    {query && !shown.length && !busy && !error && <p className="result-caption" role="status">当前列表没有匹配的短剧。</p>}
     {library.projection?.[view === 'favorites' ? 'favoritesHasMore' : 'historyHasMore'] && <p className="account-note" role="status">当前展示最近 {items.length} 项；完整记录已保存在账号库，较早剧集的原生播放进度仍保留。</p>}
     {view === 'history' && confirmClear && <div className="search-history-confirm" role="group" aria-label="确认清空观看记录"><p>清空这台设备上的全部观看记录？</p><div><button className="button" type="button" disabled={historyBusy} onClick={clearAll}>{historyBusy ? '正在更新…' : '确认清空'}</button><button className="button" type="button" disabled={historyBusy} onClick={() => setConfirmClear(false)}>取消</button></div></div>}
-    <Status busy={busy} error={error} preserve={!!shown.length} onRetry={onRetry} empty={!shown.length && { title: view === 'favorites' ? '还没有追剧' : historyView === 'completed' ? '还没有看完的短剧' : historyView === 'watching' ? '没有正在观看的短剧' : '还没有观看记录', text: view === 'favorites' ? '打开短剧详情，点击「加入追剧」。' : '播放短剧后，进度会自动记录。' }}><PosterGrid items={shown} onOpen={onOpen} onPlay={onPlay} history={view === 'history'} onDelete={view === 'history' ? removeRow : undefined} /></Status>
+    <Status busy={busy} error={error} preserve={!!shown.length} onRetry={onRetry} empty={!query && !shown.length && { title: view === 'favorites' ? '还没有追剧' : historyView === 'completed' ? '还没有看完的短剧' : historyView === 'watching' ? '没有正在观看的短剧' : '还没有观看记录', text: view === 'favorites' ? '打开短剧详情，点击「加入追剧」。' : '播放短剧后，进度会自动记录。' }}><PosterGrid items={shown} onOpen={onOpen} onPlay={onPlay} history={view === 'history'} onDelete={view === 'history' ? removeRow : undefined} /></Status>
   </>;
 }
 
