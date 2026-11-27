@@ -868,6 +868,8 @@
 .phone-layout .reservation-title span { color: var(--muted); font-size: .85rem; }
 .phone-layout .reserved-detail { padding-bottom: 16px; }
 .phone-layout .reserved-detail .detail-description { margin-bottom: 16px; }
+.phone-layout .search-shortcuts { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.phone-layout .search-shortcuts .button { flex: 1; justify-content: center; font-size: .84rem; }
 .phone-layout .nav-items > button:not([aria-current="page"]) { color: #d0c7c6; }
 @media (max-width: 560px) and (orientation: portrait) {
   .phone-layout .poster-grid, .phone-layout .skeleton-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

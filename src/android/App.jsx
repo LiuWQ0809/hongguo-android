@@ -195,8 +195,8 @@ function RankingPage({ rank, onOpen, onPlay }) {
   </>;
 }
 
-function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi }) {
-  const [section, setSection] = useState('recommend');
+function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi, startSection }) {
+  const [section, setSection] = useState(startSection || 'recommend');
   const [rank, setRank] = useState(RANKINGS[0]);
   const reservationRank = RANKINGS.find(item => item.id === 'subscribe-drama');
   const [category, setCategory] = useState(CATEGORIES[0]?.id || 'all');
@@ -347,7 +347,7 @@ function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi }) {
   </>;
 }
 
-function SearchPage({ onOpen, onPlay }) {
+function SearchPage({ onOpen, onPlay, onBrowse }) {
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -474,6 +474,10 @@ function SearchPage({ onOpen, onPlay }) {
   return <>
     <header className={onPlay ? 'visually-hidden' : 'page-heading'}><h1>搜索短剧</h1></header>
     <form className="search-form" onSubmit={submit}><label className={onPlay ? 'visually-hidden' : undefined} htmlFor="search-keyword">短剧名称</label><div className="search-controls"><input ref={input} id="search-keyword" type="search" autoFocus={!!onPlay} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索短剧名称" maxLength={100} enterKeyHint="search" /><button className="button primary" type="submit" disabled={!keyword.trim()}><Search />搜索</button></div></form>
+    {onBrowse && !query && <nav className="search-shortcuts" aria-label="搜索快捷入口">
+      {[['recommend', '分类找剧'], ['rank', '榜单'], ['new', '上新'], ['reserve', '预约榜']].map(([id, label]) =>
+        <button key={id} type="button" className="button" onClick={() => onBrowse(id)}>{label}</button>)}
+    </nav>}
     <section className="search-history" aria-labelledby="search-history-title" aria-busy={history.busy}>
       <header><h2 id="search-history-title">最近搜索</h2><button ref={clearButton} className="history-clear" type="button" disabled={history.busy || !history.keywords.length} onClick={() => setConfirmClear(true)} aria-expanded={confirmClear} aria-controls="search-history-confirm">清空</button></header>
       {confirmClear && <div id="search-history-confirm" className="search-history-confirm" role="group" aria-label="确认清空搜索历史"><p>清空这台设备上的全部搜索历史？</p><div><button ref={confirmButton} className="button" type="button" disabled={history.busy} onClick={() => updateHistory('clearSearchHistory')}>{history.busy ? '正在更新…' : '确认清空'}</button><button className="button" type="button" disabled={history.busy} onClick={cancelClear}>取消</button></div></div>}
@@ -1603,6 +1607,7 @@ export default function App() {
   const [tab, setTab] = useState(() => restored?.tab || 'discover');
   const [detail, setDetail] = useState(null);
   const [libraryStart, setLibraryStart] = useState(null);
+  const [browseStart, setBrowseStart] = useState(null);
   const androidPackage = typeof __HONGGUO_PACKAGED_ANDROID__ !== 'undefined' && __HONGGUO_PACKAGED_ANDROID__;
   const juguoApi = androidPackage || typeof window === 'undefined' ? undefined : window.JuguoDesktop;
   const juguoSettings = useJuguoSettings(juguoApi);
@@ -1676,6 +1681,7 @@ export default function App() {
   const navigate = (id, view = null) => {
     if (id === 'juguo' && !juguoEnabled) return;
     if (id === 'library') setLibraryStart(view);
+    if (id === 'discover') setBrowseStart(view);
     previousScroll.current = 0; setDetail(null); setTab(id);
   };
   // Keep the browsing position so a background process death can reopen it.
@@ -1725,9 +1731,9 @@ export default function App() {
         : detail && <SeasonDetails key={detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onOpen={openDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi}
           onReserveSeason={reservationEnabled ? seed => setDetail(parent => ({ seed, parent })) : undefined} />}
       <div className="page-slot" hidden={!!detail}>
-        {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} />}
+        {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} startSection={browseStart} />}
         {tab === 'juguo' && juguoEnabled && <JuguoPage api={juguoApi} PosterGrid={PosterGrid} Status={Status} />}
-        {tab === 'search' && <SearchPage onOpen={openDetail} onPlay={openPlayback} />}
+        {tab === 'search' && <SearchPage onOpen={openDetail} onPlay={openPlayback} onBrowse={info.isTv ? undefined : section => navigate('discover', section)} />}
         {tab === 'library' && <Library library={library} error={libraryError} busy={libraryBusy} onRetry={loadLibrary} onOpen={openDetail} onPlay={openPlayback} onAccount={() => { navigate('about'); setAccountFocus(value => value + 1); }} onReservations={reservationEnabled ? () => navigate('reservations') : undefined} onLibrary={replaceLibrary} notify={notify} startView={libraryStart} />}
         {tab === 'reservations' && reservationEnabled && <ReservationsPage reservations={reservations} onBack={() => navigate('library')} onOpen={openDetail} onPlay={openPlayback} />}
         {tab === 'downloads' && !detail && <Downloads notify={notify} onBack={info.isTv ? undefined : () => navigate('about')} />}
