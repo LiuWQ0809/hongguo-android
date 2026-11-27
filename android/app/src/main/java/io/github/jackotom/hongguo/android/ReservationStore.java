@@ -45,4 +45,30 @@ final class ReservationStore {
                 .put("token", UUID.randomUUID().toString()).put("online", false)));
         }
     }
+
+    void checked(JSONObject expected, boolean online) throws Exception {
+        synchronized (ReservationStore.class) {
+            JSONArray rows = read();
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject row = rows.getJSONObject(i);
+                if (!expected.getString("token").equals(row.getString("token")) || row.optBoolean("online")) continue;
+                row.put("checkedAt", System.currentTimeMillis()).put("online", online);
+                save(rows);
+                return;
+            }
+        }
+    }
+
+    void notifyReady(java.util.function.Predicate<JSONObject> notify) throws Exception {
+        synchronized (ReservationStore.class) {
+            JSONArray rows = read();
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject row = rows.getJSONObject(i);
+                if (row.optBoolean("online") && !row.optBoolean("notified") && notify.test(row)) {
+                    row.put("notified", true);
+                    save(rows);
+                }
+            }
+        }
+    }
 }
