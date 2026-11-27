@@ -129,7 +129,7 @@ export function parseRanking(html, ranking, page) {
     return [{ ...item, rank: row.rank }];
   });
   if (content.rankList.length && !items.length) throw error('榜单剧集编号未通过校验');
-  return { items, totalPages: Math.max(page, count(content.pagination?.totalPages)), updated: text(data.updatedText) };
+  return { items, totalPages: Math.min(99, Math.max(page, count(content.pagination?.totalPages))), updated: text(data.updatedText) };
 }
 
 export function parseReviews(html, seriesId) {
@@ -280,7 +280,8 @@ export function createSource(request, { fallback, webFallback = !!fallback, sear
       const ranking = RANKINGS.find(rank => rank.id === id);
       if (!ranking) throw error('榜单分类无效', 'INVALID_INPUT');
       requirePage(page);
-      return load(`/rank/${id}?page=${page}`, html => parseRanking(html, ranking, page), undefined, undefined, options);
+      if (page > 99) throw error('榜单页码超出上限', 'INVALID_INPUT');
+      return load(`/rank/${id}${page > 1 ? `?page=${page}` : ''}`, html => parseRanking(html, ranking, page), undefined, undefined, options);
     },
     reviews(seriesId) {
       requireId(seriesId, '剧集编号');

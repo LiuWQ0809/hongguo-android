@@ -67,13 +67,17 @@ final class NetworkGuard {
         if (!host.matches("[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?") || !host.contains(".") || host.matches("[0-9.]+") || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal") || host.endsWith(".lan") || host.endsWith(".home")) throw new IOException("链接必须指向公网域名");
         if (officialOnly) {
             String path = uri.getPath();
-            if (!OFFICIAL.contains(host) || path == null) throw new IOException("仅支持官网分类、搜索及播放页面");
+            if (!OFFICIAL.contains(host) || path == null) throw new IOException("仅支持指定的红果官网页面");
             if (path.contains("..") || path.contains("\\")) throw new IOException("页面路径无效");
             boolean legacy = path.equals("/search") || path.startsWith("/search/") || path.startsWith("/category/") || path.startsWith("/player/");
             boolean detail = path.equals("/detail") && path.equals(uri.getRawPath());
             boolean searchApi = host.equals("hongguoduanju.com") && path.equals("/api/search/result") && path.equals(uri.getRawPath());
+            boolean ranking = path.equals(uri.getRawPath()) && (path.equals("/rank/hot-drama") || path.equals("/rank/new-drama"));
             if (detail || searchApi) validateOfficialQuery(uri, searchApi);
-            else if (!legacy) throw new IOException("仅支持官网分类、搜索及播放页面");
+            else if (ranking) {
+                String page = uri.getRawQuery();
+                if (page != null && !page.matches("page=[1-9][0-9]?")) throw new IOException("官网榜单参数无效");
+            } else if (!legacy) throw new IOException("仅支持指定的红果官网页面");
         }
         return uri;
     }
