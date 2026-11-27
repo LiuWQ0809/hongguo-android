@@ -5,6 +5,14 @@ export const SITE_ORIGIN = 'https://hongguoduanju.com';
 export const RANKINGS = Object.freeze([
   Object.freeze({ id: 'hot-drama', key: 'hongguo', label: '热播榜' }),
   Object.freeze({ id: 'new-drama', key: 'hongguo-new', label: '新剧榜' }),
+  Object.freeze({ id: 'subscribe-drama', key: 'hongguo-subscribe', label: '预约榜' }),
+  Object.freeze({ id: 'prestige-drama', key: 'hongguo-prestige', label: '臻果榜' }),
+  Object.freeze({ id: 'hot-search-drama', key: 'hongguo-hot_search', label: '热搜榜' }),
+  Object.freeze({ id: 'must-watch-drama', key: 'hongguo-must_watch', label: '必看榜' }),
+  Object.freeze({ id: 'followed-drama', key: 'hongguo-followed', label: '收藏榜' }),
+  Object.freeze({ id: 'hot-real-drama', key: 'real', label: '真人热播' }),
+  Object.freeze({ id: 'hot-comic-drama', key: 'comic', label: '漫剧热播' }),
+  Object.freeze({ id: 'hot-ai-drama', key: 'ai', label: 'AI 热播' }),
 ]);
 export const CATEGORIES = Object.freeze([
   Object.freeze({ id: 'real-drama', label: '真人剧' }),
@@ -126,7 +134,9 @@ export function parseRanking(html, ranking, page) {
       tags: row?.tags, episode_right_text: row?.primaryMetricText });
     if (!item || !Number.isSafeInteger(row.rank) || row.rank < 1 || seen.has(item.seriesId)) return [];
     seen.add(item.seriesId);
-    return [{ ...item, rank: row.rank }];
+    const upcoming = row.reservationOnly === true;
+    if (ranking.id === 'subscribe-drama' && !upcoming) return [];
+    return [{ ...item, rank: row.rank, upcoming, expected: upcoming ? text(row.expectedPublishText).slice(0, 80) : '' }];
   });
   if (content.rankList.length && !items.length) throw error('榜单剧集编号未通过校验');
   return { items, totalPages: Math.min(99, Math.max(page, count(content.pagination?.totalPages))), updated: text(data.updatedText) };

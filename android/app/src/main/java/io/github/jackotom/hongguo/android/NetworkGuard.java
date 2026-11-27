@@ -72,7 +72,8 @@ final class NetworkGuard {
             boolean legacy = path.equals("/search") || path.startsWith("/search/") || path.startsWith("/category/") || path.startsWith("/player/");
             boolean detail = path.equals("/detail") && path.equals(uri.getRawPath());
             boolean searchApi = host.equals("hongguoduanju.com") && path.equals("/api/search/result") && path.equals(uri.getRawPath());
-            boolean ranking = path.equals(uri.getRawPath()) && (path.equals("/rank/hot-drama") || path.equals("/rank/new-drama"));
+            boolean ranking = path.equals(uri.getRawPath()) &&
+                path.matches("/rank/(?:hot(?:-comic|-real|-ai|-search)?|new|subscribe|prestige|must-watch|followed)-drama");
             if (detail || searchApi) validateOfficialQuery(uri, searchApi);
             else if (ranking) {
                 String page = uri.getRawQuery();
