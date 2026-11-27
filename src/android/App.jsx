@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Home, Search, Bookmark, Download, Settings, Play, Heart, Clock, ChevronRight, ExternalLink, RefreshCw, Film, User } from '../components/icons.jsx';
+import { Home, Search, Bookmark, Download, Settings, Play, Heart, Clock, ChevronRight, ExternalLink, RefreshCw, Film, User, Share2 } from '../components/icons.jsx';
 import { getPlaybackPreferences, nativeCall, requestHtml, setPlaybackPreference } from './bridge.mjs';
 import { updateCall } from './update-bridge.mjs';
 import { CATEGORIES, RANKINGS, createSource } from './source.mjs';
@@ -1316,6 +1316,8 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onLibrary, no
             <button type="button" className={`favorite-chip chip-fav${isFavorite ? ' on' : ''}`} onClick={favorite} disabled={favoriteBusy || pointError || pointBusy} aria-pressed={isFavorite}>
               <Heart size={16} />{favoriteBusy ? '保存中…' : isFavorite ? '已追' : '追剧'}
             </button>
+            {!isTv && <button type="button" className="favorite-chip chip-fav share-chip" aria-label="分享短剧"
+              onClick={() => nativeCall('shareSeries', { seriesId: item.seriesId }).catch(cause => notify(errorText(cause)))}><Share2 size={16} /></button>}
           </div>
           {!separateSynopsis && synopsis}
           {favoriteError && <p className="text-error" role="alert">{favoriteError} {pointError ? <button type="button" className="button" onClick={() => setReload(n => n + 1)}>重试剧集状态</button> : "点击追剧按钮重试。"}</p>}
