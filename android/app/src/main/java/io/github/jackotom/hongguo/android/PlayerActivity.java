@@ -52,6 +52,7 @@ public final class PlayerActivity extends Activity {
     private int safeLeft, safeTop, safeRight, safeBottom;
     private Button back, fullscreenButton, resumeOverlay;
     private boolean fullscreen;
+    private Runnable systemBackCleanup;
     private PlayerHud controlsHud;
     private PlayerSurfaceTaps surfaceTaps;
     private boolean buffering, touchingControls;
@@ -175,6 +176,12 @@ public final class PlayerActivity extends Activity {
             fullscreen = !BuildConfig.IS_TV && (state == null ? getIntent().getBooleanExtra("fullscreen", false) : state.getBoolean("fullscreen"));
             BackgroundPlaybackService.stopOther(backgroundId);
             buildViews();
+            if (!BuildConfig.IS_TV && Build.VERSION.SDK_INT >= 33) {
+                var dispatcher = getOnBackInvokedDispatcher();
+                android.window.OnBackInvokedCallback callback = this::onBackPressed;
+                dispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback);
+                systemBackCleanup = () -> dispatcher.unregisterOnBackInvokedCallback(callback);
+            }
             int position = restored ? Math.max(0, state.getInt("position")) : store.position(series, queue.get(current));
             String initial = state == null ? getIntent().getStringExtra("url") : null;
             if (!resumeFromService()) loadAt(current, initial, position, restored && state.getBoolean("userPaused", false));
@@ -1613,7 +1620,7 @@ public final class PlayerActivity extends Activity {
         } else exitPlayer();
     }
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) { if (event.getAction() == KeyEvent.ACTION_UP) onBackPressed(); return true; }
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && systemBackCleanup == null) { if (event.getAction() == KeyEvent.ACTION_UP) onBackPressed(); return true; }
         int key = event.getKeyCode();
         boolean navigation = key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN || key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT || key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER;
         if (navigation && key == wakeKey) { showControls(); if (event.getAction() == KeyEvent.ACTION_UP) wakeKey = KeyEvent.KEYCODE_UNKNOWN; return true; }
@@ -1707,6 +1714,7 @@ public final class PlayerActivity extends Activity {
     }
     @Override protected void onSaveInstanceState(Bundle state) { savePlaybackState(state); super.onSaveInstanceState(state); }
     @Override protected void onDestroy() {
+        if (systemBackCleanup != null) systemBackCleanup.run();
         if (handedOff) android.util.Log.i("HongguoBackground", "播放器页面已销毁，服务继续持有播放会话");
         // Keep file deletion/update blocked until all media handles have been released.
         SoftDecoder.stop(softLayer); softLayer = null; softActive = false;

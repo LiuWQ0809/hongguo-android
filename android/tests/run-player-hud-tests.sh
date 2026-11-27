@@ -123,6 +123,7 @@ final class PlayerHudHarness extends HudActivityBase {
  final View top=new View(),bottom=new View(),toggle=new View(),back=new View();VideoView video=new VideoView();
  final View phoneScroller=new View(),seek=new View(),resumeOverlay=new View();
  PlayerSurfaceTaps surfaceTaps;
+ Runnable systemBackCleanup;
  boolean fullscreen,swipeAllowed,tapAllowed,handedOff,softActive;float swipeX,swipeY;Object softLayer;
  java.util.concurrent.Future<?> prefetch;int prefetchedIndex=-1;
  void toggleFullscreen(){fullscreen=!fullscreen;}
