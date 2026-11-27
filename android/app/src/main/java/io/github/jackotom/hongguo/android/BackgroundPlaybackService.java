@@ -31,6 +31,7 @@ public final class BackgroundPlaybackService extends Service {
     private final Runnable preparationTimeout = () -> { if (!this.ready) park(); };
     private LibraryStore store;
     private boolean ready;
+    private int loadGeneration;
     private final Runnable checkpoint = new Runnable() {
         @Override public void run() {
             savePosition();
@@ -107,6 +108,7 @@ public final class BackgroundPlaybackService extends Service {
     private void load() {
         acquirePreparationWake();
         BackgroundPlaybackSession request = session;
+        int generation = ++loadGeneration;
         BackgroundEpisodeSource files = source;
         var owner = request.owner();
         var episode = request.episode();
@@ -115,9 +117,9 @@ public final class BackgroundPlaybackService extends Service {
         preparing = resolver.submit(() -> {
             try {
                 Uri uri = files.load(request, owner, episode, prepared);
-                main.post(() -> { if (session == request) open(uri, request); });
+                main.post(() -> { if (session == request && loadGeneration == generation) open(uri, request); });
             } catch (Exception failed) {
-                main.post(() -> { if (session == request) park(); });
+                main.post(() -> { if (session == request && loadGeneration == generation) park(); });
             }
         });
     }
@@ -148,14 +150,23 @@ public final class BackgroundPlaybackService extends Service {
     }
 
     private void completed() {
-        session.position = 0;
         session.completed = true;
-        savePosition();
-        releaseDecoder();
         if (!session.autoplay || !session.hasNext()) { park(); return; }
-        session.index++;
+        switchEpisode(1);
+    }
+
+    private void switchEpisode(int delta) {
+        if (session == null) return;
+        int next = session.index + delta;
+        if (next < 0 || next >= session.queue.size()) return;
+        savePosition();
+        if (preparing != null) preparing.cancel(true);
+        preparing = null;
+        releaseDecoder();
+        session.index = next;
+        session.position = 0;
         session.completed = false;
-        source.select(session.index);
+        source.select(next);
         startForeground(BackgroundPlaybackNotification.ID, BackgroundPlaybackNotification.build(this, session, media));
         updateMediaState();
         load();
@@ -166,6 +177,8 @@ public final class BackgroundPlaybackService extends Service {
         media.setCallback(new MediaSession.Callback() {
             @Override public void onPlay() { setPaused(false); }
             @Override public void onPause() { setPaused(true); }
+            @Override public void onSkipToPrevious() { switchEpisode(-1); }
+            @Override public void onSkipToNext() { switchEpisode(1); }
             @Override public void onStop() { park(); }
         }, main);
         media.setActive(true);
@@ -186,8 +199,11 @@ public final class BackgroundPlaybackService extends Service {
         media.setMetadata(new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE, title).build());
         int state = session.completed ? PlaybackState.STATE_STOPPED : session.paused ? PlaybackState.STATE_PAUSED
             : ready ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_BUFFERING;
+        long actions = PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_STOP;
+        if (session.index > 0) actions |= PlaybackState.ACTION_SKIP_TO_PREVIOUS;
+        if (session.hasNext()) actions |= PlaybackState.ACTION_SKIP_TO_NEXT;
         media.setPlaybackState(new PlaybackState.Builder()
-            .setActions(PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_STOP)
+            .setActions(actions)
             .setState(state, session.position, state == PlaybackState.STATE_PLAYING ? session.speed : 0).build());
     }
 
