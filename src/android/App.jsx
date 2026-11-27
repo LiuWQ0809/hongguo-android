@@ -9,6 +9,8 @@ import { fetchAppPlayUrl } from './generated/mac-app-source.mjs';
 import gplLicense from '../../LICENSE?raw';
 import AccountPanel from './AccountPanel.jsx';
 import UpdatePanel from './UpdatePanel.jsx';
+import { ReservedDetail, ReservationsPage } from './Reservations.jsx';
+import { useReservations } from './use-reservations.mjs';
 import { JuguoPage, JuguoSettings, useJuguoSettings } from './JuguoDesktop.jsx';
 import { createOfficialSeasonLookup, requestOfficialSeries } from './official-series.mjs';
 import { announcementLink, createAnnouncements } from './announcements.mjs';
@@ -135,7 +137,7 @@ function Poster({ item, onOpen, onPlay, history, onDelete }) {
     }, 8000);
     return () => clearTimeout(timer);
   }, [nearby, src, failed, coverError]);
-  const play = onPlay && !isRetiredSeriesId(item.seriesId) && onPlay;
+  const play = onPlay && !item.upcoming && !isRetiredSeriesId(item.seriesId) && onPlay;
   const open = () => (play || onOpen)(item, history?.vid);
   const label = play ? (history ? "继续观看" : "播放") : "打开";
   // 卡片可携带删除入口：外层用可聚焦 div（避免按钮嵌套），删除键独立成按钮并阻断冒泡。
@@ -480,7 +482,7 @@ function SearchPage({ onOpen, onPlay }) {
   </>;
 }
 
-function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onLibrary, notify }) {
+function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onReservations, onLibrary, notify }) {
   const [selectedView, setView] = useState(null);
   const view = selectedView ?? (onPlay && library.history.length ? 'history' : 'favorites');
   const [historyView, setHistoryView] = useState('all');
@@ -518,6 +520,7 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onL
   return <>
     <header className="page-heading heading-actions"><h1>追剧与记录</h1><div className="heading-buttons">{view === 'history' && !!(library.history || []).length && <button type="button" className="button" onClick={() => setConfirmClear(true)}>清空记录</button>}<button type="button" className="button" onClick={onAccount}>账号</button></div></header>
     <div className="section-tabs" role="group" aria-label="我的内容"><button aria-pressed={view === 'favorites'} onClick={() => setView('favorites')}><Heart />追剧 ({library.favorites.length})</button><button aria-pressed={view === 'history'} onClick={() => { setView('history'); setConfirmClear(false); }}><Clock />观看历史 ({library.history.length})</button></div>
+    {onReservations && <button className="button reservation-entry" type="button" onClick={onReservations}>我的预约<ChevronRight size={16} /></button>}
     {view === 'history' && <div className="section-tabs" role="group" aria-label="观看状态">
       <button aria-pressed={historyView === 'all'} onClick={() => setHistoryView('all')}>全部 ({(library.history || []).length})</button>
       <button aria-pressed={historyView === 'watching'} onClick={() => setHistoryView('watching')}>未看完 ({(library.history || []).length - completedCount})</button>
@@ -1569,10 +1572,11 @@ const readSession = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
     if (!saved || typeof saved !== 'object') return null;
-    const tab = NAV.some(entry => entry.id === saved.tab) ? saved.tab : 'discover';
+    const tab = saved.tab === 'reservations' || NAV.some(entry => entry.id === saved.tab) ? saved.tab : 'discover';
     const id = String(saved.detail?.seriesId || '');
     const seriesId = /^[1-9][0-9]{0,29}$/.test(id) && !isRetiredSeriesId(id) ? id : null;
-    return { tab, detail: seriesId ? { seriesId, title: String(saved.detail.title || '') } : null };
+    const upcoming = saved.detail?.upcoming === true ? { upcoming: true, expected: String(saved.detail.expected || '').slice(0, 80) } : {};
+    return { tab, detail: seriesId ? { seriesId, title: String(saved.detail.title || ''), ...upcoming } : null };
   } catch { return null; }
 };
 
@@ -1586,6 +1590,8 @@ export default function App() {
   const juguoEnabled = !!juguoApi && juguoSettings.enabled;
   const polishUi = !juguoApi;
   const [info, setInfo] = useState({ isTv: false, version: '' });
+  const reservationEnabled = androidPackage && !!info.version && !info.isTv;
+  const reservations = useReservations(reservationEnabled);
   const [infoError, setInfoError] = useState('');
   const [library, setLibrary] = useState(EMPTY_LIBRARY);
   const [libraryBusy, setLibraryBusy] = useState(true);
@@ -1656,7 +1662,8 @@ export default function App() {
   useEffect(() => {
     const seed = detail?.seed || null;
     const seriesId = seed && /^[1-9][0-9]{0,29}$/.test(String(seed.seriesId || '')) ? String(seed.seriesId) : null;
-    try { localStorage.setItem(SESSION_KEY, JSON.stringify({ tab, detail: seriesId ? { seriesId, title: String(seed.title || '') } : null, at: Date.now() })); } catch { }
+    const upcoming = seed?.upcoming ? { upcoming: true, expected: seed.expected } : {};
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify({ tab, detail: seriesId ? { seriesId, title: String(seed.title || ''), ...upcoming } : null, at: Date.now() })); } catch { }
   }, [tab, detail]);
   useEffect(() => { if (restored?.detail) openDetail(restored.detail); }, []);
   useEffect(() => { if (tab === 'juguo' && !juguoEnabled) setTab('discover'); }, [tab, juguoEnabled]);
@@ -1673,7 +1680,7 @@ export default function App() {
   useEffect(() => { if (content.current) content.current.scrollTop = 0; }, [tab]);
   useEffect(() => { if (content.current) content.current.scrollTop = detail ? 0 : previousScroll.current; if (detail) content.current?.querySelector('.back-button')?.focus(); }, [detail?.seed?.seriesId]);
   useEffect(() => {
-    const back = () => { if (!window.dispatchEvent(new CustomEvent('androiddownloadback', { cancelable: true }))) return true; if (tab === 'juguo' && !window.dispatchEvent(new CustomEvent('juguoback', { cancelable: true }))) return true; if (detail) { closeDetail(); return true; } if (tab !== 'discover') { setTab(tab === 'downloads' && !info.isTv ? 'about' : 'discover'); return true; } return false; };
+    const back = () => { if (!window.dispatchEvent(new CustomEvent('androiddownloadback', { cancelable: true }))) return true; if (tab === 'juguo' && !window.dispatchEvent(new CustomEvent('juguoback', { cancelable: true }))) return true; if (detail) { closeDetail(); return true; } if (tab === 'reservations') { setTab('library'); return true; } if (tab !== 'discover') { setTab(tab === 'downloads' && !info.isTv ? 'about' : 'discover'); return true; } return false; };
     window.__androidBack = back;
     // A share link resolves to a series id natively; only an exact numeric id may open a detail.
     window.__androidOpenSeries = (seriesId) => { const id = String(seriesId || ''); if (/^\d{1,30}$/.test(id)) openDetail({ seriesId: id, title: '' }); };
@@ -1687,18 +1694,21 @@ export default function App() {
   }, [detail, tab, closeDetail, info.isTv, notify]);
   const navigation = info.isTv ? NAV : PHONE_NAV;
   const navItems = juguoEnabled ? [navigation[0], { id: 'juguo', label: '剧果', Icon: Film }, ...navigation.slice(1)] : navigation;
-  const currentTab = !info.isTv && tab === 'downloads' ? 'about' : !info.isTv && tab === 'search' ? 'discover' : tab;
+  const currentTab = tab === 'reservations' ? 'library' : !info.isTv && tab === 'downloads' ? 'about' : !info.isTv && tab === 'search' ? 'discover' : tab;
   const searchInHeader = !info.isTv && !detail && tab === 'discover';
   return <div className={`android-app ${info.isTv ? 'tv-layout' : 'phone-layout'}${polishUi ? ' android-ui-polish' : ''}`}>
     <nav className="app-nav" aria-label="主要导航"><div className="nav-brand"><span><Play size={21} /></span><strong>红果短剧</strong></div><div className="nav-items">{navItems.map(({ id, label, Icon }) => <button key={id} aria-current={!detail && currentTab === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={22} /><span>{label === '我的追剧' ? <><span className="nav-word">我的</span><span className="nav-word">追剧</span></> : label}</span></button>)}</div>{info.isTv && <p className="nav-version">遥控器方向键选择<br />v{info.version || '—'}</p>}</nav>
     <div className="content-shell"><div className="phone-brand"><span><Play size={18} /></span>{searchInHeader ? <button type="button" className="home-search" onClick={() => navigate('search')}><Search size={18} /><span>搜索短剧名称</span></button>
       : <strong>红果短剧</strong>}{!detail && !searchInHeader && tab !== 'search' && <button className="brand-search" type="button" aria-label="搜索短剧" onClick={() => navigate('search')}><Search size={20} /></button>}</div>{infoError && <div className="environment-error" role="alert"><span>{infoError}</span><button onClick={loadInfo}>重试连接</button></div>}<main ref={content} className={`main-content${detail ? ' detail-open' : ''}`} id="main-content" data-page={detail ? 'detail' : tab}>
-      {detail && <SeasonDetails key={detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onOpen={openDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi} />}
+      {detail?.seed.upcoming && reservationEnabled
+        ? <ReservedDetail series={detail.seed} reservations={reservations} Cover={DetailCover} onBack={closeDetail} onPlay={openPlayback} />
+        : detail && <SeasonDetails key={detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onOpen={openDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi} />}
       <div className="page-slot" hidden={!!detail}>
         {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} />}
         {tab === 'juguo' && juguoEnabled && <JuguoPage api={juguoApi} PosterGrid={PosterGrid} Status={Status} />}
         {tab === 'search' && <SearchPage onOpen={openDetail} onPlay={openPlayback} />}
-        {tab === 'library' && <Library library={library} error={libraryError} busy={libraryBusy} onRetry={loadLibrary} onOpen={openDetail} onPlay={openPlayback} onAccount={() => { navigate('about'); setAccountFocus(value => value + 1); }} onLibrary={replaceLibrary} notify={notify} />}
+        {tab === 'library' && <Library library={library} error={libraryError} busy={libraryBusy} onRetry={loadLibrary} onOpen={openDetail} onPlay={openPlayback} onAccount={() => { navigate('about'); setAccountFocus(value => value + 1); }} onReservations={reservationEnabled ? () => navigate('reservations') : undefined} onLibrary={replaceLibrary} notify={notify} />}
+        {tab === 'reservations' && reservationEnabled && <ReservationsPage reservations={reservations} onBack={() => navigate('library')} onOpen={openDetail} onPlay={openPlayback} />}
         {tab === 'downloads' && !detail && <Downloads notify={notify} onBack={info.isTv ? undefined : () => navigate('about')} />}
         {tab === 'about' && <About info={info} notify={notify} accountFocus={accountFocus} announcementsRef={announcements} juguoSettings={juguoApi && juguoSettings} onDownloads={info.isTv ? undefined : () => navigate('downloads')} />}
       </div>
