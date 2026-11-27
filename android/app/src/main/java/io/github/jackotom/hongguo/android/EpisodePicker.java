@@ -55,7 +55,7 @@ final class EpisodePicker {
         int height = Math.min(Math.round(280 * metrics.density), metrics.heightPixels / 2);
         panel.addView(grid, new LinearLayout.LayoutParams(-1, height));
         AlertDialog dialog = new AlertDialog.Builder(activity)
-            .setTitle("选集 · " + episodes.size() + " 集")
+            .setTitle("当前第 " + episodes.get(current).optInt("index") + " 集 · 共 " + episodes.size() + " 集")
             .setView(panel).setNegativeButton("关闭", null).create();
         grid.setOnItemClickListener((parent, view, position, id) -> {
             dialog.dismiss();

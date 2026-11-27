@@ -37,6 +37,7 @@ final class EpisodeGridAdapter extends BaseAdapter {
         cell.setText(String.valueOf(number));
         cell.setTextSize(16);
         cell.setSelected(selected);
+        cell.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         cell.setContentDescription(selected ? "正在播放第 " + number + " 集" : "播放第 " + number + " 集");
         cell.setTextColor(selected ? 0xffffe1d5 : 0xffeeebec);
         GradientDrawable shape = new GradientDrawable();
