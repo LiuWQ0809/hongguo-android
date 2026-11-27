@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 const sourceRoot = resolve(process.env.ANDROID_SOURCE_ROOT || fileURLToPath(new URL('..', import.meta.url)));
-const { CATEGORIES, SITE_ORIGIN, extractRouterData, parseCatalog, parseSearch, parseDetail, parsePlayback, createSource } =
+const { CATEGORIES, RANKINGS, SITE_ORIGIN, extractRouterData, parseCatalog, parseSearch, parseDetail, parsePlayback, parseRanking, createSource } =
   await import(pathToFileURL(resolve(sourceRoot, 'src/android/source.mjs')).href);
 
 const sid = '1234567890123456789', vid = '2345678901234567890';
@@ -35,6 +35,17 @@ test('scanner rejects empty, non-string, oversized, missing, truncated and JavaS
 });
 test('catalog maps public metadata and pagination', () => {
   assert.deepEqual(parseCatalog(catalog()), { items: [{ seriesId: sid, title: '测试短剧', coverUrl: 'https://cdn.example.net/cover.jpg', description: '简介', episodeCount: 80, tags: ['都市', '逆袭'], episodeLabel: '全80集' }], page: 1, totalPages: 8, total: 80 });
+});
+test('reservation ranking requires an explicit unpublished entry and preserves the announced text', () => {
+  const rank = RANKINGS.find(row => row.id === 'subscribe-drama');
+  const row = { seriesId: sid, title: '待上线短剧', rank: 1, expectedPublishText: '预计12月上线', reservationOnly: true };
+  const render = entry => html({ 'rank_subscribe-drama/page': { rankKey: rank.key, pageNum: 1,
+    content: { isSuccess: true, rankList: [entry] } } });
+  const [item] = parseRanking(render(row), rank, 1).items;
+  assert.equal(item.seriesId, sid);
+  assert.equal(item.expected, '预计12月上线');
+  assert.equal(item.upcoming, true);
+  throwsCode(() => parseRanking(render({ ...row, reservationOnly: false }), rank, 1), 'SOURCE_INVALID');
 });
 test('catalog selects requested category rather than first unrelated model', () => {
   const page = html({ wrong: { categoryRoute: { contentType: 'real-drama' }, recommendList: [card()] }, correct: { categoryRoute: { contentType: 'ai-drama' }, recommendList: [], pagination: { pageNum: 3 } } });
