@@ -36,3 +36,23 @@ export function ReservationsPage({ reservations, onBack, onOpen, onPlay }) {
     </article>)}</div>
   </section>;
 }
+
+export function ReservedDetail({ series, reservations, Cover, onBack, onPlay }) {
+  const online = reservations.items.some(row => row.seriesId === series.seriesId && row.online);
+  return <section className="reserved-detail">
+    <button className="back-button" onClick={onBack}><ChevronRight size={20} />返回</button>
+    <div className="detail-summary"><Cover url={series.coverUrl} />
+      <div className="detail-copy">
+        <h1>{series.title}</h1>
+        <p className="detail-meta">{online ? '已上线' : series.expected || '即将上线'}</p>
+        {online
+          ? <button className="button primary" onClick={() => onPlay({ ...series, upcoming: false })}>去观看</button>
+          : <ReserveButton series={series} reservations={reservations} />}
+      </div>
+    </div>
+    {series.description && <p className="detail-description">{series.description}</p>}
+    {!reservations.notificationsAllowed && reservations.items.some(row => row.seriesId === series.seriesId)
+      && <button className="button" onClick={reservations.enable}><Bell size={17} />开启系统提醒</button>}
+    {reservations.error && <p className="text-error" role="alert">{reservations.error}</p>}
+  </section>;
+}
