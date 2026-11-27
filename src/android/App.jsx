@@ -1094,6 +1094,32 @@ function PublisherPanel({ series, onOpen }) {
   </section>;
 }
 
+function ReviewsPanel({ seriesId }) {
+  const [state, setState] = useState(null);
+  const load = async () => {
+    setState({ busy: true });
+    try { setState(await source.reviews(seriesId)); }
+    catch (cause) { setState({ error: errorText(cause) }); }
+  };
+  return <details className="detail-settings reviews-panel" onToggle={event => {
+    if (event.currentTarget.open && !state) load();
+  }}>
+    <summary>公开剧评<ChevronRight size={16} /></summary>
+    <div className="reviews-content" aria-live="polite">
+      {state?.busy && <p>正在读取公开剧评…</p>}
+      {state?.error && <div role="alert"><p>{state.error}</p><button className="button" onClick={load}>重试剧评</button></div>}
+      {state?.items && <><p>{state.total == null ? '公开预览' : `公开总数 ${state.total}`} · 显示 ${state.items.length} 条</p>
+        {!state.items.length && <p>暂无公开剧评。</p>}
+        {state.items.map((item, index) => <article key={index}>
+          {item.author && <strong>{item.author}</strong>}
+          <p>{item.content}</p>
+          {item.likes !== null && <small>{item.likes} 人点赞</small>}
+        </article>)}
+      </>}
+    </div>
+  </details>;
+}
+
 function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLibrary, notify, isTv = false, polishUi, seasonSelector = null, seasonPanel = null, selectionGuard, isSeasonCurrent = () => true, onSeasonLock = () => {}, onDetailResolved = () => {} }) {
   const [state, setState] = useState({ busy: true });
   const [reload, setReload] = useState(0);
@@ -1390,6 +1416,7 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLib
       </section>
       <section className="playback-settings" aria-label="播放设置">{isTv && <AutoplaySetting enabled={preferences.autoplay} onChange={() => changePreference('autoplay')} disabled={!!operation} />}<div className="playback-setting"><div><h2>清理已看播放缓存</h2><p>保留当前集和前一集，手动下载不受影响。</p></div><button className="setting-switch" type="button" role="switch" aria-checked={preferences.cleanupPlaybackCache} aria-label="清理已看播放缓存" disabled={!!operation} onClick={() => changePreference('cleanupPlaybackCache')}>{preferences.cleanupPlaybackCache ? '开启' : '关闭'}</button></div></section>
       </details>
+      {!isTv && <ReviewsPanel key={state.item.seriesId} seriesId={state.item.seriesId} />}
       {opError && <div ref={operationError} className="operation-error" role="alert"><p>{opError.text}</p><button className="button" onClick={() => run(opError.action, opError.episode)}>重试{opError.action === 'play' ? '播放' : '下载'}</button></div>}
     </>}
     </div>
