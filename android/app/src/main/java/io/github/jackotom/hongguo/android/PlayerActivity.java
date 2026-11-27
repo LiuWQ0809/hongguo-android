@@ -1185,9 +1185,8 @@ public final class PlayerActivity extends Activity {
     private void move(int delta) { if (current + delta >= 0 && current + delta < queue.size()) loadAt(current + delta, null, 0); }
     private void selectEpisode() {
         if (!BuildConfig.IS_TV) {
-            showPlayerDialog(EpisodePicker.create(this, queue, current, index -> {
-                if (index != current) loadAt(index, null, 0);
-            }));
+            if (current < 0 || current >= queue.size()) return;
+            showPlayerDialog(EpisodePicker.create(this, queue, current, index -> loadAt(index, null, 0)));
             return;
         }
         String[] labels = new String[queue.size()];

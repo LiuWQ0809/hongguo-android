@@ -31,6 +31,12 @@ class AlertDialog {
  void dismiss(){dismissed=true;}void click(int which){choice.click(this,which);}
  static class Builder {final AlertDialog dialog=new AlertDialog();Builder(Object a){}Builder setTitle(String title){return this;}Builder setSingleChoiceItems(String[] labels,int current,Choice choice){dialog.labels=labels;dialog.choice=choice;return this;}Builder setNegativeButton(String text,Choice c){return this;}AlertDialog create(){return dialog;}}
 }
+class EpisodePicker {
+ static AlertDialog create(Object activity, List<JSONObject> episodes, int current, java.util.function.IntConsumer select) {
+     return new AlertDialog.Builder(activity).setSingleChoiceItems(new String[episodes.size()], current,
+         (dialog, which) -> { dialog.dismiss(); select.accept(which); }).create();
+ }
+}
 class MainLoop {
  final Deque<Runnable> callbacks=new ArrayDeque<>();final Set<Runnable> delayed=new HashSet<>();final Map<Runnable,Long> delays=new HashMap<>();void post(Runnable r){callbacks.addLast(r);}void postDelayed(Runnable r,long delay){delayed.add(r);delays.put(r,delay);}void removeCallbacks(Runnable r){delayed.remove(r);delays.remove(r);callbacks.remove(r);}void flush(){while(!callbacks.isEmpty())callbacks.removeFirst().run();}
 }
