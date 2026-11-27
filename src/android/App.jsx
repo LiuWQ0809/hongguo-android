@@ -10,6 +10,7 @@ import gplLicense from '../../LICENSE?raw';
 import AccountPanel from './AccountPanel.jsx';
 import UpdatePanel from './UpdatePanel.jsx';
 import { ReservedDetail, ReservationsPage } from './Reservations.jsx';
+import ReleaseBrowser from './ReleaseBrowser.jsx';
 import { useReservations } from './use-reservations.mjs';
 import { JuguoPage, JuguoSettings, useJuguoSettings } from './JuguoDesktop.jsx';
 import { createOfficialSeasonLookup, requestOfficialSeries } from './official-series.mjs';
@@ -193,7 +194,9 @@ function RankingPage({ rank, onOpen, onPlay }) {
 }
 
 function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi }) {
-  const [rank, setRank] = useState(null);
+  const [section, setSection] = useState('recommend');
+  const [rank, setRank] = useState(RANKINGS[0]);
+  const reservationRank = RANKINGS.find(item => item.id === 'subscribe-drama');
   const [category, setCategory] = useState(CATEGORIES[0]?.id || 'all');
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
@@ -300,10 +303,18 @@ function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi }) {
     {update && <button type="button" className="home-update" onClick={onUpdates}><RefreshCw size={16} /><span>新版本 {update.versionName} 已发布 · 查看更新</span></button>}
     {onSearch && searchButton}
     {onPlay && <div className="section-tabs theater-tabs" role="group" aria-label="剧场入口">
-      <button type="button" aria-pressed={!rank} onClick={() => setRank(null)}>推荐</button>
-      {RANKINGS.map(item => <button type="button" key={item.id} aria-pressed={item === rank} onClick={() => setRank(item)}>{item.label}</button>)}
+      {[['recommend', '推荐'], ['rank', '榜单'], ['new', '上新'], ['reserve', '预约榜']].map(([id, label]) =>
+        <button key={id} type="button" aria-pressed={section === id} onClick={() => setSection(id)}>{label}</button>)}
     </div>}
-    {rank ? <RankingPage key={rank.id} rank={rank} onOpen={onOpen} onPlay={onPlay} /> : <>
+    {section === 'rank' ? <>
+      <label className="ranking-filter"><span>榜单类型</span>
+        <select value={rank.id} onChange={event => setRank(RANKINGS.find(item => item.id === event.target.value))}>
+          {RANKINGS.filter(item => item !== reservationRank).map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select>
+      </label>
+      <RankingPage key={rank.id} rank={rank} onOpen={onOpen} onPlay={onPlay} />
+    </> : section === 'new' ? <ReleaseBrowser PosterGrid={PosterGrid} Status={Status} onOpen={onOpen} onPlay={onPlay} />
+      : section === 'reserve' ? <RankingPage key={reservationRank.id} rank={reservationRank} onOpen={onOpen} /> : <>
     {feedMode && <div className="category-tabs" role="group" aria-label="短剧分类">{feedChips.map(chip => <button key={chip.id} aria-pressed={feed.genre === chip.id} disabled={!!feed.busy} onClick={() => loadFeed(0, '', false, chip.id)}>{chip.label}</button>)}</div>}
     {feedError && <div className="category-tabs" role="group" aria-label="短剧分类">{CATEGORIES.map((item) => <button key={item.id} aria-pressed={item.id === category} onClick={() => changeCategory(item.id)}>{item.label}</button>)}</div>}
     {!!continueRows.length && <section className="home-continue" aria-label="继续观看">
