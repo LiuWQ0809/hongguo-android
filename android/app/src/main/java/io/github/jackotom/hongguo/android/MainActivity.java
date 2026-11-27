@@ -329,7 +329,7 @@ public final class MainActivity extends Activity {
     private static WebResourceResponse error(int status) { return new WebResourceResponse("text/plain", "UTF-8", status, "Blocked", Collections.emptyMap(), new ByteArrayInputStream(new byte[0])); }
     boolean trusted() { return web != null && web.getUrl() != null && local(Uri.parse(web.getUrl())); }
     void script(String source) { runOnUiThread(() -> { if (!isFinishing() && trusted()) web.evaluateJavascript(source, null); }); }
-    @Override protected void onResume() { super.onResume(); if (officialSeries != null) officialSeries.resume(); if (updates != null) updates.resume(); AccountSync.get().setListener(accountChanged); AccountSync.get().foreground(); if (web != null) { web.onResume(); if (loaded) script("window.__androidResume && window.__androidResume()"); } }
+    @Override protected void onResume() { super.onResume(); ReservationSchedule.plan(this, true); if (officialSeries != null) officialSeries.resume(); if (updates != null) updates.resume(); AccountSync.get().setListener(accountChanged); AccountSync.get().foreground(); if (web != null) { web.onResume(); if (loaded) script("window.__androidResume && window.__androidResume()"); } }
     @Override protected void onPause() { if (updates != null) updates.pause(); AccountSync.get().flush(); if (web != null) web.onPause(); super.onPause(); }
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (BuildConfig.IS_TV && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {

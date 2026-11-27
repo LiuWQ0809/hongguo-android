@@ -35,7 +35,8 @@ final class NativeBridge {
     private final ThreadPoolExecutor coverWorker = new ThreadPoolExecutor(2, 2, 30, TimeUnit.SECONDS, new ArrayBlockingQueue<>(12));
     // Login/cloud control never occupies source or media request workers.
     private final ThreadPoolExecutor accountWorker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
-    private static final Set<String> METHODS = new HashSet<>(Arrays.asList("getInfo", "httpGet", "cancelHttp", "appRequest", "appDeviceIdentity", "appRegisteredModel", "appResolveResult", "getLibrary", "getSeriesHistory", "removeHistory", "clearHistory", "toggleFavorite", "play", "download", "getDownloads", "deleteDownload", "playDownload", "getPlaybackCache", "clearPlaybackCache", "getPlaybackOptions", "setPlaybackOptions", "getSearchHistory", "addSearchHistory", "removeSearchHistory", "clearSearchHistory", "searchQuery", "openExternal", "shareSeries", "resetPlaybackIdentity", "getAccount", "officialSendCode", "officialLoginSMS", "officialVerifyMFA", "officialCancelLogin", "officialLogout", "officialSync", "officialImportGuest", "officialWebQrcode", "officialWebPoll", "officialWebLogout", "officialWebCancel", "getAnnouncements", "searchNewReleases", "homeFeed", "coverThumbnail", "nativeSeriesDetail", "seriesPublishers", "mergeDownloads", "getMergedVideos", "deleteMergedVideo", "playMergedVideo"));
+    private final ThreadPoolExecutor reservationWorker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
+    private static final Set<String> METHODS = new HashSet<>(Arrays.asList("getInfo", "httpGet", "cancelHttp", "appRequest", "appDeviceIdentity", "appRegisteredModel", "appResolveResult", "getLibrary", "getSeriesHistory", "removeHistory", "clearHistory", "toggleFavorite", "play", "download", "getDownloads", "deleteDownload", "playDownload", "getPlaybackCache", "clearPlaybackCache", "getPlaybackOptions", "setPlaybackOptions", "getSearchHistory", "addSearchHistory", "removeSearchHistory", "clearSearchHistory", "searchQuery", "openExternal", "shareSeries", "resetPlaybackIdentity", "getAccount", "officialSendCode", "officialLoginSMS", "officialVerifyMFA", "officialCancelLogin", "officialLogout", "officialSync", "officialImportGuest", "officialWebQrcode", "officialWebPoll", "officialWebLogout", "officialWebCancel", "getAnnouncements", "searchNewReleases", "homeFeed", "getReservations", "setReservation", "checkReservations", "enableReservationNotifications", "coverThumbnail", "nativeSeriesDetail", "seriesPublishers", "mergeDownloads", "getMergedVideos", "deleteMergedVideo", "playMergedVideo"));
     NativeBridge(MainActivity activity) { this.activity = activity; store = new LibraryStore(activity); downloads = (DownloadManager) activity.getSystemService(Context.DOWNLOAD_SERVICE); }
     @JavascriptInterface public void postMessage(String message) {
         if (message == null || message.length() > 256 * 1024 || message.getBytes(StandardCharsets.UTF_8).length > 256 * 1024) return;
@@ -85,7 +86,8 @@ final class NativeBridge {
                     AccountSync.get().requireCurrent(favoriteSelection);
                 } catch (Exception error) { respond(id, null, "账号正在切换，请稍后重试收藏"); return; }
             } else { favoriteSelection = null; favoriteStore = null; }
-            ThreadPoolExecutor executor = method.startsWith("official") ? accountWorker : method.equals("searchQuery") || method.equals("searchNewReleases") || (method.equals("homeFeed") || method.equals("nativeSeriesDetail") || method.equals("seriesPublishers")) ? searchWorker : method.equals("download") ? downloadWorker : worker;
+            ThreadPoolExecutor executor = method.equals("checkReservations") ? reservationWorker
+                : method.startsWith("official") ? accountWorker : method.equals("searchQuery") || method.equals("searchNewReleases") || (method.equals("homeFeed") || method.equals("nativeSeriesDetail") || method.equals("seriesPublishers")) ? searchWorker : method.equals("download") ? downloadWorker : worker;
             try { executor.execute(() -> { try (AutoCloseable updateLease = (method.equals("download") || method.equals("playDownload")) ? UpdateInstallCheckpoint.operation() : null) { handle(id, method, params, favoriteStore, favoriteSelection); } catch (Exception error) { respond(id, null, error.getMessage() == null ? "操作未成功，请重试" : error.getMessage()); } }); }
             catch (RejectedExecutionException error) { respond(id, null, "请求较多，请稍后重试"); }
         });
@@ -378,6 +380,21 @@ final class NativeBridge {
             case "officialWebLogout": respond(id, AccountSync.get().webLogout(), null); break;
             case "officialWebCancel": respond(id, AccountSync.get().webCancel(), null); break;
             case "searchNewReleases": respond(id, newReleases(params), null); break;
+            case "getReservations": respond(id, ReservationBridge.state(activity), null); break;
+            case "setReservation": respond(id, ReservationBridge.update(activity, params), null); break;
+            case "checkReservations": {
+                boolean complete = ReservationPoller.check(activity.getApplicationContext());
+                ReservationSchedule.plan(activity, false);
+                respond(id, ReservationBridge.state(activity).put("complete", complete), null);
+                break;
+            }
+            case "enableReservationNotifications": {
+                activity.runOnUiThread(() -> {
+                    if (!closed && !activity.isFinishing()) ReservationBridge.enableNotifications(activity);
+                });
+                respond(id, new JSONObject().put("opened", true), null);
+                break;
+            }
             case "nativeSeriesDetail": respond(id, NativeSeriesDetail.fetch(params.getString("seriesId")), null); break;
             case "seriesPublishers": respond(id, SeriesPublisher.fetch(params.getJSONArray("seriesIds")), null); break;
             case "homeFeed": {
@@ -747,5 +764,5 @@ final class NativeBridge {
     private static String callbackScript(JSONObject response) {
         return "window.__androidResponse && window.__androidResponse(" + response.toString().replace("\u2028", "\\u2028").replace("\u2029", "\\u2029") + ")";
     }
-    void close() { closed = true; closeRegisteredModels(); closeHttp(); worker.shutdownNow(); downloadWorker.shutdownNow(); searchWorker.shutdownNow(); coverWorker.shutdownNow(); accountWorker.shutdownNow(); try { AccountSync.get().cancelLogin(); } catch (Exception ignored) { } }
+    void close() { closed = true; closeRegisteredModels(); closeHttp(); worker.shutdownNow(); downloadWorker.shutdownNow(); searchWorker.shutdownNow(); reservationWorker.shutdownNow(); coverWorker.shutdownNow(); accountWorker.shutdownNow(); try { AccountSync.get().cancelLogin(); } catch (Exception ignored) { } }
 }
