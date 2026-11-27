@@ -821,3 +821,7 @@
 .about-links .button:hover:not(:disabled){background:var(--border)}
 /* 空态更轻。 */
 .state-panel>svg{opacity:.7}
+
+.phone-layout .poster-cell { position: relative; min-width: 0; }
+.phone-layout .poster-cell > .poster { width: 100%; }
+.phone-layout .poster-detail-link { position: absolute; top: 6px; right: 6px; min-width: 44px; min-height: 44px; padding: 0 8px; border: 1px solid #ffffff30; border-radius: 12px; color: #fff; background: #231f20ba; font-size: .76rem; }

@@ -84,7 +84,7 @@ function Status({ busy, error, onRetry, empty, children, preserve = false, error
 const webpCover = url => typeof url === 'string' && url.length > 6 && url.slice(-5).toLowerCase() === '.heic' ? url.slice(0, -5) + '.webp'
   : typeof url === 'string' && url.length > 7 && url.slice(-6).toLowerCase() === '.image' ? url.slice(0, -6) + '.webp' : null;
 
-function Poster({ item, onOpen, history, onDelete }) {
+function Poster({ item, onOpen, onPlay, history, onDelete }) {
   const [failed, setFailed] = useState(false);
   const cover = !item.sourceId && isRetiredSeriesId(item.seriesId) ? '' : item.coverUrl;
   const [src, setSrc] = useState(cover);
@@ -116,9 +116,11 @@ function Poster({ item, onOpen, history, onDelete }) {
     }, 8000);
     return () => clearTimeout(timer);
   }, [nearby, src, failed, coverError]);
-  const open = () => onOpen(item, history?.vid);
+  const play = onPlay && !isRetiredSeriesId(item.seriesId) && onPlay;
+  const open = () => (play || onOpen)(item, history?.vid);
+  const label = play ? (history ? "继续观看" : "播放") : "打开";
   // 卡片可携带删除入口：外层用可聚焦 div（避免按钮嵌套），删除键独立成按钮并阻断冒泡。
-  return <div className="poster" role="button" tabIndex={0} aria-label={`打开${item.title}`}
+  const card = <div className="poster" role="button" tabIndex={0} aria-label={`${label}${item.title}`}
     onClick={event => { if (event.target.closest('.poster-delete')) return; open(); }}
     onKeyDown={event => { if ((event.key !== 'Enter' && event.key !== ' ') || event.target.closest('.poster-delete')) return; event.preventDefault(); open(); }}>
     <span className="poster-art" ref={artRef}>
@@ -131,13 +133,16 @@ function Poster({ item, onOpen, history, onDelete }) {
     {history ? <span className="poster-caption">看到第 {history.index} 集 · {timeText(history.positionMs)}</span> : item.tags?.length ? <span className="poster-caption">{item.tags.slice(0, 2).join(' / ')}</span> : null}
     {history?.hint ? <span className="poster-hint">{history.hint}</span> : null}
   </div>;
+  return play && !history ? <div className="poster-cell">{card}
+    <button className="poster-detail-link" type="button" onClick={() => onOpen(item)} aria-label={`打开${item.title}详情`}>详情</button>
+  </div> : card;
 }
 
-function PosterGrid({ items, onOpen, history = false, onDelete }) {
-  return <div className="poster-grid">{items.map((item, index) => <Poster key={`${item.seriesId}-${index}`} item={item} onOpen={onOpen} history={history ? item : null} onDelete={onDelete} />)}</div>;
+function PosterGrid({ items, onOpen, onPlay, history = false, onDelete }) {
+  return <div className="poster-grid">{items.map((item, index) => <Poster key={`${item.seriesId}-${index}`} item={item} onOpen={onOpen} onPlay={onPlay} history={history ? item : null} onDelete={onDelete} />)}</div>;
 }
 
-function Discover({ onOpen, library, onSearch, onUpdates, polishUi }) {
+function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi }) {
   const [category, setCategory] = useState(CATEGORIES[0]?.id || 'all');
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
@@ -247,12 +252,12 @@ function Discover({ onOpen, library, onSearch, onUpdates, polishUi }) {
     {feedError && <div className="category-tabs" role="group" aria-label="短剧分类">{CATEGORIES.map((item) => <button key={item.id} aria-pressed={item.id === category} onClick={() => changeCategory(item.id)}>{item.label}</button>)}</div>}
     {!!continueRows.length && <section className="home-continue" aria-label="继续观看">
       <h2>继续观看</h2>
-      <div className="home-continue-row"><PosterGrid items={continueRows} onOpen={onOpen} history /></div>
+      <div className="home-continue-row"><PosterGrid items={continueRows} onOpen={onOpen} onPlay={onPlay} history /></div>
     </section>}
     {feedMode ? <>
       <div className="home-section-head"><h2>为你推荐</h2></div>
       <Status busy={!!feed.busy && !feed.items.length} error={feed.error || ''} preserve={!!feed.items.length} onRetry={() => loadFeed(0, '', false, feed.genre)} empty={!feed.items.length && { title: '暂时没有推荐内容', text: '稍后再来看看，或用搜索找到想看的短剧。' }}>
-        <PosterGrid items={feed.items} onOpen={onOpen} />
+        <PosterGrid items={feed.items} onOpen={onOpen} onPlay={onPlay} />
       </Status>
       {!!feed.items.length && <div className="home-more">
         {feed.busy ? <span className="home-more-note">正在加载…</span>
@@ -265,14 +270,14 @@ function Discover({ onOpen, library, onSearch, onUpdates, polishUi }) {
         <button type="button" className="home-next" disabled={shown.busy} aria-label="换一批片单" onClick={nextBatch}><RefreshCw size={15} /><span>换一批</span></button>
       </div>
       <Status busy={shown.busy} error={shown.error} preserve={!!shown.items.length} onRetry={() => loadPage(shown.requestedPage || page, true)} empty={!shown.items.length && { title: '这个分类暂时没有内容', text: '试试其他分类，或稍后回来查看。' }}>
-        <PosterGrid items={shown.items} onOpen={onOpen} />
+        <PosterGrid items={shown.items} onOpen={onOpen} onPlay={onPlay} />
       </Status>
       {(!!shown.items.length || !shown.busy && !shown.error) && <div className="pagination" aria-label="分页"><button className="button" disabled={shown.busy || visiblePage <= 1} onClick={() => loadPage(visiblePage - 1)}>上一页</button><span>第 {visiblePage} 页{shown.totalPages ? ` / ${shown.totalPages}` : ''}{shown.busy ? ' · 读取中' : shown.error && shown.requestedPage !== visiblePage ? ` · 第 ${shown.requestedPage} 页未加载` : ''}</span><button className="button" disabled={shown.busy || !!shown.error || (shown.totalPages ? visiblePage >= shown.totalPages : !shown.items.length)} onClick={() => loadPage(visiblePage + 1)}>下一页</button></div>}
     </>}
   </>;
 }
 
-function SearchPage({ onOpen }) {
+function SearchPage({ onOpen, onPlay }) {
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -410,7 +415,7 @@ function SearchPage({ onOpen }) {
     {query ? <section ref={results} aria-label="搜索结果" aria-busy={state.busy}>
       <p className="result-caption">“{query}”{!state.busy && !state.error ? state.totalKnown !== false && Number.isSafeInteger(state.total) ? ` · 共 ${state.total} 个结果` : ` · 本页 ${state.items.length} 个结果` : ''}</p>
       {!state.busy && !state.error && state.notice && <p className="result-caption" role="status">{state.notice}</p>}
-      <Status busy={state.busy} error={state.error} preserve={!!state.items.length} errorTitle={state.errorCode === 'SEARCH_EXPIRED' ? '搜索已过期' : undefined} retryLabel={state.errorCode === 'SEARCH_EXPIRED' ? '重新搜索' : undefined} onRetry={() => state.errorCode === 'SEARCH_EXPIRED' ? runSearch(query) : loadPage(state.requestedPage || page, (state.requestedPage || page) === 1)} empty={!state.items.length && { title: visiblePage > 1 ? '这一页没有更多结果' : '没有找到相关短剧', text: visiblePage > 1 ? '可以返回上一页，或搜索其他关键词。' : '可以缩短名称，或换一个关键词。' }}><PosterGrid items={state.items} onOpen={onOpen} /></Status>
+      <Status busy={state.busy} error={state.error} preserve={!!state.items.length} errorTitle={state.errorCode === 'SEARCH_EXPIRED' ? '搜索已过期' : undefined} retryLabel={state.errorCode === 'SEARCH_EXPIRED' ? '重新搜索' : undefined} onRetry={() => state.errorCode === 'SEARCH_EXPIRED' ? runSearch(query) : loadPage(state.requestedPage || page, (state.requestedPage || page) === 1)} empty={!state.items.length && { title: visiblePage > 1 ? '这一页没有更多结果' : '没有找到相关短剧', text: visiblePage > 1 ? '可以返回上一页，或搜索其他关键词。' : '可以缩短名称，或换一个关键词。' }}><PosterGrid items={state.items} onOpen={onOpen} onPlay={onPlay} /></Status>
       <div className="pagination search-pagination" aria-label="搜索结果分页">
         <button type="button" className="button" disabled={state.busy || visiblePage <= 1} onClick={() => loadPage(visiblePage - 1)}>上一页</button>
         <span className="search-page-status" aria-live="polite">第 {visiblePage} 页{state.totalPages ? ` / ${state.totalPages}` : ''}{state.busy ? ' · 读取中' : state.error && state.requestedPage !== visiblePage ? ` · 第 ${state.requestedPage} 页未加载` : ''}</span>
@@ -791,13 +796,13 @@ function About({ info, notify, accountFocus, announcementsRef, juguoSettings }) 
 }
 
 /** Own the family directory outside the keyed detail, never merge season queues. */
-function SeasonDetails({ seed, initialVid, ...props }) {
+function SeasonDetails({ seed, initialVid, resumeIntent, ...props }) {
   // Only the entry's own detail may correct the family basis. Browsing another
   // season/edition must not silently switch the directory to a different family.
   const [familySeed, setFamilySeed] = useState(seed);
   const familySeedRef = useRef(familySeed);
   familySeedRef.current = familySeed;
-  const [selection, setSelection] = useState({ seed, initialVid, epoch: 0 });
+  const [selection, setSelection] = useState({ seed, initialVid, resumeIntent, epoch: 0 });
   const [directory, setDirectory] = useState(() => {
     const empty = { items: [], page: 0, busy: false, searched: false, hasMore: false, error: '', errorCode: '', notice: '' };
     try { return { ...empty, items: seasonCandidates(seed, []) }; }
@@ -1220,7 +1225,8 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onLibrary, no
         const playInfo = { ...video, contentKey: video.contentKey ?? null, source: video.source || 'web', codec: video.codec || '', userAgent: video.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36', referer: video.referer ?? (['app', 'api'].includes(video.source) ? '' : 'https://hongguoduanju.com/'), vid: target.vid };
         Object.assign(params, { url: playInfo.url, playInfo });
       }
-      await nativeCall(action, params);
+      const result = await nativeCall(action, params);
+      if (current() && action === "play" && resumeIntent?.direct && result?.started) onBack();
       if (current() && action === 'download') notify(`第 ${target.index} 集已加入系统下载`);
     } catch (error) { if (current()) { const text = errorText(error); setOpError({ text: /HTTP\s*404/i.test(text) ? '官网当前未提供本集片源（HTTP 404）。公开网页片源与官方 App 的剧集范围可能不同。' : text, action, episode: target }); } }
     finally {
@@ -1236,7 +1242,8 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onLibrary, no
   useEffect(() => {
     if (!resumeIntent || consumedResume.current === resumeIntent.token || state.busy || state.error || !state.item) return;
     consumedResume.current = resumeIntent.token;
-    const target = state.item.seriesId === resumeIntent.seriesId && state.item.episodes.find(entry => entry.vid === resumeIntent.vid);
+    const target = state.item.seriesId === resumeIntent.seriesId && (resumeIntent.vid == null
+      ? episode || state.item.episodes[0] : state.item.episodes.find(entry => entry.vid === resumeIntent.vid));
     if (!target) { setSelectedVid(null); setResumeError('上次观看的分集已不在当前目录，请手动选择；未自动播放其他集。'); return; }
     setSelectedVid(target.vid); run('play', target);
   }, [state.item, resumeIntent?.token]);
@@ -1503,12 +1510,13 @@ export default function App() {
   useEffect(() => { document.documentElement.dataset.tv = String(!!info.isTv); }, [info.isTv]);
   useTvNavigation(!!info.isTv);
   const closeDetail = useCallback(() => { setDetail(null); setTimeout(() => lastDetailFocus.current?.isConnected && lastDetailFocus.current.focus(), 0); }, []);
-  const openDetail = (series, vid) => {
+  const openDetail = (series, vid, direct = false) => {
     if (isRetiredSeriesId(series?.seriesId)) { notify('原黄果来源已移除，观看记录仍保留。'); return; }
     lastDetailFocus.current = document.activeElement;
     previousScroll.current = content.current?.scrollTop || 0;
-    setDetail({ seed: series, initialVid: vid });
+    setDetail({ seed: series, initialVid: vid, resumeIntent: direct ? { token: 0, seriesId: String(series.seriesId), vid, direct: true } : null });
   };
+  const openPlayback = info.isTv ? undefined : (series, vid) => openDetail(series, vid, true);
   const navigate = (id) => {
     if (id === 'juguo' && !juguoEnabled) return;
     previousScroll.current = 0; setDetail(null); setTab(id);
@@ -1552,9 +1560,9 @@ export default function App() {
     <div className="content-shell"><div className="phone-brand"><span><Play size={18} /></span><strong>红果短剧</strong>{(!polishUi || !detail && tab !== 'discover' && tab !== 'search') && <button className="brand-search" type="button" aria-label="搜索短剧" onClick={() => navigate('search')}><Search size={20} /></button>}</div>{infoError && <div className="environment-error" role="alert"><span>{infoError}</span><button onClick={loadInfo}>重试连接</button></div>}<main ref={content} className={`main-content${detail ? ' detail-open' : ''}`} id="main-content" data-page={detail ? 'detail' : tab}>
       {detail && <SeasonDetails key={detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi} />}
       <div className="page-slot" hidden={!!detail}>
-        {tab === 'discover' && <Discover onOpen={openDetail} library={library} onSearch={() => navigate('search')} onUpdates={() => navigate('about')} polishUi={polishUi} />}
+        {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={() => navigate('search')} onUpdates={() => navigate('about')} polishUi={polishUi} />}
         {tab === 'juguo' && juguoEnabled && <JuguoPage api={juguoApi} PosterGrid={PosterGrid} Status={Status} />}
-        {tab === 'search' && <SearchPage onOpen={openDetail} />}
+        {tab === 'search' && <SearchPage onOpen={openDetail} onPlay={openPlayback} />}
         {tab === 'library' && <Library library={library} error={libraryError} busy={libraryBusy} onRetry={loadLibrary} onOpen={openDetail} onAccount={() => { navigate('about'); setAccountFocus(value => value + 1); }} onLibrary={replaceLibrary} notify={notify} />}
         {tab === 'downloads' && !detail && <Downloads notify={notify} />}
         {tab === 'about' && <About info={info} notify={notify} accountFocus={accountFocus} announcementsRef={announcements} juguoSettings={juguoApi && juguoSettings} />}
