@@ -3,7 +3,7 @@ const METHODS = new Set([
   'getInfo', 'httpGet', 'cancelHttp', 'getLibrary', 'getSeriesHistory', 'removeHistory', 'clearHistory', 'toggleFavorite', 'play',
   'getAccount', 'officialSendCode', 'officialLoginSMS', 'officialVerifyMFA', 'officialCancelLogin', 'officialLogout', 'officialSync', 'officialImportGuest',
   'officialWebQrcode', 'officialWebPoll', 'officialWebLogout', 'officialWebCancel', 'getAnnouncements', 'searchNewReleases', 'homeFeed', 'nativeSeriesDetail', 'mergeDownloads',
-  'getMergedVideos', 'deleteMergedVideo', 'playMergedVideo', 'seriesPublishers',
+  'getMergedVideos', 'deleteMergedVideo', 'playMergedVideo', 'seriesPublishers', 'coverThumbnail',
   'download', 'getDownloads', 'playDownload', 'deleteDownload', 'openExternal', 'shareSeries',
   'getPlaybackCache', 'clearPlaybackCache',
   'appRequest', 'appDeviceIdentity', 'appRegisteredModel', 'appResolveResult', 'getPlaybackOptions', 'setPlaybackOptions',

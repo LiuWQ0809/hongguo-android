@@ -89,11 +89,25 @@ function Status({ busy, error, onRetry, empty, children, preserve = false, error
 const webpCover = url => typeof url === 'string' && url.length > 6 && url.slice(-5).toLowerCase() === '.heic' ? url.slice(0, -5) + '.webp'
   : typeof url === 'string' && url.length > 7 && url.slice(-6).toLowerCase() === '.image' ? url.slice(0, -6) + '.webp' : null;
 
+function useNativeCover(url) {
+  const [decoded, setDecoded] = useState(null);
+  useEffect(() => {
+    if (!/^https:\/\/[^?#]+\.(?:heic|image)(?:\?|$)/i.test(url || '')) return;
+    let live = true;
+    nativeCall('coverThumbnail', { url }, 18000).then(src => {
+      if (live && typeof src === 'string' && src.startsWith('data:image/jpeg;base64,')) setDecoded({ url, src });
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [url]);
+  return decoded?.url === url ? decoded.src : '';
+}
+
 function Poster({ item, onOpen, onPlay, history, onDelete }) {
   const [failed, setFailed] = useState(false);
   const cover = !item.sourceId && isRetiredSeriesId(item.seriesId) ? '' : item.coverUrl;
   const [src, setSrc] = useState(cover);
   const [nearby, setNearby] = useState(false);
+  const decoded = useNativeCover(nearby && failed ? cover : '');
   const artRef = useRef(null);
   const imageRef = useRef(null);
   useEffect(() => { setSrc(cover); setFailed(false); }, [cover]);
@@ -129,7 +143,7 @@ function Poster({ item, onOpen, onPlay, history, onDelete }) {
     onClick={event => { if (event.target.closest('.poster-delete')) return; open(); }}
     onKeyDown={event => { if ((event.key !== 'Enter' && event.key !== ' ') || event.target.closest('.poster-delete')) return; event.preventDefault(); open(); }}>
     <span className="poster-art" ref={artRef}>
-      {!src || failed ? <span className="poster-fallback"><Film size={32} /><span>暂无封面</span></span>
+      {decoded ? <img src={decoded} alt="" /> : !src || failed ? <span className="poster-fallback"><Film size={32} /><span>暂无封面</span></span>
         : nearby ? <img ref={imageRef} src={src} alt="" onError={coverError} /> : null}
       {!!item.rank && <span className="poster-rank" aria-label={`第 ${item.rank} 名`}>{item.rank}</span>}
       {item.episodeLabel || item.episodeCount ? <span className="poster-label">{item.episodeLabel || `${item.episodeCount} 集`}</span> : null}
@@ -510,7 +524,8 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onL
       <button aria-pressed={historyView === 'completed'} onClick={() => setHistoryView('completed')}>已看完 ({completedCount})</button>
     </div>}
     {onPlay && (!!items.length || keyword) && <div className="library-search search-controls">
-      <input type="search" aria-label="搜索当前列表" placeholder="搜索当前列表" value={keyword} onChange={event => setKeyword(event.target.value)} />
+      <label className="visually-hidden" htmlFor="library-keyword">搜索当前列表</label>
+      <input id="library-keyword" type="text" placeholder="搜索当前列表" value={keyword} onChange={event => setKeyword(event.target.value)} />
       {keyword && <button className="button" type="button" onClick={() => setKeyword('')}>清除</button>}
     </div>}
     {query && !shown.length && !busy && !error && <p className="result-caption" role="status">当前列表没有匹配的短剧。</p>}
@@ -1058,8 +1073,9 @@ function SeasonDetails({ seed, initialVid, resumeIntent, ...props }) {
 
 function DetailCover({ url }) {
   const [src, setSrc] = useState(() => webpCover(url) || url);
+  const decoded = useNativeCover(src ? '' : url);
   return <div className="detail-cover">
-    {src ? <img src={src} alt="" onError={() => setSrc(src === url ? '' : url)} /> : <Film size={48} />}
+    {decoded ? <img src={decoded} alt="" /> : src ? <img src={src} alt="" onError={() => setSrc(src === url ? '' : url)} /> : <Film size={48} />}
   </div>;
 }
 
