@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Home, Search, Bookmark, Download, Settings, Play, Heart, Clock, ChevronRight, ExternalLink, RefreshCw, Film, User } from '../components/icons.jsx';
 import { getPlaybackPreferences, nativeCall, requestHtml, setPlaybackPreference } from './bridge.mjs';
 import { updateCall } from './update-bridge.mjs';
-import { CATEGORIES, createSource } from './source.mjs';
+import { CATEGORIES, RANKINGS, createSource } from './source.mjs';
 import { createSeasonLookup, parseSeasonTitle, seasonCandidates } from './seasons.mjs';
 import { latestSeasonHistory, assertPlaybackRequestSize } from './season-playback.mjs';
 import { fetchAppPlayUrl } from './generated/mac-app-source.mjs';
@@ -131,6 +131,7 @@ function Poster({ item, onOpen, onPlay, history, onDelete }) {
     <span className="poster-art" ref={artRef}>
       {!src || failed ? <span className="poster-fallback"><Film size={32} /><span>暂无封面</span></span>
         : nearby ? <img ref={imageRef} src={src} alt="" onError={coverError} /> : null}
+      {!!item.rank && <span className="poster-rank" aria-label={`第 ${item.rank} 名`}>{item.rank}</span>}
       {item.episodeLabel || item.episodeCount ? <span className="poster-label">{item.episodeLabel || `${item.episodeCount} 集`}</span> : null}
       {onDelete ? <button type="button" className="poster-delete" onClick={event => { event.stopPropagation(); onDelete(item); }} aria-label={`删除${item.title}的观看记录`}>×</button> : null}
     </span>
@@ -148,7 +149,35 @@ function PosterGrid({ items, onOpen, onPlay, history = false, onDelete }) {
   return <div className="poster-grid">{items.map((item, index) => <Poster key={`${item.seriesId}-${index}`} item={item} onOpen={onOpen} onPlay={onPlay} history={history ? item : null} onDelete={onDelete} />)}</div>;
 }
 
+function RankingPage({ rank, onOpen, onPlay }) {
+  const [page, setPage] = useState(1);
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState({ busy: true });
+  useEffect(() => {
+    let live = true;
+    setState({ busy: true });
+    source.ranking(rank.id, page).then(result => { if (live) setState(result); },
+      cause => { if (live) setState({ error: discoverErrorText(cause) }); });
+    return () => { live = false; };
+  }, [rank.id, page, attempt]);
+  const turn = target => { setState({ busy: true }); setPage(target); };
+  return <>
+    <div className="home-section-head"><h2>{rank.label}</h2></div>
+    {!!state.updated && <p className="result-caption" role="status">{state.updated}</p>}
+    <Status busy={state.busy} error={state.error} onRetry={() => setAttempt(value => value + 1)}
+      empty={!state.items?.length && { title: '榜单暂无内容', text: '请稍后再试。' }}>
+      <PosterGrid items={state.items || []} onOpen={onOpen} onPlay={onPlay} />
+    </Status>
+    {!!state.items?.length && <div className="pagination" aria-label="榜单分页">
+      <button className="button" disabled={page <= 1} onClick={() => turn(page - 1)}>上一页</button>
+      <span>第 {page} / {state.totalPages} 页</span>
+      <button className="button" disabled={page >= state.totalPages} onClick={() => turn(page + 1)}>下一页</button>
+    </div>}
+  </>;
+}
+
 function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi }) {
+  const [rank, setRank] = useState(null);
   const [category, setCategory] = useState(CATEGORIES[0]?.id || 'all');
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
@@ -254,6 +283,11 @@ function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi }) {
     <h1 className="visually-hidden">发现短剧</h1>
     {update && <button type="button" className="home-update" onClick={onUpdates}><RefreshCw size={16} /><span>新版本 {update.versionName} 已发布 · 查看更新</span></button>}
     {onSearch && searchButton}
+    {onSearch && <div className="section-tabs theater-tabs" role="group" aria-label="剧场入口">
+      <button type="button" aria-pressed={!rank} onClick={() => setRank(null)}>推荐</button>
+      {RANKINGS.map(item => <button type="button" key={item.id} aria-pressed={item === rank} onClick={() => setRank(item)}>{item.label}</button>)}
+    </div>}
+    {rank ? <RankingPage key={rank.id} rank={rank} onOpen={onOpen} onPlay={onPlay} /> : <>
     {feedMode && <div className="category-tabs" role="group" aria-label="短剧分类">{feedChips.map(chip => <button key={chip.id} aria-pressed={feed.genre === chip.id} disabled={!!feed.busy} onClick={() => loadFeed(0, '', false, chip.id)}>{chip.label}</button>)}</div>}
     {feedError && <div className="category-tabs" role="group" aria-label="短剧分类">{CATEGORIES.map((item) => <button key={item.id} aria-pressed={item.id === category} onClick={() => changeCategory(item.id)}>{item.label}</button>)}</div>}
     {!!continueRows.length && <section className="home-continue" aria-label="继续观看">
@@ -279,6 +313,7 @@ function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi }) {
         <PosterGrid items={shown.items} onOpen={onOpen} onPlay={onPlay} />
       </Status>
       {(!!shown.items.length || !shown.busy && !shown.error) && <div className="pagination" aria-label="分页"><button className="button" disabled={shown.busy || visiblePage <= 1} onClick={() => loadPage(visiblePage - 1)}>上一页</button><span>第 {visiblePage} 页{shown.totalPages ? ` / ${shown.totalPages}` : ''}{shown.busy ? ' · 读取中' : shown.error && shown.requestedPage !== visiblePage ? ` · 第 ${shown.requestedPage} 页未加载` : ''}</span><button className="button" disabled={shown.busy || !!shown.error || (shown.totalPages ? visiblePage >= shown.totalPages : !shown.items.length)} onClick={() => loadPage(visiblePage + 1)}>下一页</button></div>}
+    </>}
     </>}
   </>;
 }
