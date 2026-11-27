@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Home, Search, Bookmark, Download, Settings, Play, Heart, Clock, ChevronRight, ExternalLink, RefreshCw, Film } from '../components/icons.jsx';
+import { Home, Search, Bookmark, Download, Settings, Play, Heart, Clock, ChevronRight, ExternalLink, RefreshCw, Film, User } from '../components/icons.jsx';
 import { getPlaybackPreferences, nativeCall, requestHtml, setPlaybackPreference } from './bridge.mjs';
 import { updateCall } from './update-bridge.mjs';
 import { CATEGORIES, createSource } from './source.mjs';
@@ -27,6 +27,11 @@ const NAV = [
   { id: 'library', label: '我的追剧', Icon: Bookmark },
   { id: 'downloads', label: '下载', Icon: Download },
   { id: 'about', label: '关于', Icon: Settings },
+];
+const PHONE_NAV = [
+  { id: 'discover', label: '剧场', Icon: Home },
+  { id: 'library', label: '追剧', Icon: Bookmark },
+  { id: 'about', label: '我的', Icon: User },
 ];
 const errorText = (error) => error?.message || String(error || '请求未完成，请重试。');
 // Native network errors sometimes contain the DNS/CDN peer rather than an
@@ -247,7 +252,7 @@ function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi }) {
   return <>
     <h1 className="visually-hidden">发现短剧</h1>
     {update && <button type="button" className="home-update" onClick={onUpdates}><RefreshCw size={16} /><span>新版本 {update.versionName} 已发布 · 查看更新</span></button>}
-    {searchButton}
+    {onSearch && searchButton}
     {feedMode && <div className="category-tabs" role="group" aria-label="短剧分类">{feedChips.map(chip => <button key={chip.id} aria-pressed={feed.genre === chip.id} disabled={!!feed.busy} onClick={() => loadFeed(0, '', false, chip.id)}>{chip.label}</button>)}</div>}
     {feedError && <div className="category-tabs" role="group" aria-label="短剧分类">{CATEGORIES.map((item) => <button key={item.id} aria-pressed={item.id === category} onClick={() => changeCategory(item.id)}>{item.label}</button>)}</div>}
     {!!continueRows.length && <section className="home-continue" aria-label="继续观看">
@@ -470,7 +475,7 @@ function Library({ library, error, busy, onRetry, onOpen, onAccount, onLibrary, 
   </>;
 }
 
-function Downloads({ notify }) {
+function Downloads({ notify, onBack }) {
   const [state, setState] = useState({ busy: true, items: [], merged: [] });
   const [opening, setOpening] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -697,7 +702,8 @@ function Downloads({ notify }) {
   };
   const mergedOf = seriesId => (state.merged || []).filter(entry => entry.seriesId === seriesId);
   return <>
-    <header className="page-heading heading-actions"><div><h1>下载</h1><p>系统下载任务与设备上的离线视频。</p></div><button ref={refreshButton} className="button" onClick={() => refresh(true)} disabled={state.busy || locked} aria-label="刷新下载列表"><RefreshCw /><span>刷新</span></button></header>
+    {onBack && <button className="back-button" onClick={onBack}><ChevronRight size={20} />返回我的</button>}
+    <header className="page-heading heading-actions"><div><h1>离线下载</h1><p>系统下载任务与设备上的离线视频。</p></div><button ref={refreshButton} className="button" onClick={() => refresh(true)} disabled={state.busy || locked} aria-label="刷新下载列表"><RefreshCw /><span>刷新</span></button></header>
     {confirm && <div className="download-confirm" role="group" aria-label="确认删除下载">
       {confirm.kind === 'episode' && <>
         <h2>{activeDownload(confirm) ? '取消并删除这个下载？' : '删除这个下载？'}</h2>
@@ -752,7 +758,7 @@ function AutoplaySetting({ enabled, onChange, disabled }) {
   </div>;
 }
 
-function About({ info, notify, accountFocus, announcementsRef, juguoSettings }) {
+function About({ info, notify, accountFocus, announcementsRef, juguoSettings, onDownloads }) {
   const [cache, setCache] = useState({ busy: true });
   const [clearing, setClearing] = useState(false);
   const [autoplay, setAutoplay] = useState(() => getPlaybackPreferences().autoplay);
@@ -780,7 +786,10 @@ function About({ info, notify, accountFocus, announcementsRef, juguoSettings }) 
   };
   const external = async (url) => { try { await nativeCall('openExternal', { url }); } catch (error) { notify(errorText(error)); } };
   return <>
-    <header className="page-heading"><h1>关于红果短剧</h1><p>适配手机触控与电视遥控器。</p></header>
+    <header className="page-heading heading-actions">
+      <h1>{onDownloads ? '我的' : '关于红果短剧'}</h1>
+      {onDownloads && <button className="button" onClick={onDownloads}><Download />离线下载</button>}
+    </header>
     <UpdatePanel />
     {!info.isTv && <section className="about-section playback-settings" aria-label="播放设置">
       <AutoplaySetting enabled={autoplay} onChange={() => setAutoplay(setPlaybackPreference('autoplay', !autoplay).autoplay)} />
@@ -1542,7 +1551,7 @@ export default function App() {
   useEffect(() => { if (content.current) content.current.scrollTop = 0; }, [tab]);
   useEffect(() => { if (content.current) content.current.scrollTop = detail ? 0 : previousScroll.current; if (detail) content.current?.querySelector('.back-button')?.focus(); }, [detail?.seed?.seriesId]);
   useEffect(() => {
-    const back = () => { if (!window.dispatchEvent(new CustomEvent('androiddownloadback', { cancelable: true }))) return true; if (tab === 'juguo' && !window.dispatchEvent(new CustomEvent('juguoback', { cancelable: true }))) return true; if (detail) { closeDetail(); return true; } if (tab !== 'discover') { setTab('discover'); return true; } return false; };
+    const back = () => { if (!window.dispatchEvent(new CustomEvent('androiddownloadback', { cancelable: true }))) return true; if (tab === 'juguo' && !window.dispatchEvent(new CustomEvent('juguoback', { cancelable: true }))) return true; if (detail) { closeDetail(); return true; } if (tab !== 'discover') { setTab(tab === 'downloads' && !info.isTv ? 'about' : 'discover'); return true; } return false; };
     window.__androidBack = back;
     // A share link resolves to a series id natively; only an exact numeric id may open a detail.
     window.__androidOpenSeries = (seriesId) => { const id = String(seriesId || ''); if (/^\d{1,30}$/.test(id)) openDetail({ seriesId: id, title: '' }); };
@@ -1554,18 +1563,22 @@ export default function App() {
       if (window.__androidOpenSeries) delete window.__androidOpenSeries;
     };
   }, [detail, tab, closeDetail, info.isTv, notify]);
-  const navItems = juguoEnabled ? [...NAV.slice(0, 1), { id: 'juguo', label: '剧果', Icon: Film }, ...NAV.slice(1)] : NAV;
+  const navigation = info.isTv ? NAV : PHONE_NAV;
+  const navItems = juguoEnabled ? [navigation[0], { id: 'juguo', label: '剧果', Icon: Film }, ...navigation.slice(1)] : navigation;
+  const currentTab = !info.isTv && tab === 'downloads' ? 'about' : !info.isTv && tab === 'search' ? 'discover' : tab;
+  const searchInHeader = !info.isTv && !detail && tab === 'discover';
   return <div className={`android-app ${info.isTv ? 'tv-layout' : 'phone-layout'}${polishUi ? ' android-ui-polish' : ''}`}>
-    <nav className="app-nav" aria-label="主要导航"><div className="nav-brand"><span><Play size={21} /></span><strong>红果短剧</strong></div><div className="nav-items">{navItems.map(({ id, label, Icon }) => <button key={id} aria-current={!detail && tab === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={22} /><span>{label === '我的追剧' ? <><span className="nav-word">我的</span><span className="nav-word">追剧</span></> : label}</span></button>)}</div>{info.isTv && <p className="nav-version">遥控器方向键选择<br />v{info.version || '—'}</p>}</nav>
-    <div className="content-shell"><div className="phone-brand"><span><Play size={18} /></span><strong>红果短剧</strong>{(!polishUi || !detail && tab !== 'discover' && tab !== 'search') && <button className="brand-search" type="button" aria-label="搜索短剧" onClick={() => navigate('search')}><Search size={20} /></button>}</div>{infoError && <div className="environment-error" role="alert"><span>{infoError}</span><button onClick={loadInfo}>重试连接</button></div>}<main ref={content} className={`main-content${detail ? ' detail-open' : ''}`} id="main-content" data-page={detail ? 'detail' : tab}>
+    <nav className="app-nav" aria-label="主要导航"><div className="nav-brand"><span><Play size={21} /></span><strong>红果短剧</strong></div><div className="nav-items">{navItems.map(({ id, label, Icon }) => <button key={id} aria-current={!detail && currentTab === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={22} /><span>{label === '我的追剧' ? <><span className="nav-word">我的</span><span className="nav-word">追剧</span></> : label}</span></button>)}</div>{info.isTv && <p className="nav-version">遥控器方向键选择<br />v{info.version || '—'}</p>}</nav>
+    <div className="content-shell"><div className="phone-brand"><span><Play size={18} /></span>{searchInHeader ? <button type="button" className="home-search" onClick={() => navigate('search')}><Search size={18} /><span>搜索短剧名称</span></button>
+      : <strong>红果短剧</strong>}{!detail && !searchInHeader && tab !== 'search' && <button className="brand-search" type="button" aria-label="搜索短剧" onClick={() => navigate('search')}><Search size={20} /></button>}</div>{infoError && <div className="environment-error" role="alert"><span>{infoError}</span><button onClick={loadInfo}>重试连接</button></div>}<main ref={content} className={`main-content${detail ? ' detail-open' : ''}`} id="main-content" data-page={detail ? 'detail' : tab}>
       {detail && <SeasonDetails key={detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi} />}
       <div className="page-slot" hidden={!!detail}>
-        {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={() => navigate('search')} onUpdates={() => navigate('about')} polishUi={polishUi} />}
+        {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} />}
         {tab === 'juguo' && juguoEnabled && <JuguoPage api={juguoApi} PosterGrid={PosterGrid} Status={Status} />}
         {tab === 'search' && <SearchPage onOpen={openDetail} onPlay={openPlayback} />}
         {tab === 'library' && <Library library={library} error={libraryError} busy={libraryBusy} onRetry={loadLibrary} onOpen={openDetail} onAccount={() => { navigate('about'); setAccountFocus(value => value + 1); }} onLibrary={replaceLibrary} notify={notify} />}
-        {tab === 'downloads' && !detail && <Downloads notify={notify} />}
-        {tab === 'about' && <About info={info} notify={notify} accountFocus={accountFocus} announcementsRef={announcements} juguoSettings={juguoApi && juguoSettings} />}
+        {tab === 'downloads' && !detail && <Downloads notify={notify} onBack={info.isTv ? undefined : () => navigate('about')} />}
+        {tab === 'about' && <About info={info} notify={notify} accountFocus={accountFocus} announcementsRef={announcements} juguoSettings={juguoApi && juguoSettings} onDownloads={info.isTv ? undefined : () => navigate('downloads')} />}
       </div>
     </main></div>{notice && <div className="toast" role="status">{notice}</div>}
     {announcement && <AnnouncementDialog announcement={announcement} onClose={closeAnnouncement} />}
