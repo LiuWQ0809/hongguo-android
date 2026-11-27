@@ -132,6 +132,21 @@ export function parseRanking(html, ranking, page) {
   return { items, totalPages: Math.max(page, count(content.pagination?.totalPages)), updated: text(data.updatedText) };
 }
 
+export function parseReviews(html, seriesId) {
+  const loader = extractRouterData(html)?.loaderData || {};
+  const data = Object.values(loader).find(value => value?.isSuccess !== false && value?.seriesDetail?.series_id === seriesId);
+  if (!data) throw error('剧评返回的剧集编号不匹配');
+  const reviews = data.seriesSocialInfo?.reviews;
+  const items = (Array.isArray(reviews?.reviews) ? reviews.reviews : [])
+    .filter(row => text(row?.content)).slice(0, 30).map(row => ({
+      author: text(row.user_name).slice(0, 100),
+      content: text(row.content).slice(0, 4000),
+      likes: row.digg_count != null && /^\d{1,15}$/.test(String(row.digg_count)) ? count(row.digg_count) : null,
+    }));
+  const total = reviews?.total_count != null && /^\d{1,15}$/.test(String(reviews.total_count)) ? count(reviews.total_count) : null;
+  return { items, total };
+}
+
 export function parseCatalog(html, { category = 'real-drama', page = 1 } = {}) {
   requireCategory(category);
   requirePage(page);
@@ -266,6 +281,10 @@ export function createSource(request, { fallback, webFallback = !!fallback, sear
       if (!ranking) throw error('榜单分类无效', 'INVALID_INPUT');
       requirePage(page);
       return load(`/rank/${id}?page=${page}`, html => parseRanking(html, ranking, page), undefined, undefined, options);
+    },
+    reviews(seriesId) {
+      requireId(seriesId, '剧集编号');
+      return load(`/detail?series_id=${seriesId}`, html => parseReviews(html, seriesId), undefined, 'reviews');
     },
     search(keyword, page = 1, options = {}) {
       if (typeof keyword !== 'string' || !keyword.trim() || keyword.trim().length > 100) throw error('请输入 1 至 100 字的搜索词', 'INVALID_INPUT');
