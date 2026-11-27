@@ -543,6 +543,8 @@ public final class PlayerActivity extends Activity {
         lastProgressSavedAt = SystemClock.elapsedRealtime();
     }
     private void saveProgress() {
+        // exitPlayer 已在 finish 前保存。窗口释放后 VideoView 可能暂时返回零。
+        if (isFinishing()) return;
         if (handedOff || casting()) return; // The service persists the TV position, never the stopped local VideoView.
         if (prepared && episode != null && video != null) try {
             resumeAt = completed ? 0 : Math.max(0, video.getCurrentPosition()); recordProgress(owner(episode), episode, resumeAt);

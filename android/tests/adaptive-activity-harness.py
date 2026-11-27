@@ -61,6 +61,7 @@ final class AdaptiveActivityHarness {
  boolean destroyed,offline,autoplay,prepared,completed,userPaused,active=true,protectedCurrent,currentManual,currentCache,currentWeb,buffering,castWasActive;
  long lastProgressSavedAt,downloadMarkNano,downloadMarkBytes;
  boolean fullscreen,handedOff,softActive;Object softLayer;PreparedMedia adoptedMedia;
+ boolean finishing;boolean isFinishing(){return finishing;}
  static final String BACKGROUND_ID="backgroundPlaybackId";String backgroundId;
  int loads,loadedAt,loadedPosition,errors,updates,saves,prunes;Uri manualFile;AlertDialog dialog;
  // Danmaku is an independent display boundary, certified by DanmakuControllerTest.
