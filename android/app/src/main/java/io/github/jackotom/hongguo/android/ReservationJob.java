@@ -18,6 +18,7 @@ public final class ReservationJob extends JobService {
                 if (running.get(id) != finished) return;
                 running.remove(id);
                 jobFinished(params, false);
+                ReservationSchedule.plan(this, false);
             });
         }, "reservation-check");
         running.put(id, thread);
