@@ -303,31 +303,32 @@ final class NativeBridge {
         } catch (Throwable ignored) { return null; }
     }
     private static byte[] downloadCover(String url) {
+        java.net.HttpURLConnection connection = null;
         try {
             java.net.URI uri = new java.net.URI(url);
             String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(java.util.Locale.ROOT);
             boolean trusted = false;
             for (String suffix : COVER_HOSTS) if (host.endsWith(suffix)) { trusted = true; break; }
             if (!trusted) return null;
-            java.net.HttpURLConnection connection = (java.net.HttpURLConnection) uri.toURL().openConnection();
+            connection = (java.net.HttpURLConnection) uri.toURL().openConnection();
             connection.setInstanceFollowRedirects(false);
             connection.setConnectTimeout(4000);
             connection.setReadTimeout(4000);
             connection.setRequestProperty("User-Agent", NetworkGuard.UA);
             int status = connection.getResponseCode();
             if (status != 200) return null;
-            java.io.InputStream input = connection.getInputStream();
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            byte[] buffer = new byte[16384];
-            int read;
-            while ((read = input.read(buffer)) > 0) {
-                if (bytes.size() + read > 3_000_000) return null;
-                bytes.write(buffer, 0, read);
+            try (java.io.InputStream input = connection.getInputStream()) {
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                byte[] buffer = new byte[16384];
+                int read;
+                while ((read = input.read(buffer)) > 0) {
+                    if (bytes.size() + read > 3_000_000) return null;
+                    bytes.write(buffer, 0, read);
+                }
+                return bytes.toByteArray();
             }
-            input.close();
-            connection.disconnect();
-            return bytes.toByteArray();
         } catch (Exception ignored) { return null; }
+        finally { if (connection != null) connection.disconnect(); }
     }
     /** HEIF needs ImageDecoder (API 28+), but some tv ROMs deny it via hidden-api enforcement
      *  (linking throws NoSuchMethodError, an Error, not an Exception). Every failure — including
