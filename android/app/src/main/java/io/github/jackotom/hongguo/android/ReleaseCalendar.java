@@ -7,7 +7,9 @@ import java.util.concurrent.TimeUnit;
 import org.json.JSONObject;
 
 final class ReleaseCalendar {
-    static JSONObject fetch(JSONObject args) throws Exception {
+    private static JSONObject session;
+
+    static synchronized JSONObject fetch(JSONObject args) throws Exception {
         String date = args.optString("date");
         if (!date.isEmpty()) {
             if (!date.matches("20[0-9]{6}")) throw new IOException("上新日历日期无效");
@@ -22,8 +24,10 @@ final class ReleaseCalendar {
             .put("need_calendar_schema", "true");
         if (!date.isEmpty()) query.put("target_date", date);
         if (subscribe >= 0) query.put("subscribe_offset", subscribe);
-        try (OfficialApiClient client = new OfficialApiClient(OfficialApiClient.newSession())) {
+        try (OfficialApiClient client = new OfficialApiClient(session == null ? OfficialApiClient.newSession() : session)) {
             client.deadlineNanos(System.nanoTime() + TimeUnit.SECONDS.toNanos(18));
+            client.registerDevice();
+            session = client.session();
             JSONObject response = client.cloud("/reading/user/subscribe/list/v1/", "GET", query, null, false);
             return CalendarPage.project(response, date, offset, subscribe);
         }
