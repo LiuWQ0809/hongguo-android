@@ -203,9 +203,10 @@ export function parsePlayback(html, seriesId, vid) {
 }
 
 /** Inject Android's native HTML request; never requires a Mac/local server. */
-export function createSource(request, { fallback, webFallback = !!fallback, searchPage, newReleases } = {}) {
+export function createSource(request, { fallback, webFallback = !!fallback, searchPage, newReleases, nativeDetail } = {}) {
   if (typeof request !== 'function') throw error('需要提供页面请求函数', 'INVALID_INPUT');
   if (fallback !== undefined && typeof fallback !== 'function') throw error('片源回退必须是请求函数', 'INVALID_INPUT');
+  if (nativeDetail !== undefined && typeof nativeDetail !== 'function') throw error('原生目录必须是请求函数', 'INVALID_INPUT');
   if (newReleases !== undefined && typeof newReleases !== 'function') throw error('上新补搜必须是请求函数', 'INVALID_INPUT');
   const pagedSearch = searchPage === undefined ? null : createFallbackSearch(searchPage, request, { newReleases });
   const cache = new Map(), pending = new Map();
@@ -246,7 +247,17 @@ export function createSource(request, { fallback, webFallback = !!fallback, sear
     },
     detail(seriesId) {
       requireId(seriesId, '剧集编号');
-      return cachedLoad(`${SITE_ORIGIN}/detail:${seriesId}`, () => loadDetail(request, seriesId, html => parseDetail(html, seriesId)));
+      return cachedLoad(`${SITE_ORIGIN}/detail:${seriesId}`, async () => {
+        if (nativeDetail) {
+          try {
+            const detail = await nativeDetail(seriesId);
+            if (detail?.seriesId !== seriesId || !Array.isArray(detail.episodes) || !detail.episodes.length)
+              throw error('原生分集目录无效', 'DETAIL_UNAVAILABLE');
+            return detail;
+          } catch (_) { /* The website may still supply a numeric episode catalogue. */ }
+        }
+        return loadDetail(request, seriesId, html => parseDetail(html, seriesId));
+      });
     },
     playback(seriesId, vid, { quality = 'auto' } = {}) {
       requireId(seriesId, '剧集编号'); requireId(vid, '分集编号');

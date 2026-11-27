@@ -16,6 +16,7 @@ import { completedEpisode, filterHistory, withHistoryHints } from './history-vie
 import { pickSpatialCandidate, pickInitialControl } from './tv-navigation.mjs';
 
 const source = createSource(requestHtml, { fallback: fetchAppPlayUrl,
+  nativeDetail: seriesId => nativeCall('nativeSeriesDetail', { seriesId }, 15000),
   searchPage: params => nativeCall('searchQuery', params, 60000),
   newReleases: params => nativeCall('searchNewReleases', params, 30000) });
 const seasonLookup = createOfficialSeasonLookup(requestOfficialSeries, createSeasonLookup((keyword, page) => source.search(keyword, page)));

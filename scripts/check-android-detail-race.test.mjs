@@ -77,3 +77,26 @@ test('late pre-refresh catalog response cannot overwrite the fresh cache or pend
  const joined=source.catalog();await sleep(0);assert.equal(requests.length,2);
  requests[1](catalog('新片单'));await fresh;assert.equal((await joined).items[0].title,'新片单');assert.equal((await source.catalog()).items[0].title,'新片单');
 });
+
+test('native catalogue keeps the full episode numbers even when the web list contains only guest aliases', async () => {
+  const episodes = [
+    { vid: '7696085244503411774', index: 1 },
+    { vid: '7696085155303132222', index: 4 },
+  ];
+  const projected = { seriesId: sid, episodes };
+  const obsolete = html().replace('"1001","1002"', '"v1_guestOne","v1_guestTwo"');
+  assert.equal(parseDetail(obsolete, sid).episodes.length, 0);
+  let webCalls = 0;
+  const source = createSource(async () => { webCalls++; return obsolete; }, {
+    nativeDetail: async id => { assert.equal(id, sid); return projected; },
+  });
+  assert.deepEqual((await source.detail(sid)).episodes, episodes);
+  assert.equal(webCalls, 0);
+});
+
+test('native catalogue identity mismatch cannot replace a valid detail', async () => {
+  const source = createSource(async () => html(), {
+    nativeDetail: async () => ({ seriesId: '9999', episodes: [{ vid: '1111', index: 1 }] }),
+  });
+  assert.equal((await source.detail(sid)).episodes[0].vid, '1001');
+});
