@@ -90,8 +90,7 @@ public final class BackgroundPlaybackService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? null : intent.getAction();
         if (!TAKEOVER.equals(action)) {
-            if (action != null && session != null && (session.id.equals(intent.getStringExtra("id"))
-                    || BackgroundPlaybackNotification.STOP.equals(action) && !intent.hasExtra("id"))) {
+            if (action != null && session != null && session.id.equals(intent.getStringExtra("id"))) {
                 switch (action) {
                     case BackgroundPlaybackNotification.PLAY: setPaused(false); break;
                     case BackgroundPlaybackNotification.PAUSE: setPaused(true); break;
