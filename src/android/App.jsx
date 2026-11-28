@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Home, Search, Bookmark, Download, Settings, Play, Heart, Clock, ChevronRight, ExternalLink, RefreshCw, Film, User, Share2 } from '../components/icons.jsx';
+import { Home, Search, Bookmark, Download, Settings, Play, Heart, Clock, ChevronRight, ExternalLink, RefreshCw, Film, User, Share2, Bell } from '../components/icons.jsx';
 import { getPlaybackPreferences, nativeCall, requestHtml, setPlaybackPreference } from './bridge.mjs';
 import { updateCall } from './update-bridge.mjs';
 import { CATEGORIES, RANKINGS, createSource } from './source.mjs';
@@ -873,7 +873,7 @@ function About({ info, notify, accountFocus, announcementsRef, juguoSettings, on
     </header>
     {onDownloads && <nav className="profile-shortcuts" aria-label="我的常用入口">
       <button className="button" onClick={onHistory}><Clock />浏览历史</button>
-      {onReservations && <button className="button" onClick={onReservations}><Bookmark />我的预约</button>}
+      {onReservations && <button className="button" onClick={onReservations}><Bookmark />预约与追更</button>}
       <button className="button" onClick={onDownloads}><Download />离线下载</button>
     </nav>}
     <UpdatePanel />
@@ -1170,7 +1170,7 @@ function ReviewsPanel({ seriesId }) {
   </details>;
 }
 
-function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLibrary, notify, isTv = false, polishUi, seasonSelector = null, seasonPanel = null, selectionGuard, isSeasonCurrent = () => true, onSeasonLock = () => {}, onDetailResolved = () => {} }) {
+function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLibrary, notify, isTv = false, polishUi, reservations, seasonSelector = null, seasonPanel = null, selectionGuard, isSeasonCurrent = () => true, onSeasonLock = () => {}, onDetailResolved = () => {} }) {
   const [state, setState] = useState({ busy: true });
   const [reload, setReload] = useState(0);
   const [selectedVid, setSelectedVid] = useState(initialVid || null);
@@ -1288,6 +1288,8 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLib
     return () => { current = false; };
   }, [library]);
   const item = state.item || seed;
+  const following = reservations?.follows.some(row => row.seriesId === item.seriesId);
+  const latestEpisode = (state.item?.episodes || []).reduce((latest, row) => Math.max(latest, row.index || 0), 0);
   const isFavorite = pointEntry && pointEntry.__owner === library.owner ? pointEntry.favoriteAt > 0 : library.favorites.some((entry) => sameSeries(entry, item));
   const episode = state.item?.episodes?.find((entry) => String(entry.vid) === String(selectedVid));
   // The collapsed row shows a single line; long synopses offer an inline expander.
@@ -1431,10 +1433,16 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLib
             <button type="button" className={`favorite-chip chip-fav${isFavorite ? ' on' : ''}`} onClick={favorite} disabled={favoriteBusy || pointError || pointBusy} aria-pressed={isFavorite}>
               <Heart size={16} />{favoriteBusy ? '保存中…' : isFavorite ? '已追' : '追剧'}
             </button>
+            {reservations && <button type="button" className="favorite-chip chip-fav" aria-pressed={following}
+              disabled={reservations.busy || (!following && !latestEpisode)}
+              onClick={() => reservations.toggleFollow(item, !following, latestEpisode)}>
+              <Bell size={16} />{following ? '已开启更新提醒' : '更新提醒'}
+            </button>}
             {!isTv && <button type="button" className="favorite-chip chip-fav share-chip" aria-label="分享短剧"
               onClick={() => nativeCall('shareSeries', { seriesId: item.seriesId }).catch(cause => notify(errorText(cause)))}><Share2 size={16} /></button>}
           </div>
           {!separateSynopsis && synopsis}
+          {reservations?.error && <p className="text-error" role="alert">{reservations.error}</p>}
           {favoriteError && <p className="text-error" role="alert">{favoriteError} {pointError ? <button type="button" className="button" onClick={() => setReload(n => n + 1)}>重试剧集状态</button> : "点击追剧按钮重试。"}</p>}
         </div>
         {separateSynopsis && <div className="detail-synopsis">{synopsis}</div>}
@@ -1767,6 +1775,7 @@ export default function App() {
       {detail?.seed.upcoming && reservationEnabled
         ? <ReservedDetail series={detail.seed} reservations={reservations} Cover={DetailCover} onBack={closeDetail} onPlay={openPlayback} />
         : detail && <SeasonDetails key={detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onOpen={openDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi}
+          reservations={reservationEnabled ? reservations : undefined}
           onReserveSeason={reservationEnabled ? seed => setDetail(parent => ({ seed, parent })) : undefined} />}
       <div className="page-slot" hidden={!!detail}>
         {resumeRow && <button className="resume-shortcut" type="button" onClick={() => openPlayback(resumeRow, resumeRow.vid)}>
