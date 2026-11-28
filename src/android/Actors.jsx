@@ -18,8 +18,9 @@ export default function Actors({ Status, onBack, onSearch }) {
     <header className="page-heading"><h1>演员</h1></header>
     <input type="search" className="reservation-search" aria-label="筛选已加载演员" placeholder="筛选已加载演员"
       value={filter} onChange={event => setFilter(event.target.value)} />
-    <Status busy={catalog.busy && !catalog.items.length} error={catalog.error} preserve={!!catalog.items.length}
-      empty={!names.length && { title: keyword ? '已加载列表中没有匹配演员' : '暂未找到演员' }} onRetry={catalog.retry}>
+    <Status busy={catalog.busy && !catalog.items.length} error={catalog.error} preserve={!!names.length}
+      empty={!names.length && { title: keyword ? '已加载列表中没有匹配演员' : '暂未找到演员',
+        text: keyword ? '可以清除筛选，或继续加载更多演员。' : '' }} onRetry={catalog.retry}>
       <div className="actor-list">{names.map(row => <button key={row.id} type="button" className="actor-row"
         aria-label={`搜索${row.name}的作品`} onClick={() => onSearch(row.name)}>
         <span className="actor-avatar"><User size={20} />
