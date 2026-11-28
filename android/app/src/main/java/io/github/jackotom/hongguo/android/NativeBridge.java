@@ -36,7 +36,7 @@ final class NativeBridge {
     // Login/cloud control never occupies source or media request workers.
     private final ThreadPoolExecutor accountWorker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
     private final ThreadPoolExecutor reservationWorker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
-    private static final Set<String> METHODS = new HashSet<>(Arrays.asList("getInfo", "httpGet", "cancelHttp", "appRequest", "appDeviceIdentity", "appRegisteredModel", "appResolveResult", "getLibrary", "getSeriesHistory", "removeHistory", "clearHistory", "toggleFavorite", "play", "download", "getDownloads", "deleteDownload", "playDownload", "getPlaybackCache", "clearPlaybackCache", "getPlaybackOptions", "setPlaybackOptions", "getSearchHistory", "addSearchHistory", "removeSearchHistory", "clearSearchHistory", "searchQuery", "openExternal", "shareSeries", "resetPlaybackIdentity", "getAccount", "officialSendCode", "officialLoginSMS", "officialVerifyMFA", "officialCancelLogin", "officialLogout", "officialSync", "officialImportGuest", "officialWebQrcode", "officialWebPoll", "officialWebLogout", "officialWebCancel", "getAnnouncements", "searchNewReleases", "releaseCalendar", "browseDrama", "actorDirectory", "homeFeed", "getReservations", "setReservation", "checkReservations", "enableReservationNotifications", "coverThumbnail", "nativeSeriesDetail", "seriesPublishers", "mergeDownloads", "getMergedVideos", "deleteMergedVideo", "playMergedVideo"));
+    private static final Set<String> METHODS = new HashSet<>(Arrays.asList("getInfo", "httpGet", "cancelHttp", "appRequest", "appDeviceIdentity", "appRegisteredModel", "appResolveResult", "getLibrary", "getSeriesHistory", "removeLibraryRows", "removeHistory", "clearHistory", "toggleFavorite", "play", "download", "getDownloads", "deleteDownload", "playDownload", "getPlaybackCache", "clearPlaybackCache", "getPlaybackOptions", "setPlaybackOptions", "getSearchHistory", "addSearchHistory", "removeSearchHistory", "clearSearchHistory", "searchQuery", "openExternal", "shareSeries", "resetPlaybackIdentity", "getAccount", "officialSendCode", "officialLoginSMS", "officialVerifyMFA", "officialCancelLogin", "officialLogout", "officialSync", "officialImportGuest", "officialWebQrcode", "officialWebPoll", "officialWebLogout", "officialWebCancel", "getAnnouncements", "searchNewReleases", "releaseCalendar", "browseDrama", "actorDirectory", "homeFeed", "getReservations", "setReservation", "checkReservations", "enableReservationNotifications", "coverThumbnail", "nativeSeriesDetail", "seriesPublishers", "mergeDownloads", "getMergedVideos", "deleteMergedVideo", "playMergedVideo"));
     NativeBridge(MainActivity activity) { this.activity = activity; store = new LibraryStore(activity); downloads = (DownloadManager) activity.getSystemService(Context.DOWNLOAD_SERVICE); }
     @JavascriptInterface public void postMessage(String message) {
         if (message == null || message.length() > 256 * 1024 || message.getBytes(StandardCharsets.UTF_8).length > 256 * 1024) return;
@@ -79,12 +79,14 @@ final class NativeBridge {
             }
             final AccountSync.Selection favoriteSelection;
             final LibraryStore favoriteStore;
-            if (method.equals("toggleFavorite")) {
+            if (method.equals("toggleFavorite") || method.equals("removeLibraryRows")) {
                 try {
                     favoriteSelection = AccountSync.get().captureSelection();
                     favoriteStore = new LibraryStore(activity);
                     AccountSync.get().requireCurrent(favoriteSelection);
-                } catch (Exception error) { respond(id, null, "账号正在切换，请稍后重试收藏"); return; }
+                    if (method.equals("removeLibraryRows") && !AccountSync.get().ownerStamp().equals(params.optString("owner")))
+                        throw new JSONException("账号已切换，请重新选择记录");
+                } catch (Exception error) { respond(id, null, "账号正在切换，请稍后重试片单操作"); return; }
             } else { favoriteSelection = null; favoriteStore = null; }
             ThreadPoolExecutor executor = method.equals("checkReservations") ? reservationWorker
                 : method.startsWith("official") ? accountWorker : method.equals("searchQuery") || method.equals("searchNewReleases") || method.equals("releaseCalendar") || method.equals("browseDrama") || method.equals("actorDirectory") || (method.equals("homeFeed") || method.equals("nativeSeriesDetail") || method.equals("seriesPublishers")) ? searchWorker : method.equals("download") ? downloadWorker : worker;
@@ -434,6 +436,14 @@ final class NativeBridge {
             // Library reads remain on-device; the retired sync account is not selected.
             case "getLibrary": respond(id, currentLibrary(), null); break;
             case "getSeriesHistory": respond(id, currentSeriesHistory(params), null); break;
+            case "removeLibraryRows": {
+                if (favoriteStore == null) throw new JSONException("片单操作缺少账号归属");
+                AccountSync.get().requireCurrent(favoriteSelection);
+                favoriteStore.removeRows(params.getString("list"), params.getJSONArray("seriesIds"));
+                AccountSync.get().requireCurrent(favoriteSelection);
+                respond(id, currentLibrary(), null);
+                break;
+            }
             case "removeHistory": {
                 // 观看记录单条删除：返回删除后的最新库视图。
                 String seriesId = params == null ? "" : LibraryStore.text(params, "seriesId", 30);
