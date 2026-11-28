@@ -25,9 +25,11 @@ export default function SettingsSearch() {
     element.scrollIntoView({ block: 'start', behavior: 'auto' });
   };
   return <div className="settings-index">
-    <div className="search-controls"><input type="search" aria-label="搜索设置" placeholder="搜索设置"
-      value={query} onChange={event => setQuery(event.target.value)} /><button type="button" className="button"
-      aria-label="定位首项设置" disabled={!results.length} onClick={() => open(results[0][0])}><Search size={18} /></button></div>
+    <form className="search-controls" onSubmit={event => { event.preventDefault(); if (results.length) open(results[0][0]); }}>
+      <label className="visually-hidden" htmlFor="settings-query">搜索设置</label>
+      <input id="settings-query" type="search" placeholder="搜索设置" value={query} onChange={event => setQuery(event.target.value)} />
+      <button type="submit" className="button" aria-label="定位首项设置" disabled={!results.length}><Search size={18} /></button>
+    </form>
     {search && (results.length ? <div className="about-links" aria-label="设置搜索结果">
       {results.map(([id, title]) => <button className="button" type="button" key={id} onClick={() => open(id)}>{title}</button>)}
     </div> : <p className="account-note" role="status">没有匹配的设置</p>)}
