@@ -904,3 +904,8 @@
   width: 100%; min-width: 0; min-height: 44px; padding: 4px 6px;
   border-radius: 7px; border: 1px solid var(--border); color: var(--text); background: var(--bg);
 }
+
+.reservation-search {
+  width: 100%; min-height: 44px; margin: 0 0 10px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text);
+}
