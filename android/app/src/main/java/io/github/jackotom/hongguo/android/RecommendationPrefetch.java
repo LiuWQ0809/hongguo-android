@@ -16,7 +16,16 @@ final class RecommendationPrefetch {
     private JSONObject ready;
     private Consumer<JSONObject> open;
     private int generation;
+    private boolean attempted;
     RecommendationPrefetch(Handler main) { this.main = main; }
+    void preload(String seriesId) {
+        if (attempted || target != null || seriesId == null) return;
+        attempted = true;
+        load(seriesId, null);
+    }
+
+    void ignoreSelection() { open = null; }
+
     void load(String seriesId, Consumer<JSONObject> selection) {
         if (seriesId.equals(target)) {
             if (selection != null && ready != null) selection.accept(ready);

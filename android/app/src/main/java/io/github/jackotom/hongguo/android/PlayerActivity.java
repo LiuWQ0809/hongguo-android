@@ -413,7 +413,8 @@ public final class PlayerActivity extends Activity {
     }
     private void installVideoTouch(View view) {
         if (!BuildConfig.IS_TV && view instanceof VideoView) {
-            view.setContentDescription("播放画面，单点显示控制栏，双点播放或暂停");
+            view.setContentDescription("播放画面，单点显示控制栏，双点播放或暂停，" +
+                (recommendations == null ? "上下滑动换集" : "上下滑动换剧"));
             view.setOnClickListener(target -> { togglePlayback(); showControls(); });
             view.setOnTouchListener((target, event) -> true);
             return;
@@ -924,6 +925,8 @@ public final class PlayerActivity extends Activity {
         buffering = false;
         view.setOnInfoListener((player, what, extra) -> {
             if (destroyed || token != generation || video != view) return false;
+            if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START && active && recommendationPrefetch != null)
+                recommendationPrefetch.preload(recommendations.neighbor(1));
             if (what == MediaPlayer.MEDIA_INFO_BUFFERING_START || what == MediaPlayer.MEDIA_INFO_BUFFERING_END) {
                 buffering = what == MediaPlayer.MEDIA_INFO_BUFFERING_START; updateBufferingWatchdog(token, view); updateControlsState();
             }
@@ -934,7 +937,7 @@ public final class PlayerActivity extends Activity {
             cancelPlaybackWatchdogs(); decoderPreparing = false;
             completed = true; resumeAt = 0; recordProgress(targetSeries, target, 0);
             if (autoplay && current + 1 < queue.size()) loadAt(current + 1, null, 0);
-            else { currentKind = current + 1 == queue.size() ? "本剧已播完" : "本集已播完 · " + (BuildConfig.IS_TV ? "按下一集" : "上滑切集"); renderStatus(); showControls(); updateButtons(); }
+            else { currentKind = current + 1 == queue.size() ? "本剧已播完" : "本集已播完 · " + (BuildConfig.IS_TV ? "按下一集" : recommendations == null ? "上滑切集" : "选择下一集"); renderStatus(); showControls(); updateButtons(); }
         });
         view.setOnErrorListener((player, what, extra) -> {
             if (token == generation && !destroyed && video == view) {
@@ -1229,6 +1232,7 @@ public final class PlayerActivity extends Activity {
     private void selectEpisode() {
         if (!BuildConfig.IS_TV) {
             if (current < 0 || current >= queue.size()) return;
+            if (recommendationPrefetch != null) recommendationPrefetch.ignoreSelection();
             showPlayerDialog(EpisodePicker.create(this, queue, current, index -> loadAt(index, null, 0)));
             return;
         }
