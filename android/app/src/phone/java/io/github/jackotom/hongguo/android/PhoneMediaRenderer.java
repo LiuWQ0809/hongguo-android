@@ -11,6 +11,7 @@ import androidx.media3.common.VideoSize;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.analytics.AnalyticsListener;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.effect.RgbMatrix;
 import java.util.ArrayList;
@@ -22,28 +23,36 @@ public final class PhoneMediaRenderer implements PlaybackVideoView.Backend, Play
     private final ExoPlayer player;
     private final PhoneVideoSurface surface;
     private final PlaybackPicture picture;
-    private float outputAspect;
+    private float outputAspect = Float.NaN;
     private boolean prepared, seeking, released, ended, buffering;
     private Consumer<PlaybackEngine> onSeek;
     private SizeListener onSize;
 
     public static PlaybackVideoView.Backend create(PlaybackVideoView owner, boolean software) {
         PlaybackPicture picture = PlaybackPicture.read(owner.getContext());
-        return software || !picture.equals(PlaybackPicture.DEFAULT) ? new PhoneMediaRenderer(owner, software, picture) : null;
+        boolean hardware = false;
+        try { hardware = !software && "hw".equals(PlayerOptions.read(owner.getContext()).optString("decoder")); }
+        catch (Exception ignored) { }
+        return software || hardware || !picture.equals(PlaybackPicture.DEFAULT) ? new PhoneMediaRenderer(owner, software, hardware, picture) : null;
     }
 
-    private PhoneMediaRenderer(PlaybackVideoView owner, boolean software, PlaybackPicture picture) {
+    private PhoneMediaRenderer(PlaybackVideoView owner, boolean software, boolean hardware, PlaybackPicture picture) {
         this.owner = owner;
         this.picture = picture;
         var context = owner.getContext();
         surface = new PhoneVideoSurface(context);
         var factory = new DefaultRenderersFactory(context).setEnableDecoderFallback(true);
-        if (software) factory.setMediaCodecSelector((mime, secure, tunnel) -> {
+        if (software || hardware) factory.setMediaCodecSelector((mime, secure, tunnel) -> {
             var available = MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunnel);
-            return mime.startsWith("video/") ? available.stream().filter(codec -> codec.softwareOnly).collect(java.util.stream.Collectors.toList()) : available;
+            return mime.startsWith("video/") ? available.stream().filter(codec -> software ? codec.softwareOnly : codec.hardwareAccelerated).collect(java.util.stream.Collectors.toList()) : available;
         });
         player = new ExoPlayer.Builder(context, factory).build();
         player.setVideoSurfaceView(surface);
+        player.addAnalyticsListener(new AnalyticsListener() {
+            @Override public void onVideoDecoderInitialized(EventTime time, String name, long timestamp, long duration) {
+                android.util.Log.i("HongguoDecoder", "decoder=" + name + " software=" + software);
+            }
+        });
         if (!picture.equals(PlaybackPicture.DEFAULT)) {
             var screen = context.getResources().getDisplayMetrics();
             resize(owner.getWidth() > 0 ? owner.getWidth() : screen.widthPixels,
@@ -55,7 +64,10 @@ public final class PhoneMediaRenderer implements PlaybackVideoView.Backend, Play
                 if (!picture.blur()) surface.aspect(size.height == 0 ? 0 : size.width * size.pixelWidthHeightRatio / size.height);
                 if (onSize != null) onSize.changed(PhoneMediaRenderer.this, size.width, size.height);
             }
-            @Override public void onRenderedFirstFrame() { info(MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START); }
+            @Override public void onRenderedFirstFrame() {
+                android.util.Log.i("HongguoDecoder", "surface frame rendered, picture=" + !picture.equals(PlaybackPicture.DEFAULT));
+                info(MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START);
+            }
             @Override public void onPlayerError(PlaybackException error) {
                 if (!released && owner.onError != null) owner.onError.onEvent(PhoneMediaRenderer.this, MediaPlayer.MEDIA_ERROR_UNSUPPORTED, error.errorCode);
             }
@@ -65,7 +77,7 @@ public final class PhoneMediaRenderer implements PlaybackVideoView.Backend, Play
     @Override public void resize(int width, int height) {
         if (released || picture.equals(PlaybackPicture.DEFAULT) || width <= 0 || height <= 0) return;
         float aspect = picture.blur() ? (float) width / height : 0;
-        if (Math.abs(outputAspect - aspect) < .015f && outputAspect != 0) return;
+        if (Math.abs(outputAspect - aspect) < .015f) return;
         outputAspect = aspect;
         var effects = new ArrayList<Effect>();
         float[] matrix = picture.matrix();
