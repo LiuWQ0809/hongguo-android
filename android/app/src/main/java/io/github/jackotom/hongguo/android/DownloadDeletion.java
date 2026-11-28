@@ -22,8 +22,11 @@ final class DownloadDeletion {
     }
     private static final FileRemoval FILES=file->LegacyFiles.deleteIfExists(file);
     static long confirmedId(JSONObject params) throws Exception {
-        Object raw=params.opt("id");
         if(!Boolean.TRUE.equals(params.opt("confirmed")))throw new IOException("请先确认删除此下载");
+        return requireId(params);
+    }
+    static long requireId(JSONObject params) throws IOException {
+        Object raw=params.opt("id");
         if(!(raw instanceof Number))throw new IOException("下载编号无效");
         double value=((Number)raw).doubleValue();
         if(!Double.isFinite(value)||value!=Math.rint(value)||value<1||value>9007199254740991d)throw new IOException("下载编号无效");

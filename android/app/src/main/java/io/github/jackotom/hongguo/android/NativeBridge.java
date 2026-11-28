@@ -36,7 +36,7 @@ final class NativeBridge {
     // Login/cloud control never occupies source or media request workers.
     private final ThreadPoolExecutor accountWorker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
     private final ThreadPoolExecutor reservationWorker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
-    private static final Set<String> METHODS = new HashSet<>(Arrays.asList("getInfo", "httpGet", "cancelHttp", "appRequest", "appDeviceIdentity", "appRegisteredModel", "appResolveResult", "getLibrary", "getSeriesHistory", "removeLibraryRows", "removeHistory", "clearHistory", "toggleFavorite", "play", "download", "getDownloads", "deleteDownload", "playDownload", "getPlaybackCache", "clearPlaybackCache", "getPlaybackOptions", "setPlaybackOptions", "getActivePlayback", "controlActivePlayback", "getPlaybackCuts", "setPlaybackCuts", "getSearchHistory", "addSearchHistory", "removeSearchHistory", "clearSearchHistory", "searchQuery", "openExternal", "shareSeries", "readShareClipboard", "resetPlaybackIdentity", "getAccount", "officialSendCode", "officialLoginSMS", "officialVerifyMFA", "officialCancelLogin", "officialLogout", "officialSync", "officialImportGuest", "officialWebQrcode", "officialWebPoll", "officialWebLogout", "officialWebCancel", "getAnnouncements", "searchNewReleases", "releaseCalendar", "browseDrama", "actorDirectory", "homeFeed", "getReservations", "readReservationMessage", "setReservation", "checkReservations", "enableReservationNotifications", "coverThumbnail", "nativeSeriesDetail", "seriesPublishers", "mergeDownloads", "getMergedVideos", "deleteMergedVideo", "playMergedVideo"));
+    private static final Set<String> METHODS = new HashSet<>(Arrays.asList("getInfo", "httpGet", "cancelHttp", "appRequest", "appDeviceIdentity", "appRegisteredModel", "appResolveResult", "getLibrary", "getSeriesHistory", "removeLibraryRows", "removeHistory", "clearHistory", "toggleFavorite", "play", "download", "getDownloads", "controlDownload", "deleteDownload", "playDownload", "getPlaybackCache", "clearPlaybackCache", "getPlaybackOptions", "setPlaybackOptions", "getActivePlayback", "controlActivePlayback", "getPlaybackCuts", "setPlaybackCuts", "getSearchHistory", "addSearchHistory", "removeSearchHistory", "clearSearchHistory", "searchQuery", "openExternal", "shareSeries", "readShareClipboard", "resetPlaybackIdentity", "getAccount", "officialSendCode", "officialLoginSMS", "officialVerifyMFA", "officialCancelLogin", "officialLogout", "officialSync", "officialImportGuest", "officialWebQrcode", "officialWebPoll", "officialWebLogout", "officialWebCancel", "getAnnouncements", "searchNewReleases", "releaseCalendar", "browseDrama", "actorDirectory", "homeFeed", "getReservations", "readReservationMessage", "setReservation", "checkReservations", "enableReservationNotifications", "coverThumbnail", "nativeSeriesDetail", "seriesPublishers", "mergeDownloads", "getMergedVideos", "deleteMergedVideo", "playMergedVideo"));
     NativeBridge(MainActivity activity) { this.activity = activity; store = new LibraryStore(activity); downloads = (DownloadManager) activity.getSystemService(Context.DOWNLOAD_SERVICE); }
     @JavascriptInterface public void postMessage(String message) {
         if (message == null || message.length() > 256 * 1024 || message.getBytes(StandardCharsets.UTF_8).length > 256 * 1024) return;
@@ -470,6 +470,13 @@ final class NativeBridge {
             }
             case "toggleFavorite": AccountSync.get().requireCurrent(favoriteSelection); if (favoriteStore == null) throw new JSONException("收藏操作缺少账号归属"); favoriteStore.toggle(LibraryStore.series(params.getJSONObject("series"))); respond(id, currentLibrary(), null); break;
             case "getDownloads": respond(id, downloadRows(), null); break;
+            case "controlDownload": {
+                if (BuildConfig.IS_TV) throw new java.io.IOException("当前设备使用系统下载");
+                long downloadId = DownloadDeletion.requireId(params);
+                OfflineDownloadQueue.get(activity).control(downloadId, params.getString("action"));
+                respond(id, new JSONObject().put("id", downloadId), null);
+                break;
+            }
             case "mergeDownloads": {
                 final String seriesId = LibraryStore.text(params, "seriesId", 30);
                 if (!seriesId.matches("\\d{1,30}")) throw new Exception("剧集编号无效");
@@ -537,10 +544,14 @@ final class NativeBridge {
                 break;
             }
             case "deleteDownload": {
-                DownloadDeletion.confirmedId(params);
+                long downloadId = DownloadDeletion.confirmedId(params);
                 Object owner=new Object();
                 try {
                     UpdateInstallCheckpoint.prepareDownloadDeletion(activity,owner);
+                    if (!BuildConfig.IS_TV && OfflineDownloadQueue.get(activity).delete(downloadId)) {
+                        respond(id, new JSONObject().put("id", downloadId).put("deleted", true), null);
+                        break;
+                    }
                     respond(id,DownloadDeletion.delete(store,activity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),new DownloadDeletion.Provider() {
                         public DownloadDeletion.Record query(long downloadId) throws Exception {
                             if(downloads==null)throw new java.io.IOException("系统下载服务暂不可用，请重试");
@@ -620,6 +631,11 @@ final class NativeBridge {
                 PlayerOptions.validateSpeed(params.getDouble("speed"));
                 PlaybackSources.Plan plan = PlaybackSources.register(info, episode.getString("vid"), true);
                 String url = plan.url;
+                if (!BuildConfig.IS_TV) {
+                    long downloadId = OfflineDownloadQueue.get(activity).enqueue(series, episode, plan);
+                    respond(id, new JSONObject().put("id", downloadId), null);
+                    break;
+                }
                 if (plan.guestPlayback) { downloadPrepared(id, series, episode, plan); break; }
                 if (!plan.source.equals("web")) { downloadPrepared(id, series, episode, plan); break; }
                 if (Uri.parse(url).getPath() != null && Uri.parse(url).getPath().toLowerCase(Locale.ROOT).endsWith(".m3u8")) throw new Exception("当前为流式播放列表，请在线播放；下载支持完整视频文件");
@@ -766,6 +782,8 @@ final class NativeBridge {
     }
     private JSONArray downloadRows() throws Exception {
         JSONArray records = store.downloads(), result = new JSONArray();
+        if (!BuildConfig.IS_TV) try { result = OfflineDownloadQueue.get(activity).rows(); }
+        catch (Exception unavailable) { android.util.Log.w("HongguoDownload", unavailable.getClass().getSimpleName()); }
         for (int i = 0; i < records.length(); i++) {
             JSONObject row = records.optJSONObject(i); if (row == null) continue;
             long id = row.getLong("id"); String status = "failed"; long current = 0, total = -1; int reason = DownloadManager.ERROR_FILE_ERROR;
