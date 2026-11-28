@@ -10,6 +10,7 @@ import gplLicense from '../../LICENSE?raw';
 import AccountPanel from './AccountPanel.jsx';
 import UpdatePanel from './UpdatePanel.jsx';
 import Actors from './Actors.jsx';
+import MiniPlayer, { useMiniPlayer } from './MiniPlayer.jsx';
 import { ReservedDetail, ReservationsPage } from './Reservations.jsx';
 import CalendarBrowser from './CalendarBrowser.jsx';
 import BrowsePage from './BrowsePage.jsx';
@@ -1797,6 +1798,7 @@ export default function App() {
   const loadLibrary = useCallback(async () => { if (accountTransition.current) return; const epoch = ++libraryReadEpoch.current; setLibraryBusy(true); setLibraryError(''); try { const result = await nativeCall('getLibrary'); if (epoch !== libraryReadEpoch.current) return; if (typeof result.owner === "string") libraryOwner.current = result.owner; setLibrary({ favorites: result.favorites || [], history: result.history || [], projection: result.projection || null, owner: result.owner }); setLibraryError(''); } catch (error) { if (epoch === libraryReadEpoch.current) setLibraryError(errorText(error)); } finally { if (epoch === libraryReadEpoch.current) setLibraryBusy(false); } }, []);
   const replaceLibrary = useCallback(value => { libraryReadEpoch.current++; setLibrary(value); setLibraryBusy(false); }, []);
   const notify = useCallback((text) => { setNotice(text); clearTimeout(noticeTimer.current); noticeTimer.current = setTimeout(() => setNotice(''), 4500); }, []);
+  const miniPlayer = useMiniPlayer(androidPackage && !info.isTv, notify);
   const [announcement, setAnnouncement] = useState(null);
   const announcements = useRef(null);
   // Remote announcements: startup check plus a five-minute emergency watch, once the
@@ -1895,7 +1897,7 @@ export default function App() {
   const navItems = juguoEnabled ? [navigation[0], { id: 'juguo', label: '剧果', Icon: Film }, ...navigation.slice(1)] : navigation;
   const currentTab = tab === 'reservations' ? 'library' : !info.isTv && tab === 'downloads' ? 'about' : !info.isTv && ['search', 'actors'].includes(tab) ? 'discover' : tab;
   const searchInHeader = !info.isTv && !detail && tab === 'discover';
-  const resumeRow = !info.isTv && !detail && tab !== 'discover' && library.history.find(row =>
+  const resumeRow = !miniPlayer.session && !info.isTv && !detail && tab !== 'discover' && library.history.find(row =>
     row.vid && row.positionMs > 0 && !isRetiredSeriesId(row.seriesId) && !completedEpisode(row));
   return <div data-appearance={colorScheme} className={`android-app ${info.isTv ? 'tv-layout' : 'phone-layout'}${polishUi ? ' android-ui-polish' : ''}`}>
     <nav className="app-nav" aria-label="主要导航"><div className="nav-brand"><span><Play size={21} /></span><strong>红果短剧</strong></div><div className="nav-items">{navItems.map(({ id, label, Icon }) => <button key={id} aria-current={!detail && currentTab === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={22} /><span>{label === '我的追剧' ? <><span className="nav-word">我的</span><span className="nav-word">追剧</span></> : label}</span></button>)}</div>{info.isTv && <p className="nav-version">遥控器方向键选择<br />v{info.version || '—'}</p>}</nav>
@@ -1926,7 +1928,7 @@ export default function App() {
           appearance={appearance} setAppearance={setAppearance} onDownloads={info.isTv ? undefined : () => navigate('downloads')}
           onReservations={reservationEnabled ? () => navigate('reservations') : undefined} onHistory={() => navigate('library', 'history')} />}
       </div>
-    </main></div>{notice && <div className="toast" role="status">{notice}</div>}
+    </main><MiniPlayer {...miniPlayer} /></div>{notice && <div className="toast" role="status">{notice}</div>}
     {announcement && <AnnouncementDialog announcement={announcement} onClose={closeAnnouncement} />}
   </div>;
 }

@@ -936,6 +936,27 @@
 .resume-shortcut>svg { flex-shrink: 0; }
 .resume-shortcut>span { display: grid; flex: 1; min-width: 0; }
 .resume-shortcut strong { font-size: .8rem; }
+.mini-player {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 4px 8px 4px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+.mini-player button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.mini-player button:disabled { opacity: .35; }
+.mini-player .mini-title { flex: 1; min-width: 0; text-align: left; }
+.mini-title strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-title small { display: block; color: var(--muted); }
+.mini-previous { transform: rotate(180deg); }
 .resume-shortcut>span>span {
   color: var(--muted); font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
