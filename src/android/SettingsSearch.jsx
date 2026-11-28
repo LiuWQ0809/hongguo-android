@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Search } from '../components/icons.jsx';
 
 const settings = [
-  ['updates-title', '版本更新', '更新下载 安装 版本号'],
+  ['updates-title', '版本更新', '更新下载 安装 版本号 apk'],
   ['settings-appearance', '外观', '浅色 深色 明暗 亮暗 主题 跟随系统'],
   ['settings-autoplay', '自动连播', '播放 连播 下一集 下一季'],
   ['settings-cuts', '跳过片头片尾', '开头 末尾 快进 播放'],
@@ -14,7 +14,7 @@ const settings = [
 
 export default function SettingsSearch() {
   const [query, setQuery] = useState('');
-  const search = query.trim();
+  const search = query.trim().toLowerCase();
   const results = search ? settings.filter(([, title, words]) =>
     search.split(/\s+/).every(token => (title+words).includes(token))) : [];
   const open = id => {
