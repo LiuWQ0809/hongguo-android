@@ -292,6 +292,10 @@ public final class PlayerActivity extends Activity {
         }
         qualityButton = button("清晰度 自动", this::selectQuality); speedButton = button("倍速 1×", this::selectSpeed);
         danmakuButton = button("弹幕 关", this::toggleDanmaku);
+        if (!BuildConfig.IS_TV) {
+            applyDanmakuAppearance();
+            danmakuButton.setOnLongClickListener(view -> { showDanmakuAppearance(); return true; });
+        }
         episodeActions = BuildConfig.IS_TV ? new Button[]{previous, toggle, next, select, autoplayButton}
             : new Button[]{select, danmakuButton, qualityButton, speedButton};
         for (Button b : episodeActions) actions.addView(b, new LinearLayout.LayoutParams(0, dp(50), 1));
@@ -1268,6 +1272,25 @@ public final class PlayerActivity extends Activity {
             main.post(() -> { if (!destroyed && !softActive) playbackError(softToken, message + "；原错误：" + lastMediaError); });
         }
     };
+    private void applyDanmakuAppearance() {
+        var preferences = getSharedPreferences("danmaku_appearance_v1", MODE_PRIVATE);
+        danmakuOverlay.appearance(preferences.getInt("density", 1), preferences.getInt("edge", 0),
+            preferences.getBoolean("avoidSubtitles", true));
+    }
+
+    private void showDanmakuAppearance() {
+        var preferences = getSharedPreferences("danmaku_appearance_v1", MODE_PRIVATE);
+        String[] choices = {"低密度", "标准密度", "高密度", "阴影", "描边", "纯色文字",
+            preferences.getBoolean("avoidSubtitles", true) ? "关闭字幕避让" : "开启字幕避让"};
+        showPlayerDialog(new AlertDialog.Builder(this).setTitle("弹幕外观").setItems(choices, (dialog, index) -> {
+            var edit = preferences.edit();
+            if (index < 3) edit.putInt("density", index);
+            else if (index < 6) edit.putInt("edge", index - 3);
+            else edit.putBoolean("avoidSubtitles", !preferences.getBoolean("avoidSubtitles", true));
+            edit.apply(); applyDanmakuAppearance();
+        }).setNegativeButton("取消", null).create());
+    }
+
     private void updateDanmakuButton() {
         if (danmakuButton == null) return;
         String value = !danmakuEnabled ? "关" : offline ? "离线停用" : casting() || castWasActive ? "投屏停用" : danmakuNotice.contains("未载入") ? "未载入" : danmakuNotice.contains("正在") ? "读取中" : danmakuNotice.contains("暂无") ? "本段无" : "开";

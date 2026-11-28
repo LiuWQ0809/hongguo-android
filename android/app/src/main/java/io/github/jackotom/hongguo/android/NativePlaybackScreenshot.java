@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.function.Consumer;
 
-/** Copy only the decoded surface so playback controls and subtitles stay out of the file. */
+/** Copy only the decoded surface so app controls and overlays stay out of the file. */
 final class NativePlaybackScreenshot {
     private NativePlaybackScreenshot() { }
 
