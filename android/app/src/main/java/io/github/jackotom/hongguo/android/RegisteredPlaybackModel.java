@@ -136,7 +136,11 @@ final class RegisteredPlaybackModel implements AutoCloseable {
     }
     JSONObject fetch(String vid) throws Exception { return fetch(vid, false); }
     /** Speculative prefetch must not spend a foreground compatibility request. */
-    JSONObject fetch(String vid, boolean speculative) throws Exception {
+    interface CodecCheck { boolean accepts(JSONObject model) throws JSONException; }
+
+    JSONObject fetch(String vid, boolean speculative) throws Exception { return fetch(vid, speculative, null); }
+
+    JSONObject fetch(String vid, boolean speculative, CodecCheck codecCheck) throws Exception {
         if (vid == null || !vid.matches("[0-9]{1,30}")) throw new ModelError("分集请求信息无效", "INVALID_INPUT");
         if (!started.compareAndSet(false, true)) throw new IOException("App片源请求已经结束");
         owner = Thread.currentThread();
@@ -177,7 +181,7 @@ final class RegisteredPlaybackModel implements AutoCloseable {
             // format failures, service backoff and trial markers stay terminal;
             // speculative prefetch never spends a registration.
             String[] used = identity;
-            JSONObject projected;
+            ModelSelection projected;
             try {
                 projected = resolve(did, iid, cdid, vid, cookies);
             } catch (ModelError denialFailure) {
@@ -191,6 +195,7 @@ final class RegisteredPlaybackModel implements AutoCloseable {
                 traceV5("denial-rotated did=" + rotated[0]);
                 projected = resolve(rotated[0], rotated[1], rCdid, vid, rCookies);
                 used = rotated;
+                cdid = rCdid;
             }
             if (projected == null) {
                 if (speculative || !mayRotateForeground()) throw new ModelError("App接口未返回有效数据", "APP_EMPTY_RESPONSE");
@@ -201,13 +206,18 @@ final class RegisteredPlaybackModel implements AutoCloseable {
                 traceV5("rotated did=" + rotated[0]);
                 projected = resolve(rotated[0], rotated[1], rCdid, vid, rCookies);
                 used = rotated;
+                cdid = rCdid;
                 if (projected == null) throw new ModelError("App接口未返回有效数据", "APP_EMPTY_RESPONSE");
             }
+            JSONObject video = projected.video;
+            // The registered route gets one compatibility lookup outside identity rotation.
+            if (!speculative && projected.canTryPlayerV1 && codecCheck != null && !codecCheck.accepts(video))
+                video = playerV1(used[0], used[1], cdid, vid);
             check();
             HOLLOW_STREAK.set(0);
             DENIAL_ROTATIONS.set(0);
             persistIdentity(used);
-            return new JSONObject().put("vid", vid).put("video_model", projected);
+            return new JSONObject().put("vid", vid).put("video_model", video);
         } finally {
             registering = null; owner = null;
             try { registration.close(); } catch (RuntimeException ignored) { }
@@ -305,22 +315,31 @@ final class RegisteredPlaybackModel implements AutoCloseable {
      * like tabVideoModel's null return; cancellation and deadline still win first.
      * Returns null when the ladder is still hollow after the v5 POST answered empty —
      * the rotation signal. Any other v5 POST failure propagates unchanged. */
-    private JSONObject resolve(String did, String iid, String cdid, String vid, String cookies) throws Exception {
+    private static final class ModelSelection {
+        final JSONObject video;
+        final boolean canTryPlayerV1;
+        ModelSelection(JSONObject video, boolean canTryPlayerV1) {
+            this.video = video;
+            this.canTryPlayerV1 = canTryPlayerV1;
+        }
+    }
+
+    private ModelSelection resolve(String did, String iid, String cdid, String vid, String cookies) throws Exception {
         if (preloadEnabled) {
-            try { return playerV5(did, iid, cdid, vid, true); }
+            try { return new ModelSelection(playerV5(did, iid, cdid, vid, true), true); }
             catch (ModelError failed) {
                 check();
                 if (!recoverable(failed) && !"ECONNREFUSED".equals(failed.code)) throw failed;
             } catch (IOException failed) { check(); }
         }
-        try { return videoTabV5(did, iid, cdid, vid); }
+        try { return new ModelSelection(videoTabV5(did, iid, cdid, vid), true); }
         catch (ModelError | java.util.zip.ZipException | java.io.EOFException tabFailure) { check(); }
-        try { return playerV1(did, iid, cdid, vid); }
+        try { return new ModelSelection(playerV1(did, iid, cdid, vid), false); }
         catch (ModelError postFailure) {
             check();
             if (!"APP_EMPTY_RESPONSE".equals(postFailure.code)) throw postFailure;
         }
-        try { return videoTab(did, iid, cdid, vid, cookies); }
+        try { return new ModelSelection(videoTab(did, iid, cdid, vid, cookies), false); }
         catch (ModelError | java.util.zip.ZipException | java.io.EOFException tabFailure) { check(); }
         return null;
     }

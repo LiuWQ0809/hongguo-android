@@ -76,6 +76,20 @@ public final class RegisteredPlaybackModelTest {
    wrapper.put("is_trial_video",true);
    check(reject(()->RegisteredPlaybackModel.adoptCompatibility(outer,original,VID)) instanceof RegisteredPlaybackModel.ModelError,"trial alternate rejected");
   });
+  group("unsupported model gets one normal v1 lookup on the same identity and deadline",()->{
+   List<OfficialApiClient.Request> calls=new ArrayList<>();
+   long deadline=System.nanoTime()+20_000_000_000L;
+   JSONObject first=model();
+   first.getJSONArray("video_list").getJSONObject(0).getJSONObject("video_meta").put("codec_type","bytevc2");
+   JSONObject result=operation(r->registration(),r->{calls.add(r);return response(200,r.method.equals("GET")?tabEnvelope(VID,first):envelope(model()));},deadline)
+     .fetch(VID,false,v->!RegisteredPlaybackModel.byteVc2Only(v.getJSONArray("video_list")));
+   check(calls.size()==2&&calls.get(0).method.equals("GET")&&calls.get(1).method.equals("POST"),"one v1 request after tab's incompatible answer");
+   for(OfficialApiClient.Request r:calls) {
+    Map<String,String> q=query(r.url);
+    check(q.get("device_id").equals(DID)&&q.get("iid").equals(IID)&&q.get("cdid").equals(CDID)&&r.deadlineNanos==deadline,"identity and deadline preserved");
+   }
+   check(!RegisteredPlaybackModel.byteVc2Only(result.getJSONObject("video_model").getJSONArray("video_list")),"returns compatible response");
+  });
   group("compatibility ConnectException is typed for the existing outer retry owner",()->{
    AtomicInteger requests=new AtomicInteger();Exception error=reject(()->operation(r->registration(),r->{requests.incrementAndGet();if(r.method.equals("GET"))return response(200,"");throw new ConnectException("synthetic connection refusal");}).fetch(VID));
    String code=error instanceof RegisteredPlaybackModel.ModelError?((RegisteredPlaybackModel.ModelError)error).code:error.getClass().getSimpleName();
