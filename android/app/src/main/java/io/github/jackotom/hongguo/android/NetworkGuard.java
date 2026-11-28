@@ -417,17 +417,22 @@ final class NetworkGuard {
     interface TransferProgress { void onProgress(long bytes, long totalBytes); }
     /** The same writer handles first requests and validated redirects; empty means no header. */
     static void writeMediaRequest(OutputStream output, URI uri, String userAgent, String referer) throws IOException {
+        writeMediaRequest(output, uri, userAgent, referer, 0, "");
+    }
+    static void writeMediaRequest(OutputStream output, URI uri, String userAgent, String referer, long offset, String validator) throws IOException {
+        if (offset > 0 && !validator.matches("\"[!#-~]{1,180}\"")) throw new IOException("断点校验值无效");
         if (userAgent == null || referer == null || userAgent.length() > 2048 || referer.length() > 2048 || userAgent.indexOf('\r') >= 0 || userAgent.indexOf('\n') >= 0 || referer.indexOf('\r') >= 0 || referer.indexOf('\n') >= 0) throw new IOException("片源请求头无效");
         String path=uri.getRawPath();
         if(path==null||path.isEmpty())path="/";
         if(uri.getRawQuery()!=null)path+="?"+uri.getRawQuery();
         String request="GET "+path+" HTTP/1.1\r\nHost: "+uri.getHost()+"\r\nUser-Agent: "+userAgent+"\r\n"+
             (referer.isEmpty()?"":"Referer: "+referer+"\r\n")+
+            (offset > 0 ? "Range: bytes="+offset+"-\r\nIf-Range: "+validator+"\r\n" : "")+
             "Accept: video/*,application/octet-stream,*/*\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
         output.write(request.getBytes(StandardCharsets.US_ASCII));
         output.flush();
     }
-    private static final class DeadlineInputStream extends FilterInputStream {
+    static final class DeadlineInputStream extends FilterInputStream {
         private final long deadline; private final Socket socket;
         DeadlineInputStream(InputStream input, Socket socket, long deadline) { super(input); this.socket = socket; this.deadline = deadline; }
         private void checkDeadline() throws IOException { socket.setSoTimeout(remaining(deadline, 15_000)); }
@@ -606,7 +611,7 @@ final class NetworkGuard {
             if (remaining > 0) remaining -= count;
         }
     }
-    private static String line(InputStream input, int max) throws IOException {
+    static String line(InputStream input, int max) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         while (bytes.size() <= max) {
             int c = input.read();
