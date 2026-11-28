@@ -63,7 +63,8 @@ final class NewReleaseCatalog {
     static JSONObject feed(OfficialApiClient client, int offset, String sessionId, String genre) throws Exception {
         if (client == null || offset < 0 || sessionId == null || sessionId.length() > 128) throw new IOException("红果首页推荐未就绪");
         if (genre == null || !genre.matches("[a-z_]{1,30}")) genre = "short_play";
-        JSONObject reply = request(client, "default", genre, offset, sessionId);
+        JSONObject body = BrowseQuery.body(new JSONObject().put("genre", genre), offset, sessionId, offset == 0);
+        JSONObject reply = client.cloud(CATEGORY_API, "POST", null, body, false);
         if (reply.optInt("code", -1) != 0) throw new IOException("红果首页推荐未就绪，请重试");
         JSONObject data = reply.optJSONObject("data");
         JSONArray rows = data == null ? null : data.optJSONArray("video_data");
