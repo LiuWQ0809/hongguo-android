@@ -45,6 +45,7 @@ public final class PlayerActivity extends Activity {
     private Object softLayer; private boolean softActive; private PreparedMedia adoptedMedia; private int softToken;
     private FrameLayout playerRoot;
     private PlaybackEngine mediaPlayer;
+    private boolean softwareFallback;
     private String quality = "auto", actualQuality = "auto", protectedQuality = "auto";
     private final Set<PreparedMedia> pendingMedia = new HashSet<>();
     private float requestedSpeed = 1f, actualSpeed = Float.NaN;
@@ -904,6 +905,7 @@ public final class PlayerActivity extends Activity {
     }
     private void loadAtInternal(int position, String initialUrl, int startAt, boolean remainPaused, boolean recovering, boolean failedWeb) {
         if (destroyed || position < 0 || position >= queue.size()) return;
+        if (!recovering) softwareFallback = false;
         cancelSeasonLookup();
         SoftDecoder.stop(softLayer); softLayer = null; softActive = false; adoptedMedia = null;
         cancelQualitySwitch(); cancelPlaybackWatchdogs(); decoderPreparing = false; if (!recovering) saveProgress(); video.stopPlayback(); releaseCurrent(); mediaPlayer = null;
@@ -941,7 +943,8 @@ public final class PlayerActivity extends Activity {
                     PlaybackVideoView targetView = video;
                     // Software-decoder preference: skip the hardware player entirely (auto/hw keep
                     // the hardware player and fall back to software decoding on device errors).
-                    if ("sw".equals(decoderMode()) && launchSoftDecoder(token, media)) return;
+                    if (BuildConfig.IS_TV && "sw".equals(decoderMode()) && launchSoftDecoder(token, media)) return;
+                    targetView.configure(softwareFallback || "sw".equals(decoderMode()));
                     bindPlayback(targetView, token, target);
                     targetView.setOnPreparedListener(player -> {
                         if (destroyed || token != generation || video != targetView) return;
@@ -994,13 +997,24 @@ public final class PlayerActivity extends Activity {
         });
         view.setOnCompletionListener(player -> {
             if (destroyed || token != generation || video != view) return;
-            finishEpisode(player.getDuration());
+            finishEpisode(view.getDuration());
         });
         view.setOnErrorListener((player, what, extra) -> {
             if (token == generation && !destroyed && video == view) {
                 String reason = "当前片源或设备解码暂不可用（" + what + "/" + extra + "）";
-                if ((what == -38 || what == MediaPlayer.MEDIA_ERROR_UNSUPPORTED || extra == MediaPlayer.MEDIA_ERROR_UNSUPPORTED) && !"hw".equals(decoderMode()) && launchSoftDecoder(token, adoptedMedia)) return true;
-                failCurrentMedia(token, reason, what == MediaPlayer.MEDIA_ERROR_UNSUPPORTED || extra == MediaPlayer.MEDIA_ERROR_UNSUPPORTED);
+                boolean unsupported = what == -38 || what == MediaPlayer.MEDIA_ERROR_UNSUPPORTED || extra == MediaPlayer.MEDIA_ERROR_UNSUPPORTED;
+                if (unsupported && !"hw".equals(decoderMode())) {
+                    if (BuildConfig.IS_TV && launchSoftDecoder(token, adoptedMedia)) return true;
+                    if (!BuildConfig.IS_TV && !view.software()) {
+                        softwareFallback = true;
+                        main.post(() -> {
+                            if (validPlaybackCallback(token, view))
+                                loadAtInternal(current, null, lastGoodPosition, userPaused, true, false);
+                        });
+                        return true;
+                    }
+                }
+                failCurrentMedia(token, reason, unsupported);
             }
             return true;
         });
@@ -1196,6 +1210,7 @@ public final class PlayerActivity extends Activity {
         Map<String, String> headers = new HashMap<>();
         headers.put("User-Agent", job.media.plan == null ? NetworkGuard.UA : job.media.plan.userAgent);
         headers.put("Referer", job.media.plan == null ? NetworkGuard.REFERER : job.media.plan.referer);
+        candidate.configure(video.software());
         candidate.setVideoURI(uri, headers);
     }
     private boolean validCandidate(QualitySwitch job, PlaybackVideoView candidate, PreparedMedia stageMedia) {

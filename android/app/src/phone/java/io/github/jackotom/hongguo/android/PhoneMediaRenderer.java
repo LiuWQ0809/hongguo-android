@@ -18,7 +18,7 @@ public final class PhoneMediaRenderer implements PlaybackVideoView.Backend, Play
     private final PlaybackVideoView owner;
     private final ExoPlayer player;
     private final PhoneVideoSurface surface;
-    private boolean prepared, seeking, released;
+    private boolean prepared, seeking, released, ended, buffering;
     private Consumer<PlaybackEngine> onSeek;
     private SizeListener onSize;
 
@@ -53,6 +53,16 @@ public final class PhoneMediaRenderer implements PlaybackVideoView.Backend, Play
     private void stateChanged() {
         if (released) return;
         int state = player.getPlaybackState();
+        boolean nowBuffering = state == Player.STATE_BUFFERING && prepared;
+        if (buffering != nowBuffering) {
+            buffering = nowBuffering;
+            info(buffering ? MediaPlayer.MEDIA_INFO_BUFFERING_START : MediaPlayer.MEDIA_INFO_BUFFERING_END);
+        }
+        if (state == Player.STATE_ENDED && !ended) {
+            ended = true;
+            if (owner.onCompletion != null) owner.onCompletion.accept(this);
+            return;
+        }
         if (state == Player.STATE_READY && getVideoWidth() > 0 && getVideoHeight() > 0) {
             if (!prepared) {
                 prepared = true;
