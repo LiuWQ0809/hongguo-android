@@ -54,6 +54,10 @@ final class OfficialLibrary {
             @Override public JSONObject projection()throws JSONException{return projectionFor(owner);}
             @Override public JSONObject seriesHistory(String id)throws JSONException{try{synchronized(lock){JSONObject row=state(owner).entries.get(id);return row==null?null:projectRow(row);}}catch(Exception error){throw jsonError("官方剧集观看记录读取未完成");}}
             @Override public void remove(String seriesId)throws JSONException{try{synchronized(lock){State next=state(owner).copy();next.entries.remove(seriesId);next.pending.remove("progress:"+seriesId);commit(owner,next);}}catch(Exception error){remember(owner,error);throw jsonError("官方观看记录删除未成功");}}
+            @Override public void removeRows(String list, Set<String> ids) throws JSONException {
+                try { removeRowsFor(owner, list, ids); }
+                catch (Exception error) { remember(owner,error); throw jsonError("账号记录批量删除未成功"); }
+            }
             @Override public void clear()throws JSONException{try{synchronized(lock){State next=state(owner).copy();next.entries.clear();next.pending.keySet().removeIf(key->key.startsWith("progress:"));commit(owner,next);}}catch(Exception error){remember(owner,error);throw jsonError("官方观看记录清空未成功");}}
         };
     }
@@ -106,6 +110,31 @@ final class OfficialLibrary {
     private void favoriteFor(String uid,JSONObject input)throws Exception{
         JSONObject card=LibraryStore.series(input);String id=card.getString("seriesId");
         synchronized(lock){State next=state(uid).copy();JSONObject row=next.entries.containsKey(id)?copy(next.entries.get(id)):card;boolean value=row.optLong("favoriteAt")==0;mergeMetadata(row,card);row.put("favoriteAt",value?Math.max(1,clock.getAsLong()):0);next.entries.put(id,row);next.enqueue("favorite",id,value,row);commit(uid,next);}dirty();
+    }
+    private void removeRowsFor(String uid, String list, Set<String> ids) throws Exception {
+        boolean favorites = "favorites".equals(list);
+        boolean changed = false;
+        synchronized (lock) {
+            if (!uid.equals(selected)) throw new InterruptedIOException("账号已切换，请重新选择记录");
+            State next = state(uid).copy();
+            for (String id : ids) {
+                JSONObject before = next.entries.get(id);
+                if (before == null || before.optLong(favorites ? "favoriteAt" : "updatedAt") == 0) continue;
+                JSONObject row = copy(before);
+                if (favorites) {
+                    row.put("favoriteAt", 0);
+                    next.enqueue("favorite", id, false, row);
+                } else {
+                    for (String key : new String[]{"vid", "index", "positionMs", "durationMs", "updatedAt"}) row.remove(key);
+                    next.pending.remove("progress:" + id);
+                }
+                if (row.optLong("favoriteAt") > 0 || row.optLong("updatedAt") > 0) next.entries.put(id, row);
+                else next.entries.remove(id);
+                changed = true;
+            }
+            if (changed) commit(uid, next);
+        }
+        if (changed && favorites) dirty();
     }
     JSONObject importGuest()throws Exception{
         // The caller's explicit confirmation is the only entry into this method; guest storage is never changed.
