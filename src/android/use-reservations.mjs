@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { nativeCall } from './bridge.mjs';
 
-const EMPTY = { items: [], notificationsAllowed: false };
+const EMPTY = { items: [], messages: [], notificationsAllowed: false };
 
 export function useReservations(enabled) {
   const [state, setState] = useState(EMPTY);
@@ -15,7 +15,7 @@ export function useReservations(enabled) {
     setBusy(true); setError('');
     try {
       const result = await nativeCall(method, params, timeout);
-      if (!Array.isArray(result?.items)) throw new Error('预约列表读取失败');
+      if (!Array.isArray(result?.items) || !Array.isArray(result?.messages)) throw new Error('预约列表读取失败');
       if (live.current) {
         setState(result);
         if (result.complete === false) setError('部分提醒尚未核实，请稍后再检查。');
@@ -41,6 +41,8 @@ export function useReservations(enabled) {
       seriesId: series.seriesId, series, enabled, follow: true, latestEpisode,
     }),
     toggle: (series, enabled) => run('setReservation', { seriesId: series.seriesId, series, enabled }),
+    load: () => run('getReservations', {}),
+    readMessage: messageId => run('readReservationMessage', { messageId }),
     refresh: () => run('checkReservations', {}, 50000),
     enable: () => nativeCall('enableReservationNotifications').catch(cause => setError(cause.message)),
   };

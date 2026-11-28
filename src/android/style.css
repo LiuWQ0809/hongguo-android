@@ -955,3 +955,4 @@
   border-radius: 50%; background: #10121be6; color: #fff; border: 2px solid #fff;
 }
 .poster[aria-pressed="true"] .poster-selection { background: #b71f44; }
+.reservation-title time { color: var(--muted); font-size: .78rem; }
