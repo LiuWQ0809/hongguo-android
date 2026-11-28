@@ -133,3 +133,5 @@ def verifyPhoneReleaseSigning = tasks.register('verifyPhoneReleaseSigning') {
 tasks.matching { it.name in ['packagePhoneRelease', 'bundlePhoneRelease'] }.configureEach {
     dependsOn verifyPhoneReleaseSigning
 }
+
+dependencies { phoneImplementation 'androidx.media3:media3-exoplayer:1.8.0' }

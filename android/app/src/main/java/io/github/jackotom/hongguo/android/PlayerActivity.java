@@ -1224,7 +1224,7 @@ public final class PlayerActivity extends Activity {
         if (!validSwitch(job)) return;
         try {
             boolean shouldPlay = active && !userPaused && !completed;
-            float accepted = Float.isFinite(actualSpeed) ? PlayerOptions.setVerifiedSpeed(job.player, actualSpeed, shouldPlay) : PlayerOptions.observedSpeed(job.player);
+            float accepted = Float.isFinite(actualSpeed) ? job.player.setVerifiedSpeed(actualSpeed, shouldPlay) : job.player.observedSpeed();
             if (shouldPlay) job.view.start(); else job.view.pause();
             PlayerOptions.update(this, new JSONObject().put("quality", job.quality));
             PlaybackVideoView old = video; old.stopPlayback(); adoptMedia(job.media); playerRoot.removeView(old);
