@@ -12,6 +12,10 @@ final class NativeSeriesDetail {
     private NativeSeriesDetail() { }
 
     static JSONObject fetch(String seriesId) throws Exception {
+        return fetch(seriesId, System.nanoTime() + TimeUnit.SECONDS.toNanos(14));
+    }
+
+    static JSONObject fetch(String seriesId, long deadline) throws Exception {
         if (!OfficialApiClient.validID(seriesId)) throw new IOException("剧集编号无效");
         JSONObject settings = new JSONObject().put("detail_page_version", 0).put("source", 7)
             .put("disable_digg_stat", false).put("disable_video_relate_book", false)
@@ -19,7 +23,7 @@ final class NativeSeriesDetail {
             .put("use_os_player", false).put("use_server_dns", false);
         JSONObject body = new JSONObject().put("dr_scene", "preload").put("series_id", seriesId).put("biz_param", settings);
         try (OfficialApiClient client = new OfficialApiClient(OfficialApiClient.newSession())) {
-            client.deadlineNanos(System.nanoTime() + TimeUnit.SECONDS.toNanos(14));
+            client.deadlineNanos(deadline);
             JSONObject response = client.cloud("/novel/player/multi_video_detail/preload/v1", "POST", null, body, false);
             return project(seriesId, seriesResponse(seriesId, response));
         }

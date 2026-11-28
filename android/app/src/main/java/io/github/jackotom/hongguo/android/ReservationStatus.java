@@ -8,13 +8,17 @@ import org.json.JSONObject;
 final class ReservationStatus {
     private ReservationStatus() { }
 
-    static boolean published(String seriesId) throws Exception {
+    static boolean published(String seriesId, long deadline) throws Exception {
         if (!OfficialApiClient.validID(seriesId)) throw new IOException("预约剧集编号无效");
         NetworkGuard.Reply reply = NetworkGuard.get("https://hongguoduanju.com/detail?series_id=" + seriesId,
-            System.nanoTime() + TimeUnit.SECONDS.toNanos(5));
+            Math.min(deadline, System.nanoTime() + TimeUnit.SECONDS.toNanos(5)));
         if (reply.status == 404) return false;
         if (reply.status != 200) throw new IOException("上线查询暂不可用");
-        return published(seriesId, EpisodeResolver.extractRouterData(reply.body));
+        if (!published(seriesId, EpisodeResolver.extractRouterData(reply.body))) return false;
+        JSONObject nativeDetail = NativeSeriesDetail.fetch(seriesId, deadline);
+        JSONArray episodes = nativeDetail.optJSONArray("episodes");
+        JSONObject first = episodes == null ? null : episodes.optJSONObject(0);
+        return first != null && OfficialApiClient.validID(first.optString("vid"));
     }
 
     static boolean published(String seriesId, JSONObject router) {
@@ -26,6 +30,7 @@ final class ReservationStatus {
         if (series == null || !seriesId.equals(series.opt("series_id")) || series.optInt("episode_cnt", 0) < 1)
             return false;
         JSONArray vids = series.optJSONArray("vid_list");
-        return vids != null && vids.opt(0) instanceof String && OfficialApiClient.validID(vids.optString(0));
+        String first = vids == null ? "" : vids.optString(0);
+        return OfficialApiClient.validID(first) || first.matches("v1_[A-Za-z0-9_-]{16,120}");
     }
 }
