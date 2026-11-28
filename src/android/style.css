@@ -921,3 +921,11 @@
 .resume-shortcut>span>span {
   color: var(--muted); font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+.actor-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%, 230px),1fr)); gap: 10px; }
+.actor-row { display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 10px; text-align: left;
+  border: 1px solid var(--border); background: var(--surface); }
+.actor-row>span:nth-child(2) { display: grid; flex: 1; min-width: 0; }
+.actor-row small { color: var(--muted); }
+.actor-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; display: grid;
+  place-items: center; flex-shrink: 0; background: var(--inset); color: var(--muted); }
