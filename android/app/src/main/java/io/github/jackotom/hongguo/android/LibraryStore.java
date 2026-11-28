@@ -24,6 +24,7 @@ final class LibraryStore {
         default JSONObject projection() throws JSONException { return null; }
         default JSONObject seriesHistory(String seriesId) throws JSONException { return null; }
         default void remove(String seriesId) throws JSONException { throw new JSONException("当前账号的观看记录暂不支持删除"); }
+        default void removeRows(String list, Set<String> ids) throws JSONException { throw new JSONException("当前账号暂不支持批量删除"); }
         default void clear() throws JSONException { throw new JSONException("当前账号的观看记录暂不支持清空"); }
     }
     interface HistoryFactory { HistoryAccess open(); }
@@ -213,6 +214,29 @@ final class LibraryStore {
                 next.put(old.opt(i));
             }
             if (changed && !preferences.edit().putString("history", next.toString()).commit()) throw new JSONException("观看记录删除未成功");
+        }
+    }
+    void removeRows(String list, JSONArray selected) throws JSONException {
+        if (!"history".equals(list) && !"favorites".equals(list)) throw new JSONException("记录列表无效");
+        if (selected == null || selected.length() < 1 || selected.length() > 200) throw new JSONException("选择项数量无效");
+        Set<String> ids = new LinkedHashSet<>();
+        for (int i = 0; i < selected.length(); i++) {
+            Object id = selected.opt(i);
+            if (!(id instanceof String) || !((String) id).matches("[0-9]{6,30}")) throw new JSONException("剧集编号无效");
+            ids.add((String) id);
+        }
+        synchronized (LibraryStore.class) {
+            if (accountHistory != null) { accountHistory.removeRows(list, ids); return; }
+            String original = preferences.getString(list, "[]");
+            JSONArray before = new JSONArray(original), next = new JSONArray();
+            for (int i = 0; i < before.length(); i++) {
+                JSONObject row = before.optJSONObject(i);
+                if (row == null || !ids.contains(row.optString("seriesId"))) next.put(before.opt(i));
+            }
+            if (next.length() != before.length() && !preferences.edit().putString(list, next.toString()).commit()) {
+                preferences.edit().putString(list, original).commit();
+                throw new JSONException("本机记录删除未成功");
+            }
         }
     }
     /** 清空全部观看记录；账号登录时委托账号库，未登录清空本机存储。 */
