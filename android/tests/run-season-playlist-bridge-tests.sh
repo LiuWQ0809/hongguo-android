@@ -32,5 +32,5 @@ public class Intent {
     @Override public String toString() { return extras.toString(); }
 }
 STUB
-"$JAVA_HOME/bin/javac" --release 17 -encoding UTF-8 -cp "$JSON_JAR" -d "$TMP/classes" "$TMP/android/content/Context.java" "$TMP/android/content/Intent.java" "$TMP/SeasonPlaylistBridgeTest.java" "$SRC/PlayLauncher.java" "$SRC/PlaybackPlaylist.java" "$SRC/MediaQuality.java" "$SRC/UpdateOperationGate.java"
+"$JAVA_HOME/bin/javac" --release 17 -encoding UTF-8 -cp "$JSON_JAR" -d "$TMP/classes" "$TMP/android/content/Context.java" "$TMP/android/content/Intent.java" "$TMP/SeasonPlaylistBridgeTest.java" "$SRC/PlayLauncher.java" "$SRC/PlaybackPlaylist.java" "$SRC/RecommendationQueue.java" "$SRC/MediaQuality.java" "$SRC/UpdateOperationGate.java"
 "$JAVA_HOME/bin/java" -cp "$TMP/classes:$JSON_JAR" io.github.jackotom.hongguo.android.SeasonPlaylistBridgeTest

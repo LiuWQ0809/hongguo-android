@@ -29,16 +29,25 @@ public final class SeasonPlaylistBridgeTest {
   JSONObject huge=params();huge.getJSONObject("playlist").put("padding","x".repeat(160*1024));h.rejects(huge);
   h.rejects(params().put("padding","x".repeat(240*1024)));
   JSONObject legacy=params();legacy.remove("playlist");h.dispatch(legacy);h.activity.pump();h.check(!h.activity.last.extras.containsKey("playlist"),"legacy single-season launch does not introduce a playlist");
-  JSONObject offline=params();h.play("offline",offline.getJSONObject("series"),offline.getJSONObject("episode"),offline.getJSONArray("episodes"),"content://fixture/offline",true,offline);h.activity.pump();h.check(!h.activity.last.extras.containsKey("playlist")&&h.activity.last.get("download").equals(true),"offline launch never includes online cross-season descriptor");
+  JSONArray recommendations=new JSONArray().put(season("111111","当前")).put(season("222222","相邻"));
+  h.dispatch(legacy.put("recommendations",recommendations));h.activity.pump();
+  JSONArray compact=new JSONArray((String)h.activity.last.get("recommendations"));
+  h.check(compact.length()==2&&compact.getJSONObject(1).length()==1&&compact.getJSONObject(1).getString("seriesId").equals("222222"),"recommendation bridge passes verified IDs only");
+  int beforeInvalid=h.activity.starts;
+  h.dispatch(params().put("recommendations",recommendations));h.activity.pump();
+  h.check(h.activity.starts==beforeInvalid,"recommendation cannot be combined with a legacy season playlist");
+  JSONObject offline=params().put("recommendations",recommendations);h.play("offline",offline.getJSONObject("series"),offline.getJSONObject("episode"),offline.getJSONArray("episodes"),"content://fixture/offline",true,offline);h.activity.pump();h.check(!h.activity.last.extras.containsKey("playlist")&&!h.activity.last.extras.containsKey("recommendations")&&h.activity.last.get("download").equals(true),"offline launch never includes online cross-season descriptor");
   int before=h.activity.starts;h.dispatch(params());h.closed=true;h.activity.pump();h.check(h.activity.starts==before,"queued cross-season launch respects closed bridge lifecycle");
   System.out.println("SEASON_PLAYLIST_BRIDGE_OK checks="+h.checks+" actualDispatch=true actualLaunch=true actualPlaylistParser=true compactIntent=true networkRequests=0 deviceTests=not_run");
  }
 }
 final class MainActivity {final Deque<Runnable>pending=new ArrayDeque<>();int starts;Intent last;boolean isFinishing(){return false;}boolean isDestroyed(){return false;}void runOnUiThread(Runnable action){pending.add(action);}void startActivity(Intent value){starts++;last=value;}void pump(){while(!pending.isEmpty())pending.removeFirst().run();}}
 final class PlayerActivity {}
+final class BuildConfig {static final boolean IS_TV=false;}
+final class OfficialApiClient {static boolean validID(String id){return id.matches("[1-9][0-9]{0,29}");}}
 final class LibraryStore {static JSONObject series(JSONObject value){return value;}static JSONObject episode(JSONObject value){return value;}static JSONArray episodes(JSONArray rows,JSONObject selected){return rows==null?new JSONArray().put(selected):rows;}static String text(JSONObject value,String key,int max)throws Exception{return value.getString(key);}}
 final class PlayerOptions {static JSONObject read(android.content.Context activity)throws org.json.JSONException{return new JSONObject().put("quality","auto").put("speed",1.0);}static void validateSpeed(double speed){if(!Double.isFinite(speed)||speed<0.5||speed>2)throw new IllegalArgumentException("speed");}}
-final class PlaybackSources {static int registered;static class Plan {final JSONObject value;final String url;Plan(JSONObject v){value=v;url=v.optString("url");}JSONObject json(){return value;}}static Plan registerInitial(JSONObject input,String sid,String vid,String q){registered++;return new Plan(input);}}
+final class PlaybackSources {static boolean isRetiredSeries(String id){return id.matches("99[0-9]{8}");}static int registered;static class Plan {final JSONObject value;final String url;Plan(JSONObject v){value=v;url=v.optString("url");}JSONObject json(){return value;}}static Plan registerInitial(JSONObject input,String sid,String vid,String q){registered++;return new Plan(input);}}
 
 // Installation coordination is tested separately with actual checkpoint production code.
 class UpdateInstallCheckpoint { private static final UpdateOperationGate gate = new UpdateOperationGate(); static UpdateOperationGate.Lease operation() throws java.io.IOException { return gate.operation(); } static void playerLaunching() { } }

@@ -550,6 +550,7 @@ public final class PlayerActivity extends Activity {
             startActivity(next.putExtra("fullscreen", fullscreen));
             finish();
         } catch (Exception failure) {
+            recommendationPrefetch.cancel();
             Toast.makeText(this, "相邻短剧暂未打开，可以再次滑动重试", Toast.LENGTH_LONG).show();
         }
     }
