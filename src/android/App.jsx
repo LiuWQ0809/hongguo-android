@@ -1082,10 +1082,13 @@ function SeasonDetails({ seed, initialVid, resumeIntent, ...props }) {
   }, [familySeed]);
   useEffect(() => {
     mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  useEffect(() => {
     const pauseLookup = () => { if (!fetching.current) return; seasonAbort.current?.abort(); lookupEpoch.current++; fetching.current = false; setDirectory(value => ({ ...value, busy: false, error: '分季读取已暂停，返回后可重试。', failedPage: 1 })); };
     window.addEventListener('androidseriespause', pauseLookup);
     if (parseSeasonTitle(familySeed.title)?.explicit) loadSeasons();
-    return () => { mounted.current = false; lookupEpoch.current++; fetching.current = false; seasonAbort.current?.abort(); window.removeEventListener('androidseriespause', pauseLookup); };
+    return () => { lookupEpoch.current++; fetching.current = false; seasonAbort.current?.abort(); window.removeEventListener('androidseriespause', pauseLookup); };
   }, [familySeed, loadSeasons]);
   useEffect(() => {
     if (!focusSelection.current) return;
