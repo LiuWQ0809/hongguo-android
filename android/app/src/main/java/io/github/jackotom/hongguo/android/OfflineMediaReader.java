@@ -12,7 +12,7 @@ final class OfflineMediaReader {
 
     static void fetch(OfflineTransfer transfer, PlaybackSources.Plan plan, File part, OfflineRange range) throws Exception {
         URI uri = NetworkGuard.validate(plan.url, false);
-        long limit = plan.guestPlayback ? PublicPlaybackVerifier.MAX_FILE_BYTES : 384L * 1024 * 1024;
+        long limit = PublicPlaybackVerifier.MAX_FILE_BYTES;
         long deadline = System.nanoTime() + 180_000_000_000L;
         boolean restarted = false;
         for (int redirects = 0; redirects <= 3; ) {

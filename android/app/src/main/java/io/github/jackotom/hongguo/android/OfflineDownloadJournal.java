@@ -61,7 +61,12 @@ final class OfflineDownloadJournal {
         File target = job.finished(directory);
         if (LegacyFiles.isSymbolicLink(target)) throw new IOException("下载目标文件归属异常");
         if (!job.staging(work).renameTo(target)) throw new IOException("下载结果保存未完成");
-        library.addPreparedDownload(job.id, job.series, job.episode, directory, target);
+        try {
+            library.addPreparedDownload(job.id, job.series, job.episode, directory, target);
+        } catch (Exception failed) {
+            if (!LegacyFiles.deleteIfExists(target)) failed.addSuppressed(new IOException("未登记的视频文件清理未完成"));
+            throw failed;
+        }
         clean(job);
     }
 
