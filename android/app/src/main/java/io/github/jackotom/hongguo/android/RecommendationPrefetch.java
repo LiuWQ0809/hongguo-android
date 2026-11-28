@@ -11,7 +11,10 @@ import org.json.JSONObject;
 final class RecommendationPrefetch {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Handler main;
-    private Future<?> pending;
+    private Future<?> pending, pendingPage;
+    private RecommendationCursor pageCursor;
+    private JSONObject page;
+    private Consumer<JSONObject> openPage;
     private String target;
     private JSONObject ready;
     private Consumer<JSONObject> open;
@@ -24,7 +27,7 @@ final class RecommendationPrefetch {
         load(seriesId, null);
     }
 
-    void ignoreSelection() { open = null; }
+    void ignoreSelection() { open = null; openPage = null; }
 
     void load(String seriesId, Consumer<JSONObject> selection) {
         if (seriesId.equals(target)) {
@@ -50,10 +53,37 @@ final class RecommendationPrefetch {
             });
         });
     }
+    void loadPage(RecommendationCursor cursor, Consumer<JSONObject> selection) {
+        if (cursor.equals(pageCursor)) {
+            if (selection != null && page != null) selection.accept(page);
+            else if (selection != null) openPage = selection;
+            return;
+        }
+        cancel();
+        pageCursor = cursor;
+        openPage = selection;
+        int token = generation;
+        pendingPage = worker.submit(() -> {
+            JSONObject response = null;
+            try { response = cursor.fetch(); }
+            catch (Exception ignored) { /* A subsequent swipe can retry the same cursor. */ }
+            JSONObject result = response;
+            main.post(() -> {
+                if (token != generation) return;
+                Consumer<JSONObject> selected = openPage;
+                if (result == null) cancel();
+                else { page = result; pendingPage = null; openPage = null; }
+                if (selected != null) selected.accept(result);
+            });
+        });
+    }
+
     void cancel() {
         ++generation;
         if (pending != null) pending.cancel(true);
+        if (pendingPage != null) pendingPage.cancel(true);
         pending = null; target = null; ready = null; open = null;
+        pendingPage = null; pageCursor = null; page = null; openPage = null;
     }
     void close() { cancel(); worker.shutdownNow(); }
 }

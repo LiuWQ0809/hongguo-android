@@ -26,6 +26,8 @@ final class PlayLauncher {
             if (!params.optBoolean("resolveInPlayer") || params.has("playlist")) throw new JSONException("推荐播放必须使用独立原生短剧");
             RecommendationQueue recommendations = new RecommendationQueue(params.get(RecommendationQueue.EXTRA), series.getString("seriesId"));
             intent.putExtra(RecommendationQueue.EXTRA, recommendations.rows().toString());
+            if (params.has(RecommendationCursor.EXTRA))
+                intent.putExtra(RecommendationCursor.EXTRA, RecommendationCursor.parse(params.get(RecommendationCursor.EXTRA)).toJson().toString());
         }
         return intent;
     }
