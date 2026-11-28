@@ -460,6 +460,24 @@
 .home-continue-row .poster-grid::-webkit-scrollbar{display:none}
 .home-continue-row .poster{flex:0 0 104px;width:104px}
 .home-section-head{display:flex;align-items:center;justify-content:space-between;padding-right:12px}
+.recommend-entry {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 76px;
+  padding: 8px 14px;
+  text-align: left;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.recommend-entry > span { display: grid; gap: 3px; }
+.recommend-entry > span > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recommend-entry small { color: var(--muted); }
+.recommend-entry > svg { color: var(--accent); }
 .home-next{display:flex;align-items:center;gap:5px;min-height:44px;padding:0 12px;border:0;background:transparent;color:var(--accent);font-size:13px;font-weight:600}
 .update-available{margin:10px 0 0;padding:12px 14px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
 .update-available strong{color:var(--accent);font-size:14px}

@@ -197,7 +197,7 @@ function RankingPage({ rank, onOpen, onPlay }) {
   </>;
 }
 
-function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi, startSection }) {
+function Discover({ onOpen, onPlay, onRecommend, library, onSearch, onUpdates, polishUi, startSection }) {
   const [section, setSection] = useState(startSection || 'recommend');
   const [rank, setRank] = useState(RANKINGS[0]);
   const reservationRank = RANKINGS.find(item => item.id === 'subscribe-drama');
@@ -301,6 +301,9 @@ function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi, star
   // Keep real in-progress episodes above the recommendation catalogue.
   const continueRows = useMemo(() => filterHistory(library?.history || [], 'watching'), [library?.history]);
   const feedMode = feed !== null;
+  const picks = [...new Map((feedMode ? feed.items : shown.items)
+    .filter(item => /^\d{6,30}$/.test(item.seriesId) && !item.upcoming && !isRetiredSeriesId(item.seriesId))
+    .map(item => [item.seriesId, item])).values()].slice(0, 24);
   const searchButton = <button type="button" className="home-search" onClick={onSearch}><Search size={17} /><span>搜索短剧名称</span></button>;
   return <>
     <h1 className="visually-hidden">发现短剧</h1>
@@ -326,6 +329,11 @@ function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi, star
       <h2>继续观看</h2>
       <div className="home-continue-row"><PosterGrid items={continueRows} onOpen={onOpen} onPlay={onPlay} history /></div>
     </section>}
+    {onRecommend && picks.length > 1 && <button type="button" className="recommend-entry" onClick={() => onRecommend(picks)}>
+      <DetailCover key={picks[0].seriesId} url={picks[0].coverUrl} />
+      <span><strong>开始刷剧</strong><span>{picks[0].title}</span><small>上下滑切换作品</small></span>
+      <Play size={24} />
+    </button>}
     {feedMode ? <>
       <div className="home-section-head"><h2>为你推荐</h2></div>
       <Status busy={!!feed.busy && !feed.items.length} error={feed.error || ''} preserve={!!feed.items.length} onRetry={() => loadFeed(0, '', false, feed.genre)} empty={!feed.items.length && { title: '暂时没有推荐内容', text: '稍后再来看看，或用搜索找到想看的短剧。' }}>
@@ -1382,6 +1390,9 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLib
         // Initial, selected and continuous episodes now use the same native
         // resolver/fallback state machine. No JS preflight can fail beforehand.
         Object.assign(params, { episodes: item.episodes.map(compactEpisode), ...preferences, resolveInPlayer: true });
+        if (resumeIntent?.recommendations?.[0]?.seriesId === item.seriesId) {
+          params.recommendations = resumeIntent.recommendations;
+        }
         // Only the selected season enters native playback/casting. Manual season
         // discovery and history navigation must not delay play or extend its queue.
         assertPlaybackRequestSize(params);
@@ -1725,13 +1736,15 @@ export default function App() {
   useEffect(() => { document.documentElement.dataset.tv = String(!!info.isTv); }, [info.isTv]);
   useTvNavigation(!!info.isTv);
   const closeDetail = useCallback(() => { setDetail(current => current?.parent || null); setTimeout(() => lastDetailFocus.current?.isConnected && lastDetailFocus.current.focus(), 0); }, []);
-  const openDetail = (series, vid, direct = false) => {
+  const openDetail = (series, vid, direct = false, recommendations) => {
     if (isRetiredSeriesId(series?.seriesId)) { notify('原黄果来源已移除，观看记录仍保留。'); return; }
     lastDetailFocus.current = document.activeElement;
     previousScroll.current = content.current?.scrollTop || 0;
-    setDetail({ seed: series, initialVid: vid, resumeIntent: direct ? { token: 0, seriesId: String(series.seriesId), vid, direct: true } : null });
+    setDetail({ seed: series, initialVid: vid, resumeIntent: direct ? { token: 0, seriesId: String(series.seriesId), vid, direct: true, recommendations } : null });
   };
   const openPlayback = info.isTv ? undefined : (series, vid) => openDetail(series, vid, true);
+  const openRecommendation = info.isTv ? undefined : items => openDetail(items[0], undefined, true,
+    items.map(({ seriesId }) => ({ seriesId })));
   const navigate = (id, view = null) => {
     if (id === 'juguo' && !juguoEnabled) return;
     if (id === 'library') setLibraryStart(view);
@@ -1794,7 +1807,7 @@ export default function App() {
           <Play size={19} /><span><strong>继续播放</strong><span>{resumeRow.title} · 第 {resumeRow.index} 集 · {timeText(resumeRow.positionMs)}</span></span>
           <ChevronRight size={18} />
         </button>}
-        {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} startSection={browseStart} />}
+        {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} onRecommend={openRecommendation} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} startSection={browseStart} />}
         {tab === 'juguo' && juguoEnabled && <JuguoPage api={juguoApi} PosterGrid={PosterGrid} Status={Status} />}
         {tab === 'search' && <SearchPage key={actorQuery || ''} onOpen={openDetail} onPlay={openPlayback}
           initialActor={actorQuery} onBack={info.isTv ? undefined : () => navigate(actorQuery ? 'actors' : 'discover')}
