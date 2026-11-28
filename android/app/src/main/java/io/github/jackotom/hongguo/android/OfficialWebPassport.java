@@ -27,6 +27,14 @@ final class OfficialWebPassport {
         @Override default void close(){}
     }
 
+    static final class HttpFailure extends IOException {
+        final int status;
+        HttpFailure(int status) {
+            super("红果网页登录请求失败（HTTP " + status + "）");
+            this.status = status;
+        }
+    }
+
     /** One HTTP reply with every header kept: the handshake needs each Set-Cookie separately. */
     static final class Reply {
         final int status;final String body;final Map<String,List<String>> headers;final String url;
@@ -87,7 +95,7 @@ final class OfficialWebPassport {
         if(!cookie.isEmpty())headers.put("Cookie",cookie);
         Reply reply=transport.execute(endpoint(path,extra),headers,deadline);
         jar.absorb(reply.all("set-cookie"));
-        if(reply.status!=200)throw new IOException("红果网页登录请求失败（HTTP "+reply.status+"）");
+        if(reply.status!=200)throw new HttpFailure(reply.status);
         String raw=reply.body;
         if(raw==null||raw.trim().isEmpty()||raw.length()>MAX_BODY)throw new IOException("红果网页登录响应异常");
         try{return new JSONObject(raw);}catch(JSONException invalid){throw new IOException("红果网页登录响应格式异常");}

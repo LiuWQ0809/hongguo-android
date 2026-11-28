@@ -21,11 +21,11 @@ public final class OfficialWebAccountTest {
     }
     static final class Clock implements OfficialWebAccount.Clock {long now=1_700_000_000_000L;public long now(){return now;}}
     static final class Gateway implements OfficialWebAccount.Gateway {
-        final Queue<Object> polls=new ArrayDeque<>();String cookieOnConfirm="";boolean profileInvalid;int starts,pollCalls,confirms,profiles;
+        final Queue<Object> polls=new ArrayDeque<>();String cookieOnConfirm="";boolean profileInvalid,profileOffline;int starts,pollCalls,confirms,profiles;
         public JSONObject start(OfficialWebPassport.CookieJar jar)throws Exception{starts++;return new JSONObject().put("message","success").put("data",new JSONObject().put("token","PRIVATE_QR_TOKEN").put("qrcode","data:image/png;base64,AAAA").put("expire_time",(System.currentTimeMillis()/1000)+180));}
         public JSONObject poll(OfficialWebPassport.CookieJar jar,String token)throws Exception{pollCalls++;Object next=polls.isEmpty()?scanned():polls.remove();return(JSONObject)next;}
         public void confirm(OfficialWebPassport.CookieJar jar,String redirect)throws Exception{confirms++;if(!cookieOnConfirm.isEmpty())jar.absorb(Collections.singletonList(cookieOnConfirm));}
-        public JSONObject profile(OfficialWebPassport.CookieJar jar)throws Exception{profiles++;if(profileInvalid)throw new IOException("官网会话已失效");return new JSONObject().put("message","success").put("data",new JSONObject().put("user_id_str","7123456789012345678").put("name","扫码账号"));}
+        public JSONObject profile(OfficialWebPassport.CookieJar jar)throws Exception{profiles++;if(profileOffline)throw new java.net.SocketTimeoutException();if(profileInvalid)throw new OfficialWebPassport.HttpFailure(401);return new JSONObject().put("message","success").put("data",new JSONObject().put("user_id_str","7123456789012345678").put("name","扫码账号"));}
     }
     static final class Env {
         Store store;final Clock clock=new Clock();final Gateway gateway=new Gateway();final OfficialWebAccount web;
@@ -100,6 +100,13 @@ public final class OfficialWebAccountTest {
             again.gateway.profileInvalid=true;again.web.restore();
             check(!again.web.status().getBoolean("authenticated"),"a rejected session is dropped");
             check(store.disk==null,"the rejected session is erased");
+        });
+        group("a temporary transport failure preserves the selected account",()->{
+            Env first=new Env();first.web.start();first.gateway.polls.add(confirmed());
+            first.gateway.cookieOnConfirm="sessionid=PRIVATE_SESSION";first.web.poll();
+            Env restored=new Env(first.store);restored.gateway.profileOffline=true;restored.web.restore();
+            check(restored.web.status().getBoolean("authenticated"),"the current account stays selected");
+            check(first.store.disk!=null,"the resumable session stays available");
         });
         group("logout clears the stored session",()->{
             Env e=new Env();e.web.start();e.gateway.polls.add(confirmed());e.gateway.cookieOnConfirm="sessionid=PRIVATE_SESSION";e.web.poll();

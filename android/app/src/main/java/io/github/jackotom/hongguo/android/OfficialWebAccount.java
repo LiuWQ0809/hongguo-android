@@ -111,19 +111,34 @@ final class OfficialWebAccount {
 
     /** Re-checks a stored session in the background and drops it when the official site rejects it. */
     void restore(){
+        OfficialWebPassport.CookieJar saved;
+        String account;
         synchronized(lock){
-            if(profile==null||busy)return;
-            if(clock.now()-lastVerified<300_000L)return;
+            if(profile==null||busy||clock.now()-lastVerified<300_000L)return;
             lastVerified=clock.now();
+            saved=jar;
+            account=uid();
             busy=true;
         }
         try{
-            JSONObject next=readProfile(data(gateway.profile(jar)));
-            synchronized(lock){profile=next;phase=PHASE_LOGGED_IN;diagnostic="";}
+            JSONObject next=readProfile(data(gateway.profile(saved)));
+            synchronized(lock){
+                if(jar!=saved)return;
+                if(!account.equals(next.optString("uid")))throw new OfficialWebPassport.HttpFailure(401);
+                profile=next;phase=PHASE_LOGGED_IN;diagnostic="";error="";
+            }
         }catch(Exception failure){
-            synchronized(lock){profile=null;jar=new OfficialWebPassport.CookieJar();phase=PHASE_IDLE;diagnostic="session_expired";dropCloud();}
-            try{store.clear();}catch(Exception ignored){}
-            AccountLog.warn("official_web_session_expired:"+failure.getClass().getSimpleName());
+            synchronized(lock){
+                if(jar!=saved)return;
+                if(failure instanceof OfficialWebPassport.HttpFailure http && http.status==401){
+                    profile=null;jar=new OfficialWebPassport.CookieJar();phase=PHASE_IDLE;diagnostic="session_expired";
+                    dropCloud();upstreamIdentity=null;
+                    try{store.clear();}catch(Exception disk){AccountLog.warn("official_web_session_clear_failed");}
+                }else{
+                    diagnostic="profile_unavailable";
+                    error="官网登录校验暂未完成，本机账号记录已保留";
+                }
+            }
         }finally{synchronized(lock){busy=false;}}
     }
 
