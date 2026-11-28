@@ -1724,6 +1724,8 @@ export default function App() {
   const navItems = juguoEnabled ? [navigation[0], { id: 'juguo', label: '剧果', Icon: Film }, ...navigation.slice(1)] : navigation;
   const currentTab = tab === 'reservations' ? 'library' : !info.isTv && tab === 'downloads' ? 'about' : !info.isTv && tab === 'search' ? 'discover' : tab;
   const searchInHeader = !info.isTv && !detail && tab === 'discover';
+  const resumeRow = !info.isTv && !detail && tab !== 'discover' && library.history.find(row =>
+    row.vid && row.positionMs > 0 && !isRetiredSeriesId(row.seriesId) && !completedEpisode(row));
   return <div className={`android-app ${info.isTv ? 'tv-layout' : 'phone-layout'}${polishUi ? ' android-ui-polish' : ''}`}>
     <nav className="app-nav" aria-label="主要导航"><div className="nav-brand"><span><Play size={21} /></span><strong>红果短剧</strong></div><div className="nav-items">{navItems.map(({ id, label, Icon }) => <button key={id} aria-current={!detail && currentTab === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={22} /><span>{label === '我的追剧' ? <><span className="nav-word">我的</span><span className="nav-word">追剧</span></> : label}</span></button>)}</div>{info.isTv && <p className="nav-version">遥控器方向键选择<br />v{info.version || '—'}</p>}</nav>
     <div className="content-shell"><div className="phone-brand"><span><Play size={18} /></span>{searchInHeader ? <button type="button" className="home-search" onClick={() => navigate('search')}><Search size={18} /><span>搜索短剧名称</span></button>
@@ -1733,6 +1735,10 @@ export default function App() {
         : detail && <SeasonDetails key={detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onOpen={openDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi}
           onReserveSeason={reservationEnabled ? seed => setDetail(parent => ({ seed, parent })) : undefined} />}
       <div className="page-slot" hidden={!!detail}>
+        {resumeRow && <button className="resume-shortcut" type="button" onClick={() => openPlayback(resumeRow, resumeRow.vid)}>
+          <Play size={19} /><span><strong>继续播放</strong><span>{resumeRow.title} · 第 {resumeRow.index} 集 · {timeText(resumeRow.positionMs)}</span></span>
+          <ChevronRight size={18} />
+        </button>}
         {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} startSection={browseStart} />}
         {tab === 'juguo' && juguoEnabled && <JuguoPage api={juguoApi} PosterGrid={PosterGrid} Status={Status} />}
         {tab === 'search' && <SearchPage onOpen={openDetail} onPlay={openPlayback} onBrowse={info.isTv ? undefined : section => navigate('discover', section)} />}

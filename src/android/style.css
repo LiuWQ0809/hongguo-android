@@ -909,3 +909,15 @@
   width: 100%; min-height: 44px; margin: 0 0 10px; padding: 0 12px;
   border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text);
 }
+
+.resume-shortcut {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  min-height: 50px; margin-bottom: 14px; padding: 7px 12px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface); color: var(--accent);
+}
+.resume-shortcut>svg { flex-shrink: 0; }
+.resume-shortcut>span { display: grid; flex: 1; min-width: 0; }
+.resume-shortcut strong { font-size: .8rem; }
+.resume-shortcut>span>span {
+  color: var(--muted); font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
