@@ -29,28 +29,43 @@ final class NativeSeriesDetail {
         }
     }
 
+    static final class MissingDirectory extends IOException {
+        MissingDirectory(String message) { super(message); }
+    }
+
     static JSONObject seriesResponse(String seriesId, JSONObject response) throws IOException {
-        if (response.optInt("code", -1) != 0) throw new IOException("红果 App 目录暂未返回该剧");
+        return seriesResponse(seriesId, response, false);
+    }
+
+    static JSONObject seriesResponse(String seriesId, JSONObject response, boolean direct) throws IOException {
+        if (response.optInt("code", -1) != 0 || response.optInt("error_code", 0) != 0)
+            throw new IOException("红果 App 目录暂未返回该剧");
         JSONObject data = response.optJSONObject("data");
-        JSONObject item = data == null ? null : data.optJSONObject(seriesId);
+        JSONObject item = direct || data == null ? data : data.optJSONObject(seriesId);
         JSONObject series = item == null ? null : item.optJSONObject("video_data");
-        if (series == null || !seriesId.equals(series.optString("series_id")) || series.optJSONArray("video_list") == null)
+        if (series != null && !seriesId.equals(series.optString("series_id")))
             throw new IOException("红果 App 分集目录校验未通过");
+        JSONArray rows = series == null ? null : series.optJSONArray("video_list");
+        if (rows == null || rows.length() == 0) throw new MissingDirectory("红果 App 暂未返回该剧分集");
         return series;
     }
 
-    private static JSONObject project(String seriesId, JSONObject series) throws Exception {
+    static JSONObject project(String seriesId, JSONObject series) throws Exception {
         JSONArray list = series.getJSONArray("video_list"), episodes = new JSONArray();
         if (list.length() > 1000) throw new IOException("红果 App 分集目录超过上限");
         TreeMap<Integer, JSONObject> ordered = new TreeMap<>();
         Set<String> ids = new HashSet<>();
         for (int i = 0; i < list.length(); i++) {
             JSONObject row = list.optJSONObject(i);
-            if (row == null) continue;
+            if (row == null || row.has("series_id") && !row.isNull("series_id") &&
+                    !seriesId.equals(row.optString("series_id")))
+                throw new IOException("红果 App 分集身份不匹配");
             String vid = row.optString("vid"), rawIndex = row.optString("vid_index");
-            if (!OfficialApiClient.validID(vid) || !rawIndex.matches("[1-9][0-9]{0,3}|10000")) continue;
+            if (!OfficialApiClient.validID(vid) || !rawIndex.matches("[1-9][0-9]{0,3}|10000"))
+                throw new IOException("红果 App 分集编号或集号无效");
             int index = Integer.parseInt(rawIndex);
-            if (!ordered.containsKey(index) && ids.add(vid)) ordered.put(index, new JSONObject().put("index", index)
+            if (ordered.containsKey(index) || !ids.add(vid)) throw new IOException("红果 App 分集编号或集号重复");
+            ordered.put(index, new JSONObject().put("index", index)
                 .put("vid", vid).put("availability", "unknown").put("webAvailable", false));
         }
         for (JSONObject row : ordered.values()) episodes.put(row);
