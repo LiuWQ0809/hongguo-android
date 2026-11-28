@@ -17,6 +17,7 @@ import { useReservations } from './use-reservations.mjs';
 import { JuguoPage, JuguoSettings, useJuguoSettings } from './JuguoDesktop.jsx';
 import { createOfficialSeasonLookup, requestOfficialSeries } from './official-series.mjs';
 import { announcementLink, createAnnouncements } from './announcements.mjs';
+import { LIBRARY_GENRES, libraryGenre, matchesPersonalTitle } from './personal-list.mjs';
 import { completedEpisode, filterHistory, withHistoryHints } from './history-view.mjs';
 import { pickSpatialCandidate, pickInitialControl } from './tv-navigation.mjs';
 
@@ -520,6 +521,7 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onR
   const view = selectedView ?? 'favorites';
   const [historyView, setHistoryView] = useState('all');
   const [keyword, setKeyword] = useState('');
+  const [genre, setGenre] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [edit, setEdit] = useState(null);
@@ -559,9 +561,11 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onR
     const { decorate } = withHistoryHints(library.history || []);
     return (library.history || []).map(decorate);
   }, [library.history]);
-  const query = keyword.trim().toLocaleLowerCase();
+  const query = keyword.trim();
+  const genres = new Set(items.map(libraryGenre));
+  const activeGenre = genres.has(genre) ? genre : '';
   const shown = (view === 'history' ? filterHistory(rows, historyView) : items)
-    .filter(row => String(row.title || '').toLocaleLowerCase().includes(query));
+    .filter(row => matchesPersonalTitle(row.title, query) && (!activeGenre || libraryGenre(row) === activeGenre));
   const visibleIds = shown.map(row => row.seriesId);
   const allSelected = visibleIds.length > 0 && visibleIds.every(id => selection?.includes(id));
   const selectVisible = () => setEdit(previous => ({ ...previous, ids: allSelected
@@ -569,7 +573,7 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onR
   const completedCount = useMemo(() => (library.history || []).filter(row => completedEpisode(row)).length, [library.history]);
   return <>
     <header className="page-heading heading-actions"><h1>追剧与记录</h1><div className="heading-buttons">{view === 'history' && !!(library.history || []).length && <button type="button" className="button" disabled={historyBusy || !!selection} onClick={() => setConfirmClear(true)}>清空记录</button>}<button type="button" className="button" onClick={onAccount}>账号</button></div></header>
-    <div className="section-tabs" role="group" aria-label="我的内容"><button aria-pressed={view === 'favorites'} onClick={() => { setView('favorites'); setEdit(null); setConfirmClear(false); }}><Heart />追剧 ({library.favorites.length})</button><button aria-pressed={view === 'history'} onClick={() => { setView('history'); setEdit(null); setConfirmClear(false); }}><Clock />观看历史 ({library.history.length})</button></div>
+    <div className="section-tabs" role="group" aria-label="我的内容"><button aria-pressed={view === 'favorites'} onClick={() => { setView('favorites'); setGenre(''); setEdit(null); setConfirmClear(false); }}><Heart />追剧 ({library.favorites.length})</button><button aria-pressed={view === 'history'} onClick={() => { setView('history'); setGenre(''); setEdit(null); setConfirmClear(false); }}><Clock />观看历史 ({library.history.length})</button></div>
     {onReservations && <button className="button reservation-entry" type="button" onClick={onReservations}>我的预约<ChevronRight size={16} /></button>}
     {onPlay && (selection || items.length > 0) && <div className="section-tabs" role="group" aria-label="管理当前列表">
       <button type="button" aria-pressed={!!selection} disabled={busy || historyBusy || confirmClear || typeof library.owner !== 'string'}
@@ -589,10 +593,15 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onR
       <input id="library-keyword" type="text" placeholder="搜索当前列表" value={keyword} onChange={event => setKeyword(event.target.value)} />
       {keyword && <button className="button" type="button" onClick={() => setKeyword('')}>清除</button>}
     </div>}
-    {query && !shown.length && !busy && !error && <p className="result-caption" role="status">当前列表没有匹配的短剧。</p>}
+    {onPlay && ([...genres].some(value => value !== '未分类')) && <div className="section-tabs" role="group" aria-label="按剧种筛选">
+      <button type="button" aria-pressed={!activeGenre} onClick={() => setGenre('')}>全部剧种</button>
+      {LIBRARY_GENRES.filter(value => genres.has(value)).map(value => <button type="button" key={value}
+        aria-pressed={activeGenre === value} onClick={() => setGenre(value)}>{value}</button>)}
+    </div>}
+    {(query || activeGenre) && !shown.length && !busy && !error && <p className="result-caption" role="status">当前列表没有匹配的短剧。</p>}
     {library.projection?.[view === 'favorites' ? 'favoritesHasMore' : 'historyHasMore'] && <p className="account-note" role="status">当前展示最近 {items.length} 项；完整记录已保存在账号库，较早剧集的原生播放进度仍保留。</p>}
     {view === 'history' && confirmClear && <div className="search-history-confirm" role="group" aria-label="确认清空观看记录"><p>清空这台设备上的全部观看记录？</p><div><button className="button" type="button" disabled={historyBusy} onClick={clearAll}>{historyBusy ? '正在更新…' : '确认清空'}</button><button className="button" type="button" disabled={historyBusy} onClick={() => setConfirmClear(false)}>取消</button></div></div>}
-    <Status busy={busy} error={error} preserve={!!shown.length} onRetry={onRetry} empty={!query && !shown.length && { title: view === 'favorites' ? '还没有追剧' : historyView === 'completed' ? '还没有看完的短剧' : historyView === 'watching' ? '没有正在观看的短剧' : '还没有观看记录', text: view === 'favorites' ? '打开短剧详情，点击「加入追剧」。' : '播放短剧后，进度会自动记录。' }}><PosterGrid items={shown} onOpen={onOpen} onPlay={onPlay} history={view === 'history'} onDelete={view === 'history' && !selection ? removeRow : undefined} selection={selection} onSelect={selection && !historyBusy ? toggleSelection : selection ? () => {} : undefined} /></Status>
+    <Status busy={busy} error={error} preserve={!!shown.length} onRetry={onRetry} empty={!query && !activeGenre && !shown.length && { title: view === 'favorites' ? '还没有追剧' : historyView === 'completed' ? '还没有看完的短剧' : historyView === 'watching' ? '没有正在观看的短剧' : '还没有观看记录', text: view === 'favorites' ? '打开短剧详情，点击「加入追剧」。' : '播放短剧后，进度会自动记录。' }}><PosterGrid items={shown} onOpen={onOpen} onPlay={onPlay} history={view === 'history'} onDelete={view === 'history' && !selection ? removeRow : undefined} selection={selection} onSelect={selection && !historyBusy ? toggleSelection : selection ? () => {} : undefined} /></Status>
   </>;
 }
 
