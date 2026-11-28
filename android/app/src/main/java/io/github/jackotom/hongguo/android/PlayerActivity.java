@@ -31,6 +31,8 @@ public final class PlayerActivity extends Activity {
     private boolean danmakuEnabled;
     private String danmakuNotice = "弹幕默认关闭，开启后只读匿名时间轴弹幕";
     private final Handler main = new Handler(Looper.getMainLooper());
+    private RecommendationQueue recommendations;
+    private RecommendationPrefetch recommendationPrefetch;
     private final ExecutorService resolver = Executors.newSingleThreadExecutor();
     private Future<?> resolution, prefetch;
     private int prefetchedIndex = -1;
@@ -160,6 +162,11 @@ public final class PlayerActivity extends Activity {
             autoplay = state == null ? getIntent().getBooleanExtra("autoplay", true) : state.getBoolean("autoplay", true);
             cleanup = getIntent().getBooleanExtra("cleanupPlaybackCache", true);
             offline = getIntent().getBooleanExtra("download", false);
+            String recommendationRows = getIntent().getStringExtra(RecommendationQueue.EXTRA);
+            if (!BuildConfig.IS_TV && !offline && recommendationRows != null) {
+                recommendations = new RecommendationQueue(new JSONArray(recommendationRows), series.getString("seriesId"));
+                recommendationPrefetch = new RecommendationPrefetch(main);
+            }
             JSONObject defaults = PlayerOptions.read(this);
             danmakuEnabled = defaults.optBoolean("danmaku", false);
             quality = PlayerOptions.quality(state == null ? getIntent().getStringExtra("quality") == null ? defaults.getString("quality") : getIntent().getStringExtra("quality") : state.getString("quality", defaults.getString("quality")));
@@ -510,12 +517,42 @@ public final class PlayerActivity extends Activity {
         return view.isShown() && view.getGlobalVisibleRect(bounds) && bounds.contains((int) x, (int) y);
     }
     private void switchBySwipe(int delta) {
+        if (recommendations != null) { switchRecommendation(delta); return; }
         if (current + delta >= 0 && current + delta < queue.size()) {
             if (prefetch != null && prefetchedIndex != current + delta) prefetch.cancel(true);
             move(delta);
         }
         else Toast.makeText(this, delta > 0 ? "已经是最后一集" : "已经是第一集", Toast.LENGTH_SHORT).show();
     }
+    private void switchRecommendation(int direction) {
+        if (casting() || castWasActive) {
+            Toast.makeText(this, "结束投屏后可滑动换剧", Toast.LENGTH_SHORT).show(); return;
+        }
+        String target = recommendations.neighbor(direction);
+        if (target == null) {
+            Toast.makeText(this, direction > 0 ? "已到本批推荐末尾" : "已到本批推荐开头", Toast.LENGTH_SHORT).show(); return;
+        }
+        Toast.makeText(this, "正在打开相邻短剧", Toast.LENGTH_SHORT).show();
+        recommendationPrefetch.load(target, this::openRecommendation);
+    }
+    private void openRecommendation(JSONObject detail) {
+        if (!active || destroyed || isFinishing() || isInPictureInPictureMode() || casting() || castWasActive) return;
+        try (UpdateOperationGate.Lease held = UpdateInstallCheckpoint.operation()) {
+            JSONObject owner = LibraryStore.series(detail);
+            JSONArray episodes = detail.getJSONArray("episodes");
+            JSONObject entry = RecommendationQueue.startEpisode(episodes, store.seriesHistory(owner.getString("seriesId")));
+            JSONObject options = new JSONObject().put(RecommendationQueue.EXTRA, recommendations.rows())
+                .put("resolveInPlayer", true).put("autoplay", autoplay).put("cleanupPlaybackCache", cleanup)
+                .put("quality", quality).put("speed", requestedSpeed);
+            Intent next = PlayLauncher.build(this, owner, entry, episodes, null, false, options);
+            UpdateInstallCheckpoint.playerLaunching();
+            startActivity(next.putExtra("fullscreen", fullscreen));
+            finish();
+        } catch (Exception failure) {
+            Toast.makeText(this, "相邻短剧暂未打开，可以再次滑动重试", Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void updateButtons() {
         updatePipControls();
         if (renderCastControls()) return;
@@ -1740,6 +1777,7 @@ public final class PlayerActivity extends Activity {
     }
 
     @Override protected void onPause() {
+        if (recommendationPrefetch != null) recommendationPrefetch.cancel();
         active = isInPictureInPictureMode();
         if (!active) cancelPlaybackWatchdogs();
         if (danmaku != null) danmaku.suspend();
@@ -1763,6 +1801,7 @@ public final class PlayerActivity extends Activity {
     }
     @Override protected void onSaveInstanceState(Bundle state) { savePlaybackState(state); super.onSaveInstanceState(state); }
     @Override protected void onDestroy() {
+        if (recommendationPrefetch != null) recommendationPrefetch.close();
         if (systemBackCleanup != null) systemBackCleanup.run();
         closePipControls();
         if (handedOff) android.util.Log.i("HongguoBackground", "播放器页面已销毁，服务继续持有播放会话");

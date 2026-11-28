@@ -35,4 +35,15 @@ final class RecommendationQueue {
         for (String id : ids) rows.put(new JSONObject().put("seriesId", id));
         return rows;
     }
+
+    static JSONObject startEpisode(JSONArray episodes, JSONObject history) throws JSONException {
+        if (history != null) for (int i = 0; i < episodes.length(); i++) {
+            JSONObject episode = episodes.getJSONObject(i);
+            if (episode.optString("vid").equals(history.optString("vid"))
+                    && episode.optInt("index") == history.optInt("index")) return episode;
+        }
+        JSONObject first = episodes.getJSONObject(0);
+        if (first.getInt("index") != 1) throw new JSONException("推荐短剧首集缺失");
+        return first;
+    }
 }
