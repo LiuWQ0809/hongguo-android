@@ -26,6 +26,7 @@ public final class PlayerActivity extends Activity {
     private String backgroundId;
     private Future<?> seasonLookup;
     private PlaybackCuts cuts = PlaybackCuts.DEFAULT;
+    private boolean screenshotInProgress;
     static boolean hasLivePlayer() { return LIVE_PLAYERS.get() > 0 || BackgroundPlaybackService.isActive(); }
     private DanmakuController danmaku;
     private DanmakuOverlay danmakuOverlay;
@@ -249,6 +250,9 @@ public final class PlayerActivity extends Activity {
             castButton = button("投屏", this::showCastChoices);
             PlayerChrome.icon(castButton, R.drawable.ic_player_cast);
             top.addView(castButton, new LinearLayout.LayoutParams(dp(48), dp(48)));
+            Button screenshot = button("截图", this::takeScreenshot);
+            PlayerChrome.icon(screenshot, R.drawable.ic_player_snapshot);
+            top.addView(screenshot, new LinearLayout.LayoutParams(dp(48), dp(48)));
             fullscreenButton = button("全屏", this::toggleFullscreen);
             PlayerChrome.icon(fullscreenButton, R.drawable.ic_player_fullscreen);
             top.addView(fullscreenButton, new LinearLayout.LayoutParams(dp(48), dp(48)));
@@ -581,6 +585,18 @@ public final class PlayerActivity extends Activity {
         speedButton.setText(BuildConfig.IS_TV ? speedStatus : speedLabel);
         speedButton.setContentDescription(speedStatus);
         updateControlsState();
+    }
+    private void takeScreenshot() {
+        if (screenshotInProgress) return;
+        if (!prepared || casting() || softActive || (getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_SECURE) != 0) {
+            Toast.makeText(this, "当前画面暂不能截图", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        screenshotInProgress = true;
+        NativePlaybackScreenshot.capture(this, video, videoWidth, videoHeight, new Handler(Looper.getMainLooper()), result -> {
+            screenshotInProgress = false;
+            if (!destroyed && !isFinishing()) Toast.makeText(this, result, Toast.LENGTH_SHORT).show();
+        });
     }
     private void recordProgress(JSONObject selectedSeries, JSONObject selectedEpisode, long position) {
         store.history(selectedSeries, selectedEpisode, position, video == null ? 0 : Math.max(0, video.getDuration()));
