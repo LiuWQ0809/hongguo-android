@@ -138,7 +138,10 @@ public final class BackgroundPlaybackService extends Service {
         }
         startForeground(BackgroundPlaybackNotification.ID, BackgroundPlaybackNotification.build(this, session, media));
         if (session == null) stopSelf(startId);
-        else if (player == null && preparing == null && !session.completed) load();
+        else if (player == null && preparing == null) {
+            if (!session.completed) load();
+            else if (!advanceSeason()) park();
+        }
         return START_NOT_STICKY;
     }
     private void load() {
@@ -186,9 +189,45 @@ public final class BackgroundPlaybackService extends Service {
     }
 
     private void completed() {
+        savePosition();
         session.completed = true;
-        if (!session.autoplay || !session.hasNext()) { park(); return; }
-        switchEpisode(1);
+        if (session.autoplay && session.hasNext()) switchEpisode(1);
+        else if (!advanceSeason()) park();
+    }
+
+    private boolean advanceSeason() {
+        BackgroundPlaybackSession before = session;
+        if (BuildConfig.IS_TV || !before.autoplay || before.offline || !SeasonContinuation.atFinale(before.owner(), before.episode())) return false;
+        releaseDecoder();
+        before.advancing = true;
+        acquirePreparationWake();
+        updateMediaState();
+        int token = ++loadGeneration;
+        preparing = resolver.submit(() -> {
+            SeasonContinuation resolved = null;
+            try { resolved = SeasonContinuation.load(this, before.owner(), before.episode()); }
+            catch (Exception ignored) { /* Preserve the completed season when the next directory is unavailable. */ }
+            SeasonContinuation season = resolved;
+            main.post(() -> acceptSeason(before, season, token));
+        });
+        return true;
+    }
+
+    private void acceptSeason(BackgroundPlaybackSession before, SeasonContinuation season, int token) {
+        if (session != before || loadGeneration != token) return;
+        before.advancing = false;
+        preparing = null;
+        if (season == null) { park(); return; }
+        try {
+            BackgroundPlaybackSession next = before.nextSeason(this, season);
+            BackgroundEpisodeSource nextSource = new BackgroundEpisodeSource(this, next);
+            source.close();
+            source = nextSource;
+            session = next;
+            startForeground(BackgroundPlaybackNotification.ID, BackgroundPlaybackNotification.build(this, next, media));
+            updateMediaState();
+            load();
+        } catch (Exception unavailable) { park(); }
     }
 
     private void switchEpisode(int delta) {
@@ -201,7 +240,7 @@ public final class BackgroundPlaybackService extends Service {
         releaseDecoder();
         session.index = next;
         session.position = 0;
-        session.completed = false;
+        session.completed = session.advancing = false;
         source.select(next);
         startForeground(BackgroundPlaybackNotification.ID, BackgroundPlaybackNotification.build(this, session, media));
         updateMediaState();
@@ -222,7 +261,7 @@ public final class BackgroundPlaybackService extends Service {
     }
 
     private void setPaused(boolean paused) {
-        if (session == null || session.completed || session.paused == paused) return;
+        if (session == null || session.completed && !session.advancing || session.paused == paused) return;
         session.paused = paused;
         if (ready) { if (paused) player.pause(); else player.start(); }
         savePosition();
@@ -234,7 +273,7 @@ public final class BackgroundPlaybackService extends Service {
         if (media == null || session == null) return;
         String title = session.owner().optString("title") + " · 第 " + session.episode().optInt("index") + " 集";
         media.setMetadata(new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE, title).build());
-        int state = session.completed ? PlaybackState.STATE_STOPPED : session.paused ? PlaybackState.STATE_PAUSED
+        int state = session.paused ? PlaybackState.STATE_PAUSED : session.advancing ? PlaybackState.STATE_BUFFERING : session.completed ? PlaybackState.STATE_STOPPED
             : ready ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_BUFFERING;
         long actions = PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_STOP;
         if (session.index > 0) actions |= PlaybackState.ACTION_SKIP_TO_PREVIOUS;
@@ -245,9 +284,9 @@ public final class BackgroundPlaybackService extends Service {
     }
 
     private void savePosition() {
-        if (!ready || session == null) return;
+        if (!ready || session == null || session.completed) return;
         try {
-            session.position = session.completed ? 0 : Math.max(0, player.getCurrentPosition());
+            session.position = Math.max(0, player.getCurrentPosition());
             store.history(session.owner(), session.episode(), session.position, player.getDuration());
         } catch (IllegalStateException invalidDecoder) {
             // Preserve the previous checkpoint after the decoder reports an error.
