@@ -314,6 +314,9 @@ public final class PlayerActivity extends Activity {
             PlayerChrome.icon(danmakuButton, R.drawable.ic_player_danmaku);
             PlayerChrome.text(qualityButton);
             PlayerChrome.text(speedButton);
+            Button picture = button("画面与解码", this::showPicture);
+            PlayerChrome.icon(picture, R.drawable.ic_player_picture);
+            actions.addView(picture, new LinearLayout.LayoutParams(0, dp(50), 1));
         }
         updateDanmakuButton();
         root.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
@@ -1316,6 +1319,27 @@ public final class PlayerActivity extends Activity {
             main.post(() -> { if (!destroyed && !softActive) playbackError(softToken, message + "；原错误：" + lastMediaError); });
         }
     };
+    private void showPicture() {
+        if (casting() || castWasActive) {
+            Toast.makeText(this, "结束投屏后可调节本机画面", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        var before = PlaybackPicture.read(this);
+        String decoder = decoderMode();
+        showPlayerDialog(PlaybackPictureDialog.create(this, before, decoder, (picture, mode) -> {
+            try {
+                if (before.equals(picture) && decoder.equals(mode)) return;
+                picture.save(this);
+                try { PlayerOptions.update(this, new JSONObject().put("decoder", mode)); }
+                catch (Exception failure) { before.save(this); throw failure; }
+                int position = prepared ? Math.max(lastGoodPosition, video.getCurrentPosition()) : resumeAt;
+                loadAt(current, null, position, userPaused || completed);
+            } catch (Exception failure) {
+                Toast.makeText(this, "画面与解码设置未保存，当前播放保持", Toast.LENGTH_SHORT).show();
+            }
+        }));
+    }
+
     private void applyDanmakuAppearance() {
         var preferences = getSharedPreferences("danmaku_appearance_v1", MODE_PRIVATE);
         danmakuOverlay.appearance(preferences.getInt("density", 1), preferences.getInt("edge", 0),
