@@ -7,13 +7,14 @@ import android.media.PlaybackParams;
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 /** A single native preference source shared by the settings bridge and every player. */
 final class PlayerOptions {
     private static final String FILE = "player_options";
-    static final float[] SPEEDS = { .75f, 1f, 1.25f, 1.5f, 2f };
+    static final float[] SPEEDS = { .75f, 1f, 1.1f, 1.2f, 1.25f, 1.3f, 1.4f, 1.5f, 1.6f, 1.7f, 1.8f, 1.9f, 2f };
     private static final Map<MediaPlayer, Float> confirmedSpeeds = Collections.synchronizedMap(new WeakHashMap<>());
     private PlayerOptions() { }
     private static SharedPreferences preferences(Context context) {
@@ -32,7 +33,7 @@ final class PlayerOptions {
     }
     static float speed(double input) {
         for (float value : SPEEDS) if (Double.isFinite(input) && Math.abs(input - value) < .00001) return value;
-        throw new IllegalArgumentException("倍速仅支持 0.75、1、1.25、1.5 或 2");
+        throw new IllegalArgumentException("请选择支持的倍速档位");
     }
     static void validateSpeed(double input) { speed(input); }
     static float observedSpeed(MediaPlayer player) {
@@ -73,6 +74,13 @@ final class PlayerOptions {
             throw new IllegalStateException("设备未接受此倍速", error);
         }
     }
+    private static JSONObject options(String quality, float rate, boolean danmaku, String decoder) throws JSONException {
+        JSONArray supportedSpeeds = new JSONArray();
+        for (float value : SPEEDS) supportedSpeeds.put(Double.parseDouble(Float.toString(value)));
+        // A widened float would fail to match a decimal HTML option such as 1.3.
+        return new JSONObject().put("quality", quality).put("speed", Double.parseDouble(Float.toString(rate)))
+                .put("danmaku", danmaku).put("decoder", decoder).put("supportedSpeeds", supportedSpeeds);
+    }
     static synchronized JSONObject read(Context context) throws JSONException {
         SharedPreferences prefs = preferences(context);
         String selected = "auto"; float rate = 1f; boolean danmaku = false; String decoder = "auto";
@@ -80,7 +88,7 @@ final class PlayerOptions {
         try { rate = speed(Double.parseDouble(prefs.getString("speed", "1.0"))); } catch (RuntimeException ignored) { }
         try { danmaku = "true".equals(prefs.getString("danmaku", "false")); } catch (RuntimeException ignored) { }
         try { decoder = decoder(prefs.getString("decoder", "auto")); } catch (RuntimeException ignored) { }
-        return new JSONObject().put("quality", selected).put("speed", (double) rate).put("danmaku", danmaku).put("decoder", decoder);
+        return options(selected, rate, danmaku, decoder);
     }
     /** Validate the whole update before committing either field. A failed commit is not success. */
     static synchronized JSONObject update(Context context, JSONObject changes) throws Exception {
@@ -115,6 +123,6 @@ final class PlayerOptions {
             if (!committed) try { prefs.edit().putString("quality", prior.getString("quality")).putString("speed", Float.toString((float) prior.getDouble("speed"))).putString("danmaku", prior.getBoolean("danmaku") ? "true" : "false").putString("decoder", prior.getString("decoder")).commit(); } catch (RuntimeException ignored) { }
         }
         if (!committed) throw new IllegalStateException("播放设置保存未成功");
-        return new JSONObject().put("quality", selected).put("speed", (double) rate).put("danmaku", danmaku).put("decoder", decoder);
+        return options(selected, rate, danmaku, decoder);
     }
 }

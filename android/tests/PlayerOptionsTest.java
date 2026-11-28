@@ -49,10 +49,14 @@ public final class PlayerOptionsTest {
             check(q.equals(value.getString("quality")), "quality returned only after commit");
             check(q.equals(PlayerOptions.read(new MemoryContext(prefs)).getString("quality")), "quality survives new context");
         }
-        for (float speed : PlayerOptions.SPEEDS) {
+        double[] rates={.75,1,1.1,1.2,1.25,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2};
+        check(defaults.getJSONArray("supportedSpeeds").length()==rates.length,"all advertised rate entries");
+        for (int index=0; index<rates.length; index++) {
+            double speed=rates[index];
             PlayerOptions.validateSpeed(speed);
-            JSONObject value=PlayerOptions.update(app,new JSONObject().put("speed",(double)speed));
-            check(value.getDouble("speed")==speed, "supported numeric speed");
+            JSONObject value=PlayerOptions.update(app,new JSONObject().put("speed",speed));
+            check(value.getJSONArray("supportedSpeeds").getDouble(index)==speed,"advertised rate has exact decimal value");
+            check(value.getDouble("speed")==speed, "supported numeric speed uses exact decimal");
             check(PlayerOptions.read(new MemoryContext(prefs)).getDouble("speed")==speed, "speed survives new activity");
             check(PlayerOptions.read(app).getString("quality").equals("1080p"), "partial speed preserves quality");
         }
@@ -61,7 +65,7 @@ public final class PlayerOptionsTest {
             rejects(()->PlayerOptions.update(app,new JSONObject().put("quality",bad)), "invalid quality accepted");
             check(before.equals(PlayerOptions.read(app).toString()) && commits==prefs.commits, "validation atomic before write");
         }
-        for (Object bad : new Object[]{JSONObject.NULL, true, "1.5", 0, -1, 3, .5, 1.2, new JSONObject()}) {
+        for (Object bad : new Object[]{JSONObject.NULL, true, "1.5", 0, -1, 3, .5, 1.05, 1.35, 2.01, new JSONObject()}) {
             String before=PlayerOptions.read(app).toString();
             rejects(()->PlayerOptions.update(app,new JSONObject().put("quality","720p").put("speed",bad)), "invalid speed accepted");
             check(before.equals(PlayerOptions.read(app).toString()), "invalid speed does not partly change quality");

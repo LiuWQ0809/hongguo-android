@@ -1322,7 +1322,7 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLib
   }, [selectionGuard]);
   useEffect(() => {
     let current = true;
-    const refresh = () => { const version = mediaVersion.current; return nativeCall('getPlaybackOptions').then(value => { if (current && version === mediaVersion.current && value?.quality && Number.isFinite(Number(value.speed))) setMediaOptions({ quality: value.quality, speed: Number(value.speed) }); }).catch(error => { if (current && version === mediaVersion.current) setMediaError(errorText(error)); }); };
+    const refresh = () => { const version = mediaVersion.current; return nativeCall('getPlaybackOptions').then(value => { if (current && version === mediaVersion.current && value?.quality && Number.isFinite(Number(value.speed))) setMediaOptions({ ...value, speed: Number(value.speed) }); }).catch(error => { if (current && version === mediaVersion.current) setMediaError(errorText(error)); }); };
     refresh(); window.addEventListener('androidresume', refresh);
     return () => { current = false; window.removeEventListener('androidresume', refresh); };
   }, []);
@@ -1332,7 +1332,7 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLib
     // an episode after a new quality/speed choice (or overwrite that choice).
     if (!dispatchedPlay.current && activeOperation.current?.action === 'play') { activeOperation.current = null; setOperation(null); }
     setMediaBusy(true); setMediaError('');
-    try { const options = await nativeCall('setPlaybackOptions', { [key]: value }); if (mounted.current && version === mediaVersion.current && options?.quality && Number.isFinite(Number(options.speed))) setMediaOptions({ quality: options.quality, speed: Number(options.speed) }); }
+    try { const options = await nativeCall('setPlaybackOptions', { [key]: value }); if (mounted.current && version === mediaVersion.current && options?.quality && Number.isFinite(Number(options.speed))) setMediaOptions({ ...options, speed: Number(options.speed) }); }
     catch (error) { if (mounted.current && version === mediaVersion.current) setMediaError(errorText(error)); }
     finally { if (mounted.current && version === mediaVersion.current) setMediaBusy(false); }
   };
@@ -1581,7 +1581,7 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLib
       <details className="detail-settings" open={isTv ? true : undefined}><summary>播放设置<ChevronRight size={16} /></summary>
       <section className="playback-settings" aria-label="清晰度与倍速">
         <div className="playback-setting"><div><h2>清晰度</h2><p>播放失败时自动尝试较低清晰度，缓存仍按所选清晰度。</p></div><select aria-label="清晰度" value={mediaOptions.quality} disabled={!!operation || mediaBusy} onChange={event => changeMediaOption('quality', event.target.value)}><option value="auto">自动</option><option value="720p">720p 及以上</option><option value="1080p">1080p 及以上</option><option value="2160p">4K（片源和设备须支持）</option></select></div>
-        <div className="playback-setting"><div><h2>播放倍速</h2><p>仅影响播放，不改变缓存文件。</p></div><select aria-label="播放倍速" value={mediaOptions.speed} disabled={!!operation || mediaBusy} onChange={event => changeMediaOption('speed', Number(event.target.value))}>{[0.75, 1, 1.25, 1.5, 2].map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></div>
+        <div className="playback-setting"><div><h2>播放倍速</h2><p>仅影响播放，不改变缓存文件。</p></div><select aria-label="播放倍速" value={mediaOptions.speed} disabled={!!operation || mediaBusy} onChange={event => changeMediaOption('speed', Number(event.target.value))}>{(mediaOptions.supportedSpeeds || [0.75, 1, 1.25, 1.5, 2]).map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></div>
         {mediaError && <p className="text-error" role="alert">{mediaError}</p>}
       </section>
       <section className="playback-settings" aria-label="播放设置">{isTv && <AutoplaySetting enabled={preferences.autoplay} onChange={() => changePreference('autoplay')} disabled={!!operation} />}<div className="playback-setting"><div><h2>清理已看播放缓存</h2><p>保留当前集和前一集，手动下载不受影响。</p></div><button className="setting-switch" type="button" role="switch" aria-checked={preferences.cleanupPlaybackCache} aria-label="清理已看播放缓存" disabled={!!operation} onClick={() => changePreference('cleanupPlaybackCache')}>{preferences.cleanupPlaybackCache ? '开启' : '关闭'}</button></div></section>
