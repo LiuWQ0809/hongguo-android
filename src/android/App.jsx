@@ -12,6 +12,7 @@ import UpdatePanel from './UpdatePanel.jsx';
 import Actors from './Actors.jsx';
 import MiniPlayer, { useMiniPlayer } from './MiniPlayer.jsx';
 import PlaybackCutsSettings from './PlaybackCutsSettings.jsx';
+import PhoneNavigationSettings, { readPhoneNavigation, storePhoneNavigation } from './PhoneNavigationSettings.jsx';
 import { ReservedDetail, ReservationsPage } from './Reservations.jsx';
 import CalendarBrowser from './CalendarBrowser.jsx';
 import BrowsePage from './BrowsePage.jsx';
@@ -42,6 +43,8 @@ const PHONE_NAV = [
   { id: 'discover', label: '首页', Icon: Home },
   { id: 'library', label: '追剧', Icon: Bookmark },
   { id: 'about', label: '我的', Icon: User },
+  { id: 'reservations', label: '预约', Icon: Bell },
+  { id: 'downloads', label: '下载', Icon: Download },
 ];
 const errorText = (error) => error?.message || String(error || '请求未完成，请重试。');
 // Native network errors sometimes contain the DNS/CDN peer rather than an
@@ -945,7 +948,7 @@ function AutoplaySetting({ enabled, onChange, disabled }) {
   </div>;
 }
 
-function About({ info, notify, accountFocus, announcementsRef, juguoSettings, onDownloads, onReservations, onHistory, appearance, setAppearance, nativePhone }) {
+function About({ info, notify, accountFocus, announcementsRef, juguoSettings, onDownloads, onReservations, onHistory, appearance, setAppearance, nativePhone, phoneOrder, changePhoneOrder }) {
   const [cache, setCache] = useState({ busy: true });
   const [clearing, setClearing] = useState(false);
   const [autoplay, setAutoplay] = useState(() => getPlaybackPreferences().autoplay);
@@ -993,6 +996,7 @@ function About({ info, notify, accountFocus, announcementsRef, juguoSettings, on
       <AutoplaySetting enabled={autoplay} onChange={() => setAutoplay(setPlaybackPreference('autoplay', !autoplay).autoplay)} />
     </section>}
     {nativePhone && <PlaybackCutsSettings notify={notify} />}
+    {nativePhone && <PhoneNavigationSettings order={phoneOrder} change={changePhoneOrder} />}
     <AccountPanel isTv={!!info.isTv} focusRequest={accountFocus} />
     <AnnouncementSettings announcementsRef={announcementsRef} notify={notify} />
     {juguoSettings && <JuguoSettings config={juguoSettings} />}
@@ -1801,6 +1805,11 @@ export default function App() {
   const replaceLibrary = useCallback(value => { libraryReadEpoch.current++; setLibrary(value); setLibraryBusy(false); }, []);
   const notify = useCallback((text) => { setNotice(text); clearTimeout(noticeTimer.current); noticeTimer.current = setTimeout(() => setNotice(''), 4500); }, []);
   const miniPlayer = useMiniPlayer(androidPackage && !info.isTv, notify);
+  const [phoneOrder, setPhoneOrder] = useState(readPhoneNavigation);
+  const changePhoneOrder = order => {
+    try { storePhoneNavigation(order); setPhoneOrder(order); }
+    catch (_) { notify('底栏设置未保存，请重试。'); }
+  };
   const [announcement, setAnnouncement] = useState(null);
   const announcements = useRef(null);
   // Remote announcements: startup check plus a five-minute emergency watch, once the
@@ -1895,9 +1904,12 @@ export default function App() {
       delete window.__androidOpenShareLink;
     };
   }, [detail, tab, actorQuery, closeDetail, info.isTv, notify]);
-  const navigation = info.isTv ? NAV : PHONE_NAV;
+  const navigation = info.isTv ? NAV : (androidPackage ? phoneOrder : ['discover', 'library', 'about'])
+    .filter(id => id !== 'reservations' || reservationEnabled).map(id => PHONE_NAV.find(item => item.id === id));
   const navItems = juguoEnabled ? [navigation[0], { id: 'juguo', label: '剧果', Icon: Film }, ...navigation.slice(1)] : navigation;
-  const currentTab = tab === 'reservations' ? 'library' : !info.isTv && tab === 'downloads' ? 'about' : !info.isTv && ['search', 'actors'].includes(tab) ? 'discover' : tab;
+  const currentTab = !info.isTv && ['search', 'actors'].includes(tab) ? 'discover'
+    : tab === 'reservations' && !navigation.some(item => item.id === tab) ? (navigation.some(item => item.id === 'library') ? 'library' : 'about')
+    : tab === 'downloads' && !navigation.some(item => item.id === tab) ? 'about' : tab;
   const searchInHeader = !info.isTv && !detail && tab === 'discover';
   const resumeRow = !miniPlayer.session && !info.isTv && !detail && tab !== 'discover' && library.history.find(row =>
     row.vid && row.positionMs > 0 && !isRetiredSeriesId(row.seriesId) && !completedEpisode(row));
@@ -1926,7 +1938,7 @@ export default function App() {
         {tab === 'library' && <Library library={library} error={libraryError} busy={libraryBusy} onRetry={loadLibrary} onOpen={openDetail} onPlay={openPlayback} onAccount={() => { navigate('about'); setAccountFocus(value => value + 1); }} onReservations={reservationEnabled ? () => navigate('reservations') : undefined} onLibrary={replaceLibrary} notify={notify} startView={libraryStart} />}
         {tab === 'reservations' && reservationEnabled && <ReservationsPage reservations={reservations} onBack={() => navigate('library')} onOpen={openDetail} onPlay={openPlayback} />}
         {tab === 'downloads' && !detail && <Downloads notify={notify} onBack={info.isTv ? undefined : () => navigate('about')} />}
-        {tab === 'about' && <About info={info} notify={notify} nativePhone={reservationEnabled} accountFocus={accountFocus} announcementsRef={announcements} juguoSettings={juguoApi && juguoSettings}
+        {tab === 'about' && <About info={info} notify={notify} nativePhone={reservationEnabled} phoneOrder={phoneOrder} changePhoneOrder={changePhoneOrder} accountFocus={accountFocus} announcementsRef={announcements} juguoSettings={juguoApi && juguoSettings}
           appearance={appearance} setAppearance={setAppearance} onDownloads={info.isTv ? undefined : () => navigate('downloads')}
           onReservations={reservationEnabled ? () => navigate('reservations') : undefined} onHistory={() => navigate('library', 'history')} />}
       </div>
