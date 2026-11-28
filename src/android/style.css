@@ -498,8 +498,9 @@
   background: var(--bg);
   color: var(--text);
 }
-@media (prefers-color-scheme: dark) {
-  .android-ui-polish {
+.android-ui-polish { color-scheme: light; }
+.android-ui-polish[data-appearance="dark"] {
+  color-scheme: dark;
     --bg: #171615;
     --surface: #22201e;
     --inset: #2b2825;
@@ -516,7 +517,6 @@
     --accent-border: #7c4647;
     --error: #ffa59f;
     --ring: #ffc2bd;
-  }
 }
 .android-ui-polish .content-shell,
 .android-ui-polish .main-content { background: var(--bg); }

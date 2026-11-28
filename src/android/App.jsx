@@ -840,7 +840,7 @@ function AutoplaySetting({ enabled, onChange, disabled }) {
   </div>;
 }
 
-function About({ info, notify, accountFocus, announcementsRef, juguoSettings, onDownloads, onReservations, onHistory }) {
+function About({ info, notify, accountFocus, announcementsRef, juguoSettings, onDownloads, onReservations, onHistory, appearance, setAppearance }) {
   const [cache, setCache] = useState({ busy: true });
   const [clearing, setClearing] = useState(false);
   const [autoplay, setAutoplay] = useState(() => getPlaybackPreferences().autoplay);
@@ -877,6 +877,13 @@ function About({ info, notify, accountFocus, announcementsRef, juguoSettings, on
       <button className="button" onClick={onDownloads}><Download />离线下载</button>
     </nav>}
     <UpdatePanel />
+    {!info.isTv && <section className="about-section appearance-settings">
+      <h2>外观</h2>
+      <div className="section-tabs" role="group" aria-label="外观模式">
+        {Object.entries(APPEARANCE).map(([mode, label]) => <button key={mode} aria-pressed={appearance === mode}
+          onClick={() => setAppearance(mode)}>{label}</button>)}
+      </div>
+    </section>}
     {!info.isTv && <section className="about-section playback-settings" aria-label="播放设置">
       <AutoplaySetting enabled={autoplay} onChange={() => setAutoplay(setPlaybackPreference('autoplay', !autoplay).autoplay)} />
     </section>}
@@ -1604,7 +1611,34 @@ const readSession = () => {
   } catch { return null; }
 };
 
+const APPEARANCE = { system: '跟随系统', light: '浅色', dark: '深色' };
+const APPEARANCE_KEY = 'hongguo:appearance:v1';
+
+function useAppearance() {
+  const [appearance, choose] = useState(() => {
+    try {
+      const saved = localStorage.getItem(APPEARANCE_KEY);
+      if (Object.hasOwn(APPEARANCE, saved)) return saved;
+    } catch {}
+    return 'system';
+  });
+  const setAppearance = mode => {
+    choose(mode);
+    try { localStorage.setItem(APPEARANCE_KEY, mode); } catch {}
+  };
+  return [appearance, setAppearance];
+}
+
 export default function App() {
+  const [appearance, setAppearance] = useAppearance();
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const changed = ({ matches }) => setSystemDark(matches);
+    media.addEventListener('change', changed);
+    return () => media.removeEventListener('change', changed);
+  }, []);
+  const colorScheme = appearance === 'system' ? (systemDark ? 'dark' : 'light') : appearance;
   const restored = PROCESS_RESTORED ? readSession() : null;
   const [tab, setTab] = useState(() => restored?.tab || 'discover');
   const [detail, setDetail] = useState(null);
@@ -1726,7 +1760,7 @@ export default function App() {
   const searchInHeader = !info.isTv && !detail && tab === 'discover';
   const resumeRow = !info.isTv && !detail && tab !== 'discover' && library.history.find(row =>
     row.vid && row.positionMs > 0 && !isRetiredSeriesId(row.seriesId) && !completedEpisode(row));
-  return <div className={`android-app ${info.isTv ? 'tv-layout' : 'phone-layout'}${polishUi ? ' android-ui-polish' : ''}`}>
+  return <div data-appearance={colorScheme} className={`android-app ${info.isTv ? 'tv-layout' : 'phone-layout'}${polishUi ? ' android-ui-polish' : ''}`}>
     <nav className="app-nav" aria-label="主要导航"><div className="nav-brand"><span><Play size={21} /></span><strong>红果短剧</strong></div><div className="nav-items">{navItems.map(({ id, label, Icon }) => <button key={id} aria-current={!detail && currentTab === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={22} /><span>{label === '我的追剧' ? <><span className="nav-word">我的</span><span className="nav-word">追剧</span></> : label}</span></button>)}</div>{info.isTv && <p className="nav-version">遥控器方向键选择<br />v{info.version || '—'}</p>}</nav>
     <div className="content-shell"><div className="phone-brand"><span><Play size={18} /></span>{searchInHeader ? <button type="button" className="home-search" onClick={() => navigate('search')}><Search size={18} /><span>搜索短剧名称</span></button>
       : <strong>红果短剧</strong>}{!detail && !searchInHeader && tab !== 'search' && <button className="brand-search" type="button" aria-label="搜索短剧" onClick={() => navigate('search')}><Search size={20} /></button>}</div>{infoError && <div className="environment-error" role="alert"><span>{infoError}</span><button onClick={loadInfo}>重试连接</button></div>}<main ref={content} className={`main-content${detail ? ' detail-open' : ''}`} id="main-content" data-page={detail ? 'detail' : tab}>
@@ -1746,7 +1780,7 @@ export default function App() {
         {tab === 'reservations' && reservationEnabled && <ReservationsPage reservations={reservations} onBack={() => navigate('library')} onOpen={openDetail} onPlay={openPlayback} />}
         {tab === 'downloads' && !detail && <Downloads notify={notify} onBack={info.isTv ? undefined : () => navigate('about')} />}
         {tab === 'about' && <About info={info} notify={notify} accountFocus={accountFocus} announcementsRef={announcements} juguoSettings={juguoApi && juguoSettings}
-          onDownloads={info.isTv ? undefined : () => navigate('downloads')}
+          appearance={appearance} setAppearance={setAppearance} onDownloads={info.isTv ? undefined : () => navigate('downloads')}
           onReservations={reservationEnabled ? () => navigate('reservations') : undefined} onHistory={() => navigate('library', 'history')} />}
       </div>
     </main></div>{notice && <div className="toast" role="status">{notice}</div>}
