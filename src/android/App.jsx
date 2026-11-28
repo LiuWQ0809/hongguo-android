@@ -107,7 +107,7 @@ function useNativeCover(url) {
   return decoded?.url === url ? decoded.src : '';
 }
 
-function Poster({ item, onOpen, onPlay, history, onDelete }) {
+function Poster({ item, onOpen, onPlay, history, onDelete, onSelect, selected }) {
   const [failed, setFailed] = useState(false);
   const cover = !item.sourceId && isRetiredSeriesId(item.seriesId) ? '' : item.coverUrl;
   const [src, setSrc] = useState(cover);
@@ -140,16 +140,17 @@ function Poster({ item, onOpen, onPlay, history, onDelete }) {
     }, 8000);
     return () => clearTimeout(timer);
   }, [nearby, src, failed, coverError]);
-  const play = onPlay && !item.upcoming && !isRetiredSeriesId(item.seriesId) && onPlay;
-  const open = () => (play || onOpen)(item, history?.vid);
-  const label = play ? (history ? "继续观看" : "播放") : "打开";
+  const play = !onSelect && onPlay && !item.upcoming && !isRetiredSeriesId(item.seriesId) && onPlay;
+  const open = () => onSelect ? onSelect(item) : (play || onOpen)(item, history?.vid);
+  const label = onSelect ? "选择" : play ? (history ? "继续观看" : "播放") : "打开";
   // 卡片可携带删除入口：外层用可聚焦 div（避免按钮嵌套），删除键独立成按钮并阻断冒泡。
-  const card = <div className="poster" role="button" tabIndex={0} aria-label={`${label}${item.title}`}
+  const card = <div className="poster" role="button" tabIndex={0} aria-label={`${label}${item.title}`} aria-pressed={onSelect ? selected : undefined}
     onClick={event => { if (event.target.closest('.poster-delete')) return; open(); }}
     onKeyDown={event => { if ((event.key !== 'Enter' && event.key !== ' ') || event.target.closest('.poster-delete')) return; event.preventDefault(); open(); }}>
     <span className="poster-art" ref={artRef}>
       {decoded ? <img src={decoded} alt="" /> : !src || failed ? <span className="poster-fallback"><Film size={32} /><span>暂无封面</span></span>
         : nearby ? <img ref={imageRef} src={src} alt="" onError={coverError} /> : null}
+      {onSelect && <span className="poster-selection" aria-hidden="true">{selected ? "✓" : "○"}</span>}
       {!!item.rank && <span className="poster-rank" aria-label={`第 ${item.rank} 名`}>{item.rank}</span>}
       {item.episodeLabel || item.episodeCount ? <span className="poster-label">{item.episodeLabel || `${item.episodeCount} 集`}</span> : null}
       {onDelete ? <button type="button" className="poster-delete" onClick={event => { event.stopPropagation(); onDelete(item); }} aria-label={`删除${item.title}的观看记录`}>×</button> : null}
@@ -166,8 +167,8 @@ function Poster({ item, onOpen, onPlay, history, onDelete }) {
   </div> : card;
 }
 
-function PosterGrid({ items, onOpen, onPlay, history = false, onDelete }) {
-  return <div className="poster-grid">{items.map((item, index) => <Poster key={`${item.seriesId}-${index}`} item={item} onOpen={onOpen} onPlay={onPlay} history={history ? item : null} onDelete={onDelete} />)}</div>;
+function PosterGrid({ items, onOpen, onPlay, history = false, onDelete, selection, onSelect }) {
+  return <div className="poster-grid">{items.map((item, index) => <Poster key={`${item.seriesId}-${index}`} item={item} onOpen={onOpen} onPlay={onPlay} history={history ? item : null} onDelete={onDelete} onSelect={onSelect} selected={selection?.includes(item.seriesId)} />)}</div>;
 }
 
 function RankingPage({ rank, onOpen, onPlay }) {
