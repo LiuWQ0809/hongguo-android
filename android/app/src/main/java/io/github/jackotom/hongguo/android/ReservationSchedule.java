@@ -20,10 +20,11 @@ final class ReservationSchedule {
             long limit = System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(30);
             for (int i = 0; i < rows.length(); i++) {
                 JSONObject row = rows.getJSONObject(i);
-                if (!row.optBoolean("online")) {
+                if (!row.optBoolean("online") || row.optBoolean("follow")) {
                     pending = true;
                     due |= row.optLong("checkedAt") <= limit;
-                } else waitingNotice |= !row.optBoolean("notified");
+                }
+                waitingNotice |= row.optBoolean("online") && !row.optBoolean("notified");
             }
             JobScheduler scheduler = context.getSystemService(JobScheduler.class);
             ComponentName job = new ComponentName(context, ReservationJob.class);

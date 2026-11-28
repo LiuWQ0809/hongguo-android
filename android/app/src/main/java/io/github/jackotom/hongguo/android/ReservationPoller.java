@@ -20,7 +20,7 @@ final class ReservationPoller {
             ArrayList<JSONObject> pending = new ArrayList<>();
             for (int i = 0; i < rows.length(); i++) {
                 JSONObject row = rows.getJSONObject(i);
-                if (!row.optBoolean("online")) pending.add(row);
+                if (row.optBoolean("follow") || !row.optBoolean("online")) pending.add(row);
             }
             pending.sort(Comparator.comparingLong(row -> row.optLong("checkedAt")));
             boolean complete = true;
@@ -29,16 +29,26 @@ final class ReservationPoller {
                 if (Thread.currentThread().isInterrupted()) return false;
                 if (System.nanoTime() >= deadline) { complete = false; break; }
                 boolean online = false;
-                try { online = ReservationStatus.published(row.getString("seriesId"),
-                    Math.min(deadline, System.nanoTime() + TimeUnit.SECONDS.toNanos(11))); }
+                int latest = 0;
+                long itemDeadline = Math.min(deadline, System.nanoTime() + TimeUnit.SECONDS.toNanos(11));
+                try {
+                    if (row.optBoolean("follow")) latest = latestEpisode(row.getString("seriesId"), itemDeadline);
+                    else online = ReservationStatus.published(row.getString("seriesId"), itemDeadline);
+                }
                 catch (Exception unavailable) { complete = false; }
                 if (Thread.currentThread().isInterrupted()) return false;
-                store.checked(row, online);
+                store.checked(row, online, latest);
             }
             store.notifyReady(row -> ReservationNotifications.post(context, row));
             return complete && pending.size() <= BATCH;
         } finally {
             RUNNING.unlock();
         }
+    }
+
+    private static int latestEpisode(String seriesId, long deadline) throws Exception {
+        JSONArray episodes = NativeSeriesDetail.fetch(seriesId, deadline).getJSONArray("episodes");
+        JSONObject last = episodes.getJSONObject(episodes.length() - 1);
+        return last.getInt("index");
     }
 }
