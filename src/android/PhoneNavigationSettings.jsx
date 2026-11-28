@@ -9,7 +9,7 @@ export function readPhoneNavigation() {
   try {
     const value = JSON.parse(localStorage.getItem(KEY) || 'null');
     if (Array.isArray(value) && value.length <= 5 && value.includes('discover') && value.includes('about')
-        && value.every(id => typeof id === 'string' && Object.hasOwnProperty.call(LABELS, id))
+        && value.every(id => typeof id === 'string' && Object.prototype.hasOwnProperty.call(LABELS, id))
         && new Set(value).size === value.length) return value;
   } catch (_) { /* Stored preferences may predate this release. */ }
   return DEFAULT;
@@ -18,7 +18,7 @@ export function readPhoneNavigation() {
 export function storePhoneNavigation(order) { localStorage.setItem(KEY, JSON.stringify(order)); }
 
 export default function PhoneNavigationSettings({ order, change }) {
-  const toggle = id => change(order.includes(id) ? order.filter(item => item !== id) : [...order.slice(0, -1), id, order.at(-1)]);
+  const toggle = id => change(order.includes(id) ? order.filter(item => item !== id) : [...order.slice(0, -1), id, order[order.length - 1]]);
   const move = (index, delta) => {
     const next = order.slice();
     [next[index], next[index + delta]] = [next[index + delta], next[index]];

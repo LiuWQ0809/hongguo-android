@@ -957,6 +957,10 @@
 .mini-title strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mini-title small { display: block; color: var(--muted); }
 .mini-previous { transform: rotate(180deg); }
+.settings-index { margin-bottom: 14px; }
+.settings-index .about-links { margin-top: 8px; }
+.about-section:focus-visible, .about-section h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.playback-setting input[type="number"] { width: 90px; min-height: 44px; padding: 8px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); }
 .resume-shortcut>span>span {
   color: var(--muted); font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }

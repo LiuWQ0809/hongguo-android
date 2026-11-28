@@ -13,6 +13,7 @@ import Actors from './Actors.jsx';
 import MiniPlayer, { useMiniPlayer } from './MiniPlayer.jsx';
 import PlaybackCutsSettings from './PlaybackCutsSettings.jsx';
 import PhoneNavigationSettings, { readPhoneNavigation, storePhoneNavigation } from './PhoneNavigationSettings.jsx';
+import SettingsSearch from './SettingsSearch.jsx';
 import { ReservedDetail, ReservationsPage } from './Reservations.jsx';
 import CalendarBrowser from './CalendarBrowser.jsx';
 import BrowsePage from './BrowsePage.jsx';
@@ -979,20 +980,21 @@ function About({ info, notify, accountFocus, announcementsRef, juguoSettings, on
     <header className="page-heading heading-actions">
       <h1>{onDownloads ? '我的' : '关于红果短剧'}</h1>
     </header>
+    {nativePhone && <SettingsSearch />}
     {onDownloads && <nav className="profile-shortcuts" aria-label="我的常用入口">
       <button className="button" onClick={onHistory}><Clock />浏览历史</button>
       {onReservations && <button className="button" onClick={onReservations}><Bookmark />预约与追更</button>}
       <button className="button" onClick={onDownloads}><Download />离线下载</button>
     </nav>}
     <UpdatePanel />
-    {!info.isTv && <section className="about-section appearance-settings">
+    {!info.isTv && <section className="about-section appearance-settings" id="settings-appearance">
       <h2>外观</h2>
       <div className="section-tabs" role="group" aria-label="外观模式">
         {Object.entries(APPEARANCE).map(([mode, label]) => <button key={mode} aria-pressed={appearance === mode}
           onClick={() => setAppearance(mode)}>{label}</button>)}
       </div>
     </section>}
-    {!info.isTv && <section className="about-section playback-settings" aria-label="播放设置">
+    {!info.isTv && <section className="about-section playback-settings" aria-label="播放设置" id="settings-autoplay">
       <AutoplaySetting enabled={autoplay} onChange={() => setAutoplay(setPlaybackPreference('autoplay', !autoplay).autoplay)} />
     </section>}
     {nativePhone && <PlaybackCutsSettings notify={notify} />}
@@ -1001,7 +1003,7 @@ function About({ info, notify, accountFocus, announcementsRef, juguoSettings, on
     <AnnouncementSettings announcementsRef={announcementsRef} notify={notify} />
     {juguoSettings && <JuguoSettings config={juguoSettings} />}
     <section className="about-section"><h2>应用信息</h2><dl><div><dt>版本</dt><dd>{info.version || '读取中'}</dd></div><div><dt>设备</dt><dd>{info.isTv ? 'Android TV' : 'Android 手机 / 平板'}</dd></div></dl></section>
-    <section className="about-section"><h2>播放缓存</h2><p className="cache-status" role="status">{cache.busy ? '正在读取缓存…' : typeof cache.files === 'number' ? `${cache.files} 个文件 · ${byteText(cache.bytes)}` : '缓存状态暂未读取'}</p><div className="about-links"><button className="button" disabled={cache.busy || clearing} onClick={clearCache}>{clearing ? '清理中…' : '清理播放缓存'}</button>{cache.error && <p className="text-error" role="alert">{cache.error}</p>}</div></section>
+    <section className="about-section" id="settings-cache"><h2>播放缓存</h2><p className="cache-status" role="status">{cache.busy ? '正在读取缓存…' : typeof cache.files === 'number' ? `${cache.files} 个文件 · ${byteText(cache.bytes)}` : '缓存状态暂未读取'}</p><div className="about-links"><button className="button" disabled={cache.busy || clearing} onClick={clearCache}>{clearing ? '清理中…' : '清理播放缓存'}</button>{cache.error && <p className="text-error" role="alert">{cache.error}</p>}</div></section>
     <section className="about-section"><h2>播放身份</h2><p className="cache-note">播放持续失败时重置取源身份，观看记录与下载不受影响。</p><div className="about-links"><button className="button" disabled={resettingIdentity} onClick={resetIdentity}>{resettingIdentity ? '重置中…' : '重置播放身份'}</button></div></section>
     <section className="about-section"><h2>开源与许可</h2><div className="about-links"><button className="button" onClick={() => external('https://github.com/jackotom/hongguo-drama')}><ExternalLink />上游项目</button><button className="button" onClick={() => external('https://www.gnu.org/licenses/gpl-3.0.html')}><ExternalLink />GPL-3.0 许可</button></div><details className="license-details"><summary tabIndex={0}>许可全文</summary><pre className="license-text" tabIndex={0} aria-label="GPL-3.0 许可全文，可滚动阅读">{gplLicense}</pre></details></section>
   </>;
@@ -1708,7 +1710,7 @@ function AnnouncementSettings({ announcementsRef, notify }) {
     catch (failure) { setError(errorText(failure)); }
     finally { setBusy(false); }
   };
-  return <section className="about-section announcement-settings" aria-label="公告设置">
+  return <section className="about-section announcement-settings" aria-label="公告设置" id="settings-announcements">
     <h2>公告</h2>
     {preferences && <div className="announcement-switches">
       <label><input type="checkbox" checked={preferences.normalEnabled} onChange={() => toggle('normalEnabled')} />普通公告（版本更新等说明）</label>
