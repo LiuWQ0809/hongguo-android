@@ -1,7 +1,9 @@
 package io.github.jackotom.hongguo.android;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -38,7 +40,7 @@ final class NativeSeriesDetail {
     }
 
     static JSONObject seriesResponse(String seriesId, JSONObject response, boolean direct) throws IOException {
-        if (response.optInt("code", -1) != 0 || response.optInt("error_code", 0) != 0)
+        if (!zero(response.opt("code")) || response.has("error_code") && !zero(response.opt("error_code")))
             throw new IOException("红果 App 目录暂未返回该剧");
         JSONObject data = response.optJSONObject("data");
         JSONObject item = direct || data == null ? data : data.optJSONObject(seriesId);
@@ -48,6 +50,26 @@ final class NativeSeriesDetail {
         JSONArray rows = series == null ? null : series.optJSONArray("video_list");
         if (rows == null || rows.length() == 0) throw new MissingDirectory("红果 App 暂未返回该剧分集");
         return series;
+    }
+
+    private static boolean zero(Object value) {
+        return "0".equals(value) || value instanceof Number && ((Number) value).doubleValue() == 0;
+    }
+
+    static boolean addsEpisodes(JSONObject existing, JSONObject candidate) throws Exception {
+        if (!existing.getString("seriesId").equals(candidate.getString("seriesId"))) return false;
+        JSONArray before = existing.getJSONArray("episodes"), after = candidate.getJSONArray("episodes");
+        if (after.length() <= before.length() || candidate.optInt("episodeCount") < existing.optInt("episodeCount")) return false;
+        Map<Integer, String> ids = new HashMap<>();
+        for (int i = 0; i < after.length(); i++) {
+            JSONObject row = after.getJSONObject(i);
+            ids.put(row.getInt("index"), row.getString("vid"));
+        }
+        for (int i = 0; i < before.length(); i++) {
+            JSONObject row = before.getJSONObject(i);
+            if (!row.getString("vid").equals(ids.get(row.getInt("index")))) return false;
+        }
+        return true;
     }
 
     static JSONObject project(String seriesId, JSONObject series) throws Exception {
