@@ -46,13 +46,13 @@ final class AccountSync {
         flow.setListener(this::notifyChanged);library.setOnDirty(()->schedule(2000));
         selectLibrary();
         LibraryStore.setHistoryFactory(()->{
-            // Web (scan) logins have no passport uid: the owner is the cloud uid that selected the library.
-            String owner=cloudUid();
+            // Display the confirmed account's local library even when cloud access is temporarily unavailable.
+            String owner=activeUid();
             if(!libraryReady||!owner.equals(selectedUid))return unavailableHistory();
             LibraryStore.HistoryAccess captured=library.openHistory();
             // UID can change while a library handle is captured. Never substitute
             // guest/old-account access for the account that the caller observed.
-            return libraryReady&&owner.equals(selectedUid)&&owner.equals(cloudUid())?captured:unavailableHistory();
+            return libraryReady&&owner.equals(selectedUid)&&owner.equals(activeUid())?captured:unavailableHistory();
         });
         if(periodic)syncWorker.scheduleWithFixedDelay(()->schedule(0),90,90,TimeUnit.SECONDS);
     }
@@ -68,7 +68,11 @@ final class AccountSync {
             public void toggleFavorite(JSONObject series)throws JSONException{throw new JSONException("红果账号本机收藏尚未就绪，请重试");}
         };
     }
-    /** The library owner: the passport session when present, else the proven web session. */
+    private String activeUid() {
+        String passport = flow.uid();
+        return !passport.isEmpty() || web == null ? passport : web.uid();
+    }
+    /** Only a profile validated against the cloud can sync. */
     private String cloudUid(){
         String uid=flow.uid();
         if(!uid.isEmpty())return uid;
@@ -80,15 +84,15 @@ final class AccountSync {
     private void selectLibrary(){
         synchronized(selectionLock){
             for(int attempt=0;attempt<3;attempt++){
-                String uid=cloudUid();if(libraryReady&&uid.equals(selectedUid))return;libraryReady=false;
-                try{library.select(uid);if(!uid.equals(cloudUid()))continue;if(!uid.equals(selectedUid))syncError="";selectedUid=uid;selectionError="";libraryReady=true;return;}
+                String uid=activeUid();if(libraryReady&&uid.equals(selectedUid))return;libraryReady=false;
+                try{library.select(uid);if(!uid.equals(activeUid()))continue;if(!uid.equals(selectedUid))syncError="";selectedUid=uid;selectionError="";libraryReady=true;return;}
                 catch(Exception failure){selectionError="账号已保存，但本机账号记录读取未完成，请重试同步";return;}
             }
             selectionError="账号正在切换，请重新读取本机记录";
         }
     }
     String ownerStamp(){
-        String uid=cloudUid();if(uid.isEmpty())return "guest";
+        String uid=activeUid();if(uid.isEmpty())return "guest";
         try{byte[] digest=java.security.MessageDigest.getInstance("SHA-256").digest(("hongguo-official-owner-v1\n"+uid).getBytes(java.nio.charset.StandardCharsets.UTF_8));StringBuilder value=new StringBuilder("official:");for(byte b:digest)value.append(String.format(java.util.Locale.ROOT,"%02x",b&255));return value.toString();}
         catch(java.security.NoSuchAlgorithmException impossible){throw new IllegalStateException(impossible);}
     }
@@ -97,15 +101,15 @@ final class AccountSync {
         private Selection(long epoch,String uid){this.epoch=epoch;this.uid=uid;}
     }
     Selection captureSelection()throws java.io.IOException {
-        long epoch=cloudEpoch();String uid=cloudUid();
+        long epoch=cloudEpoch();String uid=activeUid();
         if(!libraryReady||!uid.equals(selectedUid)||epoch!=cloudEpoch())throw new java.io.IOException("账号正在切换，请稍后重试");
         return new Selection(epoch,uid);
     }
     void requireCurrent(Selection selected)throws java.io.IOException {
-        if(selected==null||!libraryReady||!selected.uid.equals(selectedUid)||selected.epoch!=cloudEpoch()||!selected.uid.equals(cloudUid()))throw new java.io.IOException("账号已切换，原操作已取消");
+        if(selected==null||!libraryReady||!selected.uid.equals(selectedUid)||selected.epoch!=cloudEpoch()||!selected.uid.equals(activeUid()))throw new java.io.IOException("账号已切换，原操作已取消");
     }
     JSONObject getAccount()throws JSONException {
-        JSONObject value=flow.status(),status=library.status();boolean ready=libraryReady&&cloudUid().equals(selectedUid);String localError=!selectionError.isEmpty()?selectionError:!ready?"账号本机记录正在切换，请稍候":"";value.put("sync",status.put("syncing",syncing||syncRequested||status.optBoolean("syncing")).put("error",!localError.isEmpty()?localError:!syncError.isEmpty()?syncError:status.optString("error","")));
+        JSONObject value=flow.status(),status=library.status();boolean ready=libraryReady&&activeUid().equals(selectedUid);String localError=!selectionError.isEmpty()?selectionError:!ready?"账号本机记录正在切换，请稍候":"";value.put("sync",status.put("syncing",syncing||syncRequested||status.optBoolean("syncing")).put("error",!localError.isEmpty()?localError:!syncError.isEmpty()?syncError:status.optString("error","")));
         value.put("localOnly",!value.optBoolean("authenticated")&&!webLaneReady()).put("libraryReady",ready);value.put("web",webStatus());return value;
     }
     private boolean webLaneReady(){return web!=null&&web.cloudReady();}
@@ -115,7 +119,7 @@ final class AccountSync {
         JSONObject value=web.status();value.put("available",true);return value;
     }
     JSONObject webQrcode()throws Exception {if(web==null)throw new java.io.IOException("红果官网扫码登录不可用");JSONObject value=web.start();notifyChanged();return value;}
-    JSONObject webPoll()throws Exception {if(web==null)throw new java.io.IOException("红果官网扫码登录不可用");JSONObject value=web.poll();probeWeb();notifyChanged();return value;}
+    JSONObject webPoll()throws Exception {if(web==null)throw new java.io.IOException("红果官网扫码登录不可用");JSONObject value=web.poll();selectLibrary();probeWeb();notifyChanged();return value;}
     JSONObject webLogout()throws Exception {if(web==null)throw new java.io.IOException("红果官网扫码登录不可用");cancelSync();JSONObject value=web.logout();selectLibrary();notifyChanged();return value;}
     JSONObject webCancel()throws Exception {if(web==null)throw new java.io.IOException("红果官网扫码登录不可用");JSONObject value=web.cancel();notifyChanged();return value;}
     /** Proves the web cookie on the signed cloud APIs, then re-selects the library when it passes. */
@@ -137,7 +141,7 @@ final class AccountSync {
     JSONObject cancelLogin()throws JSONException {flow.cancelLogin();notifyChanged();return getAccount();}
     JSONObject suspendLogin()throws JSONException {flow.suspendLogin();notifyChanged();return getAccount();}
     JSONObject logout()throws Exception {cancelSync();flow.logout();selectLibrary();notifyChanged();return getAccount();}
-    JSONObject importGuest()throws Exception {selectLibrary();if(cloudUid().isEmpty()||!libraryReady)throw new java.io.IOException("请先登录红果账号并读取本机记录");JSONObject result=library.importGuest();schedule(0);notifyChanged();return getAccount().put("importResult",result);}
+    JSONObject importGuest()throws Exception {selectLibrary();if(activeUid().isEmpty()||!libraryReady)throw new java.io.IOException("请先登录红果账号并读取本机记录");JSONObject result=library.importGuest();schedule(0);notifyChanged();return getAccount().put("importResult",result);}
     JSONObject syncNow()throws Exception {
         selectLibrary();
         if(cloudUid().isEmpty()&&web!=null&&!web.uid().isEmpty()){probeWeb();return getAccount();}
@@ -189,6 +193,7 @@ final class AccountSync {
         if(web==null)return;
         syncWorker.execute(()->{
             try{web.restore();}catch(RuntimeException ignored){ }
+            selectLibrary();notifyChanged();
             // A restored session is not proven until the cloud probe answers with the same id.
             if(!web.cloudReady())probeWeb();
         });
