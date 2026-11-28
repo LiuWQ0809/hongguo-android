@@ -24,6 +24,7 @@ public final class PlayerActivity extends Activity {
     private boolean registeredPlayer, handedOff;
     static final String BACKGROUND_ID = "backgroundPlaybackId";
     private String backgroundId;
+    private Future<?> seasonLookup;
     static boolean hasLivePlayer() { return LIVE_PLAYERS.get() > 0 || BackgroundPlaybackService.isActive(); }
     private DanmakuController danmaku;
     private DanmakuOverlay danmakuOverlay;
@@ -587,7 +588,7 @@ public final class PlayerActivity extends Activity {
     private void saveProgress() {
         // exitPlayer 已在 finish 前保存。窗口释放后 VideoView 可能暂时返回零。
         if (isFinishing()) return;
-        if (handedOff || casting()) return; // The service persists the TV position, never the stopped local VideoView.
+        if (handedOff || casting() || completed) return; // Keep the recorded finish and the active owner's checkpoint.
         if (prepared && episode != null && video != null) try {
             int position = completed ? 0 : Math.max(0, video.getCurrentPosition());
             // 后台切换时画面可能已释放，避免把刚保存的进度覆盖成零。
@@ -855,6 +856,7 @@ public final class PlayerActivity extends Activity {
     }
     private void loadAtInternal(int position, String initialUrl, int startAt, boolean remainPaused, boolean recovering, boolean failedWeb) {
         if (destroyed || position < 0 || position >= queue.size()) return;
+        cancelSeasonLookup();
         SoftDecoder.stop(softLayer); softLayer = null; softActive = false; adoptedMedia = null;
         cancelQualitySwitch(); cancelPlaybackWatchdogs(); decoderPreparing = false; if (!recovering) saveProgress(); video.stopPlayback(); releaseCurrent(); mediaPlayer = null;
         current = position; episode = queue.get(current); series = owner(episode); final JSONObject target = episode, targetSeries = series;
@@ -939,8 +941,9 @@ public final class PlayerActivity extends Activity {
         view.setOnCompletionListener(player -> {
             if (destroyed || token != generation || video != view) return;
             cancelPlaybackWatchdogs(); decoderPreparing = false;
-            completed = true; resumeAt = 0; recordProgress(targetSeries, target, 0);
+            completed = true; resumeAt = 0; recordProgress(targetSeries, target, Math.max(0, player.getDuration()));
             if (autoplay && current + 1 < queue.size()) loadAt(current + 1, null, 0);
+            else if (continueSeason(false)) return;
             else { currentKind = current + 1 == queue.size() ? "本剧已播完" : "本集已播完 · " + (BuildConfig.IS_TV ? "按下一集" : recommendations == null ? "上滑切集" : "选择下一集"); renderStatus(); showControls(); updateButtons(); }
         });
         view.setOnErrorListener((player, what, extra) -> {
@@ -951,6 +954,38 @@ public final class PlayerActivity extends Activity {
             }
             return true;
         });
+    }
+    private boolean continueSeason(boolean paused) {
+        if (BuildConfig.IS_TV || !autoplay || offline || current + 1 != queue.size()
+                || !SeasonContinuation.atFinale(series, episode)) return false;
+        JSONObject owner = series, ending = episode;
+        int token = generation;
+        currentKind = "正在查找下一季";
+        renderStatus(); showControls();
+        seasonLookup = resolver.submit(() -> {
+            SeasonContinuation resolved = null;
+            try { resolved = SeasonContinuation.load(this, owner, ending); }
+            catch (Exception ignored) { /* Keep the finished season available. */ }
+            SeasonContinuation season = resolved;
+            main.post(() -> {
+                if (seasonLookup == null || token != generation || !completed || destroyed || isFinishing()) return;
+                seasonLookup = null;
+                if (season != null && active) try (UpdateOperationGate.Lease held = UpdateInstallCheckpoint.operation()) {
+                    Intent next = season.intent(this, quality, requestedSpeed, cleanup).putExtra("fullscreen", fullscreen)
+                        .putExtra("backgroundPaused", paused);
+                    UpdateInstallCheckpoint.playerLaunching();
+                    startActivity(next); finish(); return;
+                } catch (Exception unavailable) { /* Leave the finished season in place. */ }
+                currentKind = "本剧已播完";
+                renderStatus(); showControls(); updateButtons();
+            });
+        });
+        return true;
+    }
+
+    private void cancelSeasonLookup() {
+        if (seasonLookup != null) seasonLookup.cancel(true);
+        seasonLookup = null;
     }
     private boolean recoverMedia(int token, int what, int extra, String reason) {
         if (!validPlaybackCallback(token, video)) return false;
@@ -1764,13 +1799,16 @@ public final class PlayerActivity extends Activity {
     private void handoffPlayback() { handoffPlayback(false); }
 
     private void handoffPlayback(boolean allowPaused) {
+        boolean advancing = completed && seasonLookup != null;
         if (BuildConfig.IS_TV || handedOff || backgroundId == null || episode == null
-            || (userPaused && !allowPaused) || completed || casting() || isFinishing() || destroyed) return;
+            || (userPaused && !allowPaused && !advancing) || (completed && !advancing) || casting() || isFinishing() || destroyed) return;
         BackgroundPlaybackSession request = new BackgroundPlaybackSession(backgroundId, getIntent(),
             queueSeries, queue, current, resumeAt, actualQuality, automaticCeiling, requestedSpeed,
             autoplay, cleanup, offline, adoptedMedia == null ? null : adoptedMedia.uri);
         request.paused = userPaused;
+        request.completed = request.advancing = advancing;
         handedOff = BackgroundPlaybackService.begin(this, request);
+        if (handedOff) cancelSeasonLookup();
     }
 
     private boolean resumeFromService() {
@@ -1792,6 +1830,11 @@ public final class PlayerActivity extends Activity {
         handedOff = true;
         autoplay = request.autoplay;
         actualQuality = request.quality; automaticCeiling = request.ceiling; requestedSpeed = request.speed;
+        if (request.advancing && request.completed) {
+            current = match; episode = queue.get(match); series = owner(episode);
+            completed = true; userPaused = request.paused;
+            if (continueSeason(request.paused)) { handedOff = false; return true; }
+        }
         loadAt(match, null, request.position, request.paused || request.completed);
         handedOff = false;
         return true;
@@ -1822,6 +1865,7 @@ public final class PlayerActivity extends Activity {
     }
     @Override protected void onSaveInstanceState(Bundle state) { savePlaybackState(state); super.onSaveInstanceState(state); }
     @Override protected void onDestroy() {
+        cancelSeasonLookup();
         if (recommendationPrefetch != null) recommendationPrefetch.close();
         if (systemBackCleanup != null) systemBackCleanup.run();
         closePipControls();
