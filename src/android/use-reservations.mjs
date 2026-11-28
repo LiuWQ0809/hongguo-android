@@ -18,7 +18,7 @@ export function useReservations(enabled) {
       if (!Array.isArray(result?.items)) throw new Error('预约列表读取失败');
       if (live.current) {
         setState(result);
-        if (result.complete === false) setError('还有预约未确认，请稍后再检查。');
+        if (result.complete === false) setError('部分提醒尚未核实，请稍后再检查。');
       }
       return true;
     } catch (cause) {
@@ -35,6 +35,11 @@ export function useReservations(enabled) {
     return () => { live.current = false; window.removeEventListener('androidresume', load); };
   }, [enabled, run]);
   return { ...state, busy, error,
+    items: state.items.filter(row => !row.follow),
+    follows: state.items.filter(row => row.follow === true),
+    toggleFollow: (series, enabled, latestEpisode) => run('setReservation', {
+      seriesId: series.seriesId, series, enabled, follow: true, latestEpisode,
+    }),
     toggle: (series, enabled) => run('setReservation', { seriesId: series.seriesId, series, enabled }),
     refresh: () => run('checkReservations', {}, 50000),
     enable: () => nativeCall('enableReservationNotifications').catch(cause => setError(cause.message)),

@@ -10,34 +10,39 @@ export function ReserveButton({ series, reservations }) {
 }
 
 export function ReservationsPage({ reservations, onBack, onOpen, onPlay }) {
-  const [online, setOnline] = useState(false);
+  const [view, setView] = useState('upcoming');
+  const online = view === 'online', follow = view === 'follow';
   const [query, setQuery] = useState('');
   const keyword = query.trim().toLocaleLowerCase();
-  const items = reservations.items.filter(row => Boolean(row.online) === online &&
-    row.title.toLocaleLowerCase().includes(keyword));
+  const directory = follow ? reservations.follows : reservations.items.filter(row => Boolean(row.online) === online);
+  const items = directory.filter(row => row.title.toLocaleLowerCase().includes(keyword));
   return <section className="reservations-page">
     <button className="back-button" onClick={onBack}><ChevronRight size={20} />返回追剧</button>
     <header className="page-heading heading-actions">
-      <h1>我的预约</h1>
-      <button type="button" className="button" disabled={reservations.busy || !reservations.items.length}
-        onClick={reservations.refresh}>{reservations.busy ? '检查中…' : '检查上线'}</button>
+      <h1>预约与追更</h1>
+      <button type="button" className="button" disabled={reservations.busy || !reservations.items.length && !reservations.follows.length}
+        onClick={reservations.refresh}>{reservations.busy ? '检查中…' : '检查更新'}</button>
     </header>
-    <input className="reservation-search" type="search" aria-label="搜索预约的剧"
-      placeholder="搜索预约的剧" value={query} onChange={event => setQuery(event.target.value)} />
-    <div className="section-tabs" role="group" aria-label="预约状态">
-      <button aria-pressed={!online} onClick={() => setOnline(false)}>待上线</button>
-      <button aria-pressed={online} onClick={() => setOnline(true)}>已上线</button>
+    <input className="reservation-search" type="search" aria-label="搜索预约和追更的剧"
+      placeholder="搜索预约和追更的剧" value={query} onChange={event => setQuery(event.target.value)} />
+    <div className="section-tabs" role="group" aria-label="预约与追更类型">
+      <button aria-pressed={view === 'upcoming'} onClick={() => setView('upcoming')}>待上线</button>
+      <button aria-pressed={online} onClick={() => setView('online')}>已上线</button>
+      <button aria-pressed={follow} onClick={() => setView('follow')}>追更</button>
     </div>
     {!reservations.notificationsAllowed && <button className="button" type="button" onClick={reservations.enable}>
       <Bell size={17} />开启系统提醒
     </button>}
     {reservations.error && <p className="text-error" role="alert">{reservations.error}</p>}
-    {!items.length && <p className="result-caption">{keyword ? '暂无符合条件的预约' : online ? '暂无已上线的预约' : '在预约榜选择想看的短剧，预约会保存在本机。'}</p>}
+    {!items.length && <p className="result-caption">{keyword ? '暂无符合条件的短剧' : follow ? '在短剧详情开启更新提醒，即可在这里追更。' : online ? '暂无已上线的预约' : '在预约榜选择想看的短剧，预约会保存在本机。'}</p>}
     <div className="reservation-list">{items.map(row => <article key={row.seriesId} className="reservation-row">
-      <button className="reservation-title" type="button" onClick={() => online ? onPlay(row) : onOpen({ ...row, upcoming: true })}>
-        <strong>{row.title}</strong><span>{online ? '已上线 · 去观看' : row.expected || '待上线'}</span>
+      <button className="reservation-title" type="button" onClick={() => follow ? onOpen(row) : online ? onPlay(row) : onOpen({ ...row, upcoming: true })}>
+        <strong>{row.title}</strong><span>{follow ? `已更新至第 ${row.latestEpisode} 集` : online ? '已上线 · 去观看' : row.expected || '待上线'}</span>
       </button>
-      <ReserveButton series={row} reservations={reservations} />
+      {follow
+        ? <button className="button" type="button" disabled={reservations.busy}
+          onClick={() => reservations.toggleFollow(row, false)}>取消追更</button>
+        : <ReserveButton series={row} reservations={reservations} />}
     </article>)}</div>
   </section>;
 }
