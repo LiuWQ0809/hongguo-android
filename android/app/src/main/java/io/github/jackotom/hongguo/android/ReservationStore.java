@@ -9,6 +9,7 @@ import org.json.JSONObject;
 
 final class ReservationStore {
     private static final int LIMIT = 40;
+    private static final int MESSAGE_LIMIT = 60;
     private final SharedPreferences prefs;
 
     ReservationStore(Context context) {
@@ -25,6 +26,24 @@ final class ReservationStore {
 
     JSONArray snapshot() throws Exception {
         synchronized (ReservationStore.class) { return read(); }
+    }
+
+    JSONArray messages() throws Exception {
+        synchronized (ReservationStore.class) {
+            return new JSONArray(prefs.getString("messages", "[]"));
+        }
+    }
+
+    private void saveChange(JSONArray rows, JSONObject row) throws Exception {
+        JSONObject message = new JSONObject().put("messageId", UUID.randomUUID().toString())
+            .put("seriesId", row.getString("seriesId")).put("title", row.getString("title"))
+            .put("follow", row.optBoolean("follow")).put("latestEpisode", row.optInt("latestEpisode"))
+            .put("arrivedAt", System.currentTimeMillis()).put("read", false);
+        JSONArray previous = messages(), next = new JSONArray().put(message);
+        for (int i = 0; i < previous.length() && next.length() < MESSAGE_LIMIT; i++)
+            next.put(previous.getJSONObject(i));
+        if (!prefs.edit().putString("items", rows.toString()).putString("messages", next.toString()).commit())
+            throw new IOException("上线或追更消息保存失败");
     }
 
     void update(String id, JSONObject series, boolean enabled, boolean follow, int latestEpisode) throws Exception {
@@ -56,13 +75,14 @@ final class ReservationStore {
             for (int i = 0; i < rows.length(); i++) {
                 JSONObject row = rows.getJSONObject(i);
                 if (!expected.getString("token").equals(row.getString("token"))) continue;
+                boolean changed;
                 if (row.optBoolean("follow")) {
-                    if (latestEpisode > row.optInt("latestEpisode"))
-                        row.put("latestEpisode", latestEpisode).put("notified", false);
+                    changed = latestEpisode > row.optInt("latestEpisode");
+                    if (changed) row.put("latestEpisode", latestEpisode).put("notified", false);
                 } else if (row.optBoolean("online")) return;
-                else row.put("online", online);
+                else { changed = online; row.put("online", online); }
                 row.put("checkedAt", System.currentTimeMillis());
-                save(rows);
+                if (changed) saveChange(rows, row); else save(rows);
                 return;
             }
         }
