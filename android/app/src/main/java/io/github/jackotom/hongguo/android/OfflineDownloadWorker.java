@@ -11,14 +11,24 @@ final class OfflineDownloadWorker {
         if (LegacyFiles.isSymbolicLink(job.part(journal.work)) || LegacyFiles.isSymbolicLink(job.staging(journal.work)))
             throw new IOException("下载断点文件归属异常");
         PlaybackSources.Plan initial = job.plan;
-        job.plan = null;
-        if (initial == null) initial = PlaybackSources.resolve(job.series.getString("seriesId"), job.episode.getString("vid"), job.quality);
+        if (initial != null && (!initial.guestPlayback || initial.urlExpiresAt > System.currentTimeMillis() / 1000L)) {
+            try { preparePlans(journal, job, transfer, initial); return; }
+            catch (Exception failure) {
+                if (transfer.cancelled() || initial.guestPlayback || !PlaybackSources.canRecoverPlayback(failure)) throw failure;
+            }
+        }
+        PlaybackSources.Plan refreshed = PlaybackSources.resolve(job.series.getString("seriesId"), job.episode.getString("vid"), job.quality);
+        preparePlans(journal, job, transfer, refreshed);
+    }
+
+    private static void preparePlans(OfflineDownloadJournal journal, OfflineDownloadJob job, OfflineTransfer transfer, PlaybackSources.Plan initial) throws Exception {
         List<PlaybackSources.Plan> plans = new ArrayList<>();
         plans.add(initial);
         plans.addAll(initial.variants);
         Exception last = null;
         for (PlaybackSources.Plan plan : plans) {
             try {
+                job.plan = plan;
                 transfer.fetch(plan, job.part(journal.work), journal.range(job));
                 job.prepare(plan, journal.work);
                 return;

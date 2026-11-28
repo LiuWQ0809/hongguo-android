@@ -57,7 +57,7 @@ final class OfflineRange {
             android.util.Log.i("HongguoDownload", "断点已核验，已保留字节数 " + requested);
             return total;
         }
-        if (status != 200) throw new IOException("下载请求暂未完成（HTTP " + status + "）");
+        if (status != 200) throw new IOException("片源响应 HTTP " + status);
         try (var file = new RandomAccessFile(part, "rw")) {
             file.setLength(0);
             file.getFD().sync();
@@ -74,8 +74,14 @@ final class OfflineRange {
     private static boolean strong(String tag) { return tag.matches("\"[!#-~]{1,180}\""); }
 
     private static String scope(URI uri) throws Exception {
+        String host = uri.getHost().toLowerCase(java.util.Locale.ROOT);
+        for (String family : new String[]{"qznovelvod.com", "fqnovelvod.com", "douyinvod.com"}) {
+            if (host.endsWith("." + family)) { host = family; break; }
+        }
+        // The same immutable path can move between mirrors of one CDN family.
+        // A 206 must still echo the exact strong ETag and completed range.
         byte[] digest = MessageDigest.getInstance("SHA-256").digest(
-            (uri.getHost().toLowerCase(java.util.Locale.ROOT) + uri.getRawPath()).getBytes(StandardCharsets.UTF_8));
+            (host + "\n" + uri.getRawPath()).getBytes(StandardCharsets.UTF_8));
         return java.util.Base64.getEncoder().encodeToString(digest);
     }
 }
