@@ -36,8 +36,10 @@ final class OfflineTransfer {
         if (current != null) current.cancel();
     }
 
+    boolean cancelled() { return paused || Thread.currentThread().isInterrupted(); }
+
     private void ensureRunning() throws InterruptedIOException {
-        if (paused || Thread.currentThread().isInterrupted()) throw new InterruptedIOException("下载已暂停");
+        if (cancelled()) throw new InterruptedIOException("下载已暂停");
     }
 
     void fetch(PlaybackSources.Plan plan, File part, OfflineRange range) throws Exception {
