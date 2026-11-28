@@ -19,8 +19,12 @@ final class ReservationBridge {
     static JSONObject update(Activity activity, JSONObject args) throws Exception {
         String id = args.getString("seriesId");
         boolean enabled = args.getBoolean("enabled");
-        new ReservationStore(activity).update(id, args.optJSONObject("series"), enabled);
-        if (!enabled) ReservationNotifications.cancel(activity, id);
+        boolean follow = args.optBoolean("follow");
+        int latestEpisode = args.optInt("latestEpisode");
+        if (enabled && follow && (latestEpisode < 1 || latestEpisode > 10000))
+            throw new IllegalArgumentException("请先加载最新分集");
+        new ReservationStore(activity).update(id, args.optJSONObject("series"), enabled, follow, latestEpisode);
+        if (!enabled) ReservationNotifications.cancel(activity, id, follow);
         ReservationSchedule.plan(activity, true);
         return state(activity);
     }

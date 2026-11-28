@@ -27,32 +27,41 @@ final class ReservationStore {
         synchronized (ReservationStore.class) { return read(); }
     }
 
-    void update(String id, JSONObject series, boolean enabled) throws Exception {
+    void update(String id, JSONObject series, boolean enabled, boolean follow, int latestEpisode) throws Exception {
         if (!OfficialApiClient.validID(id)) throw new IOException("剧集编号无效");
         synchronized (ReservationStore.class) {
             JSONArray rows = read();
             for (int i = 0; i < rows.length(); i++) {
-                if (!id.equals(rows.getJSONObject(i).getString("seriesId"))) continue;
+                JSONObject row = rows.getJSONObject(i);
+                if (!id.equals(row.getString("seriesId")) || follow != row.optBoolean("follow")) continue;
                 if (!enabled) { rows.remove(i); save(rows); }
                 return;
             }
             if (!enabled) return;
-            if (rows.length() >= LIMIT) throw new IOException("本机预约已满，请先取消一项");
+            if (rows.length() >= LIMIT) throw new IOException("本机预约和更新提醒已满，请先取消一项");
             JSONObject row = LibraryStore.series(series);
             if (!id.equals(row.getString("seriesId")) || row.optString("title").isEmpty())
                 throw new IOException("预约剧集资料不完整");
-            save(rows.put(row.put("expected", LibraryStore.text(series, "expected", 80))
-                .put("token", UUID.randomUUID().toString()).put("online", false)));
+            row.put("expected", LibraryStore.text(series, "expected", 80))
+                .put("token", UUID.randomUUID().toString()).put("online", follow);
+            if (follow) row.put("follow", true).put("latestEpisode", latestEpisode)
+                .put("notified", true).put("checkedAt", System.currentTimeMillis());
+            save(rows.put(row));
         }
     }
 
-    void checked(JSONObject expected, boolean online) throws Exception {
+    void checked(JSONObject expected, boolean online, int latestEpisode) throws Exception {
         synchronized (ReservationStore.class) {
             JSONArray rows = read();
             for (int i = 0; i < rows.length(); i++) {
                 JSONObject row = rows.getJSONObject(i);
-                if (!expected.getString("token").equals(row.getString("token")) || row.optBoolean("online")) continue;
-                row.put("checkedAt", System.currentTimeMillis()).put("online", online);
+                if (!expected.getString("token").equals(row.getString("token"))) continue;
+                if (row.optBoolean("follow")) {
+                    if (latestEpisode > row.optInt("latestEpisode"))
+                        row.put("latestEpisode", latestEpisode).put("notified", false);
+                } else if (row.optBoolean("online")) return;
+                else row.put("online", online);
+                row.put("checkedAt", System.currentTimeMillis());
                 save(rows);
                 return;
             }
