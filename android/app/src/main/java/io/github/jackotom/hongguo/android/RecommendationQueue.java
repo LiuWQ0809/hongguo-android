@@ -9,12 +9,12 @@ import org.json.JSONObject;
 final class RecommendationQueue {
     static final String EXTRA = "recommendations";
     private final List<String> ids = new ArrayList<>();
-    private final int current;
+    private int current;
 
     RecommendationQueue(Object value, String seriesId) throws JSONException {
         if (!(value instanceof JSONArray)) throw new JSONException("推荐播放清单无效");
         JSONArray rows = (JSONArray) value;
-        if (rows.length() < 2 || rows.length() > 24) throw new JSONException("推荐播放清单数量无效");
+        if (rows.length() < 2 || rows.length() > 100) throw new JSONException("推荐播放清单数量无效");
         for (int i = 0; i < rows.length(); i++) {
             Object raw = rows.getJSONObject(i).opt("seriesId");
             if (!(raw instanceof String) || ((String) raw).length() < 6 || !OfficialApiClient.validID((String) raw) || ids.contains(raw)
@@ -34,6 +34,23 @@ final class RecommendationQueue {
         JSONArray rows = new JSONArray();
         for (String id : ids) rows.put(new JSONObject().put("seriesId", id));
         return rows;
+    }
+
+    void append(JSONObject page) throws JSONException {
+        List<String> additional = new ArrayList<>();
+        JSONArray rows = page.getJSONArray("items");
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject item = rows.getJSONObject(i);
+            String id = item.optString("series_id");
+            if (id.length() < 6 || !OfficialApiClient.validID(id) || PlaybackSources.isRetiredSeries(id)
+                    || ids.contains(id) || additional.contains(id)) continue;
+            additional.add(id);
+        }
+        if (additional.isEmpty()) return;
+        int trim = Math.max(0, current - 32);
+        ids.subList(0, trim).clear();
+        current -= trim;
+        ids.addAll(additional);
     }
 
     static JSONObject startEpisode(JSONArray episodes, JSONObject history) throws JSONException {
