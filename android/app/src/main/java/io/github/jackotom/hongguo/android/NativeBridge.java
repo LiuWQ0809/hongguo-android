@@ -545,13 +545,15 @@ final class NativeBridge {
             }
             case "deleteDownload": {
                 long downloadId = DownloadDeletion.confirmedId(params);
-                Object owner=new Object();
-                try {
-                    UpdateInstallCheckpoint.prepareDownloadDeletion(activity,owner);
-                    if (!BuildConfig.IS_TV && OfflineDownloadQueue.get(activity).delete(downloadId)) {
+                if (!BuildConfig.IS_TV) try (var lease = UpdateInstallCheckpoint.operation()) {
+                    if (OfflineDownloadQueue.get(activity).delete(downloadId)) {
                         respond(id, new JSONObject().put("id", downloadId).put("deleted", true), null);
                         break;
                     }
+                }
+                Object owner=new Object();
+                try {
+                    UpdateInstallCheckpoint.prepareDownloadDeletion(activity,owner);
                     respond(id,DownloadDeletion.delete(store,activity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),new DownloadDeletion.Provider() {
                         public DownloadDeletion.Record query(long downloadId) throws Exception {
                             if(downloads==null)throw new java.io.IOException("系统下载服务暂不可用，请重试");

@@ -14,6 +14,9 @@ import okhttp3.Response;
 /** Persist only a resource fingerprint and strong validator, never a signed URL. */
 final class OfflineRange {
     private static final Pattern CONTENT_RANGE = Pattern.compile("bytes ([0-9]+)-([0-9]+)/([0-9]+)");
+    static final class Rejected extends IOException {
+        Rejected() { super("断点下载响应未通过验证"); }
+    }
     private final File part;
     private final SharedPreferences prefs;
     private final String key;
@@ -43,13 +46,15 @@ final class OfflineRange {
         String etag = response.header("ETag", "");
         if (length > limit || !response.header("Content-Encoding", "identity").equalsIgnoreCase("identity"))
             throw new IOException("下载响应长度或编码无效");
+        if (response.code() == 416 && requested > 0) throw new Rejected();
         if (response.code() == 206) {
             var range = CONTENT_RANGE.matcher(response.header("Content-Range", ""));
             if (requested <= 0 || !strong(etag) || !(scope(uri) + "\n" + etag).equals(prefs.getString(key, ""))
-                    || part.length() != requested || !range.matches()) throw new IOException("断点下载身份校验未通过");
+                    || part.length() != requested || !range.matches()) throw new Rejected();
             long start = Long.parseLong(range.group(1)), end = Long.parseLong(range.group(2)), total = Long.parseLong(range.group(3));
             if (start != requested || total <= start || total > limit || end != total - 1
-                    || length != end - start + 1) throw new IOException("断点下载响应区间无效");
+                    || length != end - start + 1) throw new Rejected();
+            android.util.Log.i("HongguoDownload", "断点已核验，已保留字节数 " + requested);
             return total;
         }
         if (response.code() != 200) throw new IOException("下载请求暂未完成（HTTP " + response.code() + "）");
@@ -66,7 +71,7 @@ final class OfflineRange {
         if (!prefs.edit().remove(key).commit()) throw new IOException("断点记录清理未完成");
     }
 
-    private static boolean strong(String tag) { return tag.matches("\"[!-!#-~]{1,180}\""); }
+    private static boolean strong(String tag) { return tag.matches("\"[!#-~]{1,180}\""); }
 
     private static String scope(URI uri) throws Exception {
         byte[] digest = MessageDigest.getInstance("SHA-256").digest(

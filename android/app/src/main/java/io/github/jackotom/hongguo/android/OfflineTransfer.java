@@ -45,7 +45,8 @@ final class OfflineTransfer {
     void fetch(PlaybackSources.Plan plan, File part, OfflineRange range) throws Exception {
         URI uri = NetworkGuard.validate(plan.url, false);
         long limit = plan.guestPlayback ? PublicPlaybackVerifier.MAX_FILE_BYTES : MAX_BYTES;
-        for (int redirects = 0; redirects <= 3; redirects++) {
+        boolean restarted = false;
+        for (int redirects = 0; redirects <= 3; ) {
             ensureRunning();
             Request.Builder request = new Request.Builder().url(uri.toASCIIString())
                 .header("User-Agent", plan.userAgent).header("Accept-Encoding", "identity");
@@ -58,10 +59,18 @@ final class OfflineTransfer {
                     if (response.isRedirect()) {
                         if (redirects == 3) throw new IOException("下载跳转次数过多");
                         uri = NetworkGuard.mediaRedirect(uri, response.header("Location"));
+                        redirects++;
                         continue;
                     }
                     if (response.body() == null) throw new IOException("下载内容为空");
-                    total = range.accept(uri, response, requested, limit);
+                    try { total = range.accept(uri, response, requested, limit); }
+                    catch (OfflineRange.Rejected rejected) {
+                        if (requested == 0 || restarted) throw rejected;
+                        ensureRunning();
+                        range.forget();
+                        restarted = true;
+                        continue;
+                    }
                     try (var src = response.body().byteStream(); var out = new FileOutputStream(part, true)) {
                         long written = part.length();
                         byte[] buffer = new byte[64 * 1024];
