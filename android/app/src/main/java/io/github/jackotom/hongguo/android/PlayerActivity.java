@@ -943,39 +943,8 @@ public final class PlayerActivity extends Activity {
                     adoptMedia(media);
                     currentKind = media.kind; currentManual = media.manual; currentCache = media.cached; currentWeb = false;
                     sourceShortEdge = media.plan != null && media.plan.width > 0 && media.plan.height > 0 ? Math.min(media.plan.width, media.plan.height) : 0; renderStatus();
-                    PlaybackVideoView targetView = video;
-                    // Software-decoder preference: skip the hardware player entirely (auto/hw keep
-                    // the hardware player and fall back to software decoding on device errors).
                     if (BuildConfig.IS_TV && "sw".equals(decoderMode()) && launchSoftDecoder(token, media)) return;
-                    targetView.configure(softwareFallback || "sw".equals(decoderMode()));
-                    bindPlayback(targetView, token, target);
-                    targetView.setOnPreparedListener(player -> {
-                        if (destroyed || token != generation || video != targetView) return;
-                        cancelPlaybackWatchdogs(); decoderPreparing = false;
-                        videoWidth = player.getVideoWidth(); videoHeight = player.getVideoHeight();
-                        if (!offline && !media.manual && (!MediaQuality.meets(videoWidth, videoHeight, playedQuality)
-                                || media.ceiling > 0 && (videoWidth <= 0 || videoHeight <= 0 || Math.min(videoWidth, videoHeight) > media.ceiling))) {
-                            failCurrentMedia(token, "当前片源实际分辨率不符合 " + qualityLabel(playedQuality) + " 播放档位", false); return;
-                        }
-                        mediaPlayer = player; prepared = true; completed = false;
-                        adoptedMedia = media;
-                        watchProgressSeeks(player, token, targetView);
-                        videoWidth = player.getVideoWidth(); videoHeight = player.getVideoHeight();
-                        player.setOnVideoSizeChangedListener((mp, width, height) -> { if (video == targetView && token == generation) { videoWidth = width; videoHeight = height; renderStatus(); } });
-                        try { actualSpeed = player.setVerifiedSpeed(requestedSpeed, false); }
-                        catch (Exception error) { actualSpeed = player.observedSpeed(); Toast.makeText(this, "设备未接受倍速设置，当前速度以播放器确认为准", Toast.LENGTH_LONG).show(); }
-                        resumeAt = cuts.start(resumeAt, video.getDuration());
-                        if (resumeAt > 0 && (video.getDuration() <= 0 || resumeAt < video.getDuration() - 1500)) {
-                            player.seekPrecisely(resumeAt);
-                        }
-                        if (active && !userPaused) video.start();
-                        recordProgress(targetSeries, target, resumeAt); renderStatus(); updateButtons();
-                        if (!offline && autoplay) schedulePrefetch(token);
-                    });
-                    Map<String, String> headers = new HashMap<>();
-                    headers.put("User-Agent", media.plan == null ? NetworkGuard.UA : media.plan.userAgent); headers.put("Referer", media.plan == null ? NetworkGuard.REFERER : media.plan.referer);
-                    try { armPreparationTimeout(token, targetView); targetView.setVideoURI(media.uri, headers); }
-                    catch (RuntimeException error) { failCurrentMedia(token, "设备打开视频未成功：" + error.getMessage(), false); }
+                    openDecoder(token, targetSeries, target, media, playedQuality);
                 });
             } catch (Exception error) { main.post(() -> playbackError(token, recovering ? "自动恢复未成功：" + error.getMessage() + "；原错误：" + lastMediaError : error.getMessage())); }
             catch (LinkageError | AssertionError error) {
@@ -983,6 +952,38 @@ public final class PlayerActivity extends Activity {
                 main.post(() -> playbackError(token, "片源准备异常，可重试或选择其他分集"));
             }
         });
+    }
+    private void openDecoder(int token, JSONObject targetSeries, JSONObject target, PreparedMedia media, String playedQuality) {
+        PlaybackVideoView targetView = video;
+        targetView.configure(softwareFallback || "sw".equals(decoderMode()));
+        bindPlayback(targetView, token, target);
+        targetView.setOnPreparedListener(player -> {
+            if (destroyed || token != generation || video != targetView) return;
+            cancelPlaybackWatchdogs(); decoderPreparing = false;
+            videoWidth = player.getVideoWidth(); videoHeight = player.getVideoHeight();
+            if (!offline && !media.manual && (!MediaQuality.meets(videoWidth, videoHeight, playedQuality)
+                    || media.ceiling > 0 && (videoWidth <= 0 || videoHeight <= 0 || Math.min(videoWidth, videoHeight) > media.ceiling))) {
+                failCurrentMedia(token, "当前片源实际分辨率不符合 " + qualityLabel(playedQuality) + " 播放档位", false); return;
+            }
+            mediaPlayer = player; prepared = true; completed = false;
+            adoptedMedia = media;
+            watchProgressSeeks(player, token, targetView);
+            videoWidth = player.getVideoWidth(); videoHeight = player.getVideoHeight();
+            player.setOnVideoSizeChangedListener((mp, width, height) -> { if (video == targetView && token == generation) { videoWidth = width; videoHeight = height; renderStatus(); } });
+            try { actualSpeed = player.setVerifiedSpeed(requestedSpeed, false); }
+            catch (Exception error) { actualSpeed = player.observedSpeed(); Toast.makeText(this, "设备未接受倍速设置，当前速度以播放器确认为准", Toast.LENGTH_LONG).show(); }
+            resumeAt = cuts.start(resumeAt, video.getDuration());
+            if (resumeAt > 0 && (video.getDuration() <= 0 || resumeAt < video.getDuration() - 1500)) {
+                player.seekPrecisely(resumeAt);
+            }
+            if (active && !userPaused) video.start();
+            recordProgress(targetSeries, target, resumeAt); renderStatus(); updateButtons();
+            if (!offline && autoplay) schedulePrefetch(token);
+        });
+        Map<String, String> headers = new HashMap<>();
+        headers.put("User-Agent", media.plan == null ? NetworkGuard.UA : media.plan.userAgent); headers.put("Referer", media.plan == null ? NetworkGuard.REFERER : media.plan.referer);
+        try { armPreparationTimeout(token, targetView); targetView.setVideoURI(media.uri, headers); }
+        catch (RuntimeException error) { failCurrentMedia(token, "设备打开视频未成功：" + error.getMessage(), false); }
     }
     private void bindPlayback(PlaybackVideoView view, int token, JSONObject target) {
         buffering = false;
@@ -1008,11 +1009,15 @@ public final class PlayerActivity extends Activity {
                 boolean unsupported = what == -38 || what == MediaPlayer.MEDIA_ERROR_UNSUPPORTED || extra == MediaPlayer.MEDIA_ERROR_UNSUPPORTED;
                 if (unsupported && !"hw".equals(decoderMode())) {
                     if (BuildConfig.IS_TV && launchSoftDecoder(token, adoptedMedia)) return true;
-                    if (!BuildConfig.IS_TV && !view.software()) {
+                    if (!BuildConfig.IS_TV && !view.software() && adoptedMedia != null) {
+                        resumeAt = Math.max(lastGoodPosition, prepared ? video.getCurrentPosition() : resumeAt);
                         softwareFallback = true;
+                        PreparedMedia media = adoptedMedia;
                         main.post(() -> {
-                            if (validPlaybackCallback(token, view))
-                                loadAtInternal(current, null, lastGoodPosition, userPaused, true, false);
+                            if (!validPlaybackCallback(token, view) || adoptedMedia != media) return;
+                            video.stopPlayback();
+                            prepared = false; mediaPlayer = null;
+                            openDecoder(token, series, target, media, media.quality);
                         });
                         return true;
                     }
