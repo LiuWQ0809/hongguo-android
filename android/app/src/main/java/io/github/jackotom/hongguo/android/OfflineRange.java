@@ -8,6 +8,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.regex.Pattern;
+import java.util.Map;
 import okhttp3.Request;
 import okhttp3.Response;
 
@@ -27,28 +28,44 @@ final class OfflineRange {
         key = "range_" + id;
     }
 
+    record Resume(long offset, String validator) { }
+
     long request(URI uri, Request.Builder request) throws Exception {
+        Resume resume = request(uri);
+        if (resume.offset > 0) request.header("Range", "bytes=" + resume.offset + "-").header("If-Range", resume.validator);
+        return resume.offset;
+    }
+
+    Resume request(URI uri) throws Exception {
         String prior = prefs.getString(key, "");
         String scope = scope(uri) + "\n";
         long bytes = part.length();
         if (bytes > 0 && prior.startsWith(scope)) {
             String validator = prior.substring(scope.length());
             if (strong(validator)) {
-                request.header("Range", "bytes=" + bytes + "-").header("If-Range", validator);
-                return bytes;
+                return new Resume(bytes, validator);
             }
         }
-        return 0;
+        return new Resume(0, "");
     }
 
     long accept(URI uri, Response response, long requested, long limit) throws Exception {
-        long length = response.body() == null ? -1 : response.body().contentLength();
-        String etag = response.header("ETag", "");
-        if (length > limit || !response.header("Content-Encoding", "identity").equalsIgnoreCase("identity"))
+        var headers = new java.util.HashMap<String, String>();
+        for (String name : new String[]{"content-length", "content-encoding", "etag", "content-range"}) {
+            String value = response.header(name);
+            if (value != null) headers.put(name, value);
+        }
+        return accept(uri, response.code(), headers, requested, limit);
+    }
+
+    long accept(URI uri, int status, Map<String,String> headers, long requested, long limit) throws Exception {
+        long length = Long.parseLong(headers.getOrDefault("content-length", "-1"));
+        String etag = headers.getOrDefault("etag", "");
+        if (length > limit || !headers.getOrDefault("content-encoding", "identity").equalsIgnoreCase("identity"))
             throw new IOException("下载响应长度或编码无效");
-        if (response.code() == 416 && requested > 0) throw new Rejected();
-        if (response.code() == 206) {
-            var range = CONTENT_RANGE.matcher(response.header("Content-Range", ""));
+        if (status == 416 && requested > 0) throw new Rejected();
+        if (status == 206) {
+            var range = CONTENT_RANGE.matcher(headers.getOrDefault("content-range", ""));
             if (requested <= 0 || !strong(etag) || !(scope(uri) + "\n" + etag).equals(prefs.getString(key, ""))
                     || part.length() != requested || !range.matches()) throw new Rejected();
             long start = Long.parseLong(range.group(1)), end = Long.parseLong(range.group(2)), total = Long.parseLong(range.group(3));
@@ -57,7 +74,7 @@ final class OfflineRange {
             android.util.Log.i("HongguoDownload", "断点已核验，已保留字节数 " + requested);
             return total;
         }
-        if (response.code() != 200) throw new IOException("下载请求暂未完成（HTTP " + response.code() + "）");
+        if (status != 200) throw new IOException("下载请求暂未完成（HTTP " + status + "）");
         try (var file = new RandomAccessFile(part, "rw")) {
             file.setLength(0);
             file.getFD().sync();
