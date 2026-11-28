@@ -26,6 +26,9 @@ public final class PersonalLibraryStoreTest {
         official.access().toggleFavorite(first);
         official.access().removeRows("history", Set.of(FIRST));
         check(official.access().rows().length() == 0 && official.access().favorites().length() == 1, "删除账号本机历史保留追剧");
+        official.access().record(OfficialLibraryTest.row(FIRST, official.time.get(), 2200));
+        official.access().clear();
+        check(official.access().rows().length() == 0 && official.access().favorites().length() == 1, "清空账号本机历史保留追剧");
         var reservation = new ReservationStore(context);
         reservation.update(FIRST, first, true, true, 3);
         var follow = reservation.snapshot().getJSONObject(0);

@@ -58,7 +58,11 @@ final class OfficialLibrary {
                 try { removeRowsFor(owner, list, ids); }
                 catch (Exception error) { remember(owner,error); throw jsonError("账号记录批量删除未成功"); }
             }
-            @Override public void clear()throws JSONException{try{synchronized(lock){State next=state(owner).copy();next.entries.clear();next.pending.keySet().removeIf(key->key.startsWith("progress:"));commit(owner,next);}}catch(Exception error){remember(owner,error);throw jsonError("官方观看记录清空未成功");}}
+            @Override public void clear() throws JSONException {
+                try {
+                    synchronized (lock) { removeRowsFor(owner, "history", state(owner).entries.keySet()); }
+                } catch (Exception error) { remember(owner,error); throw jsonError("官方观看记录清空未成功"); }
+            }
         };
     }
     JSONObject status()throws JSONException{
