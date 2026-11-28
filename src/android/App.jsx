@@ -11,6 +11,7 @@ import AccountPanel from './AccountPanel.jsx';
 import UpdatePanel from './UpdatePanel.jsx';
 import { ReservedDetail, ReservationsPage } from './Reservations.jsx';
 import CalendarBrowser from './CalendarBrowser.jsx';
+import BrowsePage from './BrowsePage.jsx';
 import { useReservations } from './use-reservations.mjs';
 import { JuguoPage, JuguoSettings, useJuguoSettings } from './JuguoDesktop.jsx';
 import { createOfficialSeasonLookup, requestOfficialSeries } from './official-series.mjs';
@@ -32,8 +33,8 @@ const NAV = [
   { id: 'about', label: '关于', Icon: Settings },
 ];
 const PHONE_NAV = [
-  { id: 'discover', label: '剧场', Icon: Home },
-  { id: 'library', label: '收藏', Icon: Bookmark },
+  { id: 'discover', label: '首页', Icon: Home },
+  { id: 'library', label: '追剧', Icon: Bookmark },
   { id: 'about', label: '我的', Icon: User },
 ];
 const errorText = (error) => error?.message || String(error || '请求未完成，请重试。');
@@ -305,7 +306,7 @@ function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi, star
     {update && <button type="button" className="home-update" onClick={onUpdates}><RefreshCw size={16} /><span>新版本 {update.versionName} 已发布 · 查看更新</span></button>}
     {onSearch && searchButton}
     {onPlay && <div className="section-tabs theater-tabs" role="group" aria-label="剧场入口">
-      {[['recommend', '推荐'], ['rank', '榜单'], ['new', '上新'], ['reserve', '预约榜']].map(([id, label]) =>
+      {[['recommend', '推荐'], ['browse', '找剧'], ['rank', '榜单'], ['new', '上新'], ['reserve', '预约榜']].map(([id, label]) =>
         <button key={id} type="button" aria-pressed={section === id} onClick={() => setSection(id)}>{label}</button>)}
     </div>}
     {section === 'rank' ? <>
@@ -315,7 +316,8 @@ function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi, star
         </select>
       </label>
       <RankingPage key={rank.id} rank={rank} onOpen={onOpen} onPlay={onPlay} />
-    </> : section === 'new' ? <CalendarBrowser PosterGrid={PosterGrid} Status={Status} onOpen={onOpen} onPlay={onPlay} />
+    </> : section === 'browse' ? <BrowsePage PosterGrid={PosterGrid} Status={Status} onOpen={onOpen} onPlay={onPlay} />
+      : section === 'new' ? <CalendarBrowser PosterGrid={PosterGrid} Status={Status} onOpen={onOpen} onPlay={onPlay} />
       : section === 'reserve' ? <RankingPage key={reservationRank.id} rank={reservationRank} onOpen={onOpen} /> : <>
     {feedMode && <div className="category-tabs" role="group" aria-label="短剧分类">{feedChips.map(chip => <button key={chip.id} aria-pressed={feed.genre === chip.id} disabled={!!feed.busy} onClick={() => loadFeed(0, '', false, chip.id)}>{chip.label}</button>)}</div>}
     {feedError && <div className="category-tabs" role="group" aria-label="短剧分类">{CATEGORIES.map((item) => <button key={item.id} aria-pressed={item.id === category} onClick={() => changeCategory(item.id)}>{item.label}</button>)}</div>}
@@ -475,7 +477,7 @@ function SearchPage({ onOpen, onPlay, onBrowse }) {
     <header className={onPlay ? 'visually-hidden' : 'page-heading'}><h1>搜索短剧</h1></header>
     <form className="search-form" onSubmit={submit}><label className={onPlay ? 'visually-hidden' : undefined} htmlFor="search-keyword">短剧名称</label><div className="search-controls"><input ref={input} id="search-keyword" type="search" autoFocus={!!onPlay} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索短剧名称" maxLength={100} enterKeyHint="search" /><button className="button primary" type="submit" disabled={!keyword.trim()}><Search />搜索</button></div></form>
     {onBrowse && !query && <nav className="search-shortcuts" aria-label="搜索快捷入口">
-      {[['recommend', '分类找剧'], ['rank', '榜单'], ['new', '上新'], ['reserve', '预约榜']].map(([id, label]) =>
+      {[['browse', '筛选找剧'], ['rank', '榜单'], ['new', '上新'], ['reserve', '预约榜']].map(([id, label]) =>
         <button key={id} type="button" className="button" onClick={() => onBrowse(id)}>{label}</button>)}
     </nav>}
     <section className="search-history" aria-labelledby="search-history-title" aria-busy={history.busy}>
@@ -501,7 +503,7 @@ function SearchPage({ onOpen, onPlay, onBrowse }) {
 
 function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onReservations, onLibrary, notify, startView }) {
   const [selectedView, setView] = useState(startView || null);
-  const view = selectedView ?? (onPlay && library.history.length ? 'history' : 'favorites');
+  const view = selectedView ?? 'favorites';
   const [historyView, setHistoryView] = useState('all');
   const [keyword, setKeyword] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
