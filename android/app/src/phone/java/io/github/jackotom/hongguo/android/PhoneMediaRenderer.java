@@ -62,10 +62,12 @@ public final class PhoneMediaRenderer implements PlaybackVideoView.Backend, Play
             @Override public void onEvents(Player source, Player.Events events) { stateChanged(); }
             @Override public void onVideoSizeChanged(VideoSize size) {
                 if (!picture.blur()) surface.aspect(size.height == 0 ? 0 : size.width * size.pixelWidthHeightRatio / size.height);
-                if (onSize != null) onSize.changed(PhoneMediaRenderer.this, size.width, size.height);
+                if (onSize != null) onSize.changed(PhoneMediaRenderer.this, getVideoWidth(), getVideoHeight());
+                stateChanged();
             }
             @Override public void onRenderedFirstFrame() {
                 android.util.Log.i("HongguoDecoder", "surface frame rendered, picture=" + !picture.equals(PlaybackPicture.DEFAULT));
+                stateChanged();
                 info(MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START);
             }
             @Override public void onPlayerError(PlaybackException error) {
@@ -130,8 +132,14 @@ public final class PhoneMediaRenderer implements PlaybackVideoView.Backend, Play
     private static int millis(long value) { return value == C.TIME_UNSET ? -1 : (int) Math.min(Integer.MAX_VALUE, Math.max(0, value)); }
     public void seekTo(int position) { seeking = true; player.seekTo(position); }
     public void seekPrecisely(int position) { seekTo(position); }
-    public int getVideoWidth() { return player.getVideoSize().width; }
-    public int getVideoHeight() { return player.getVideoSize().height; }
+    public int getVideoWidth() {
+        var input = player.getVideoFormat();
+        return input != null && input.width > 0 ? input.width : player.getVideoSize().width;
+    }
+    public int getVideoHeight() {
+        var input = player.getVideoFormat();
+        return input != null && input.height > 0 ? input.height : player.getVideoSize().height;
+    }
     public void setVolume(float left, float right) { player.setVolume((left + right) * .5f); }
     public float observedSpeed() { return player.getPlaybackParameters().speed; }
     public float setVerifiedSpeed(float rate, boolean playing) {
