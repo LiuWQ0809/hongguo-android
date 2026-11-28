@@ -36,7 +36,7 @@ final class NativeBridge {
     // Login/cloud control never occupies source or media request workers.
     private final ThreadPoolExecutor accountWorker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
     private final ThreadPoolExecutor reservationWorker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
-    private static final Set<String> METHODS = new HashSet<>(Arrays.asList("getInfo", "httpGet", "cancelHttp", "appRequest", "appDeviceIdentity", "appRegisteredModel", "appResolveResult", "getLibrary", "getSeriesHistory", "removeLibraryRows", "removeHistory", "clearHistory", "toggleFavorite", "play", "download", "getDownloads", "deleteDownload", "playDownload", "getPlaybackCache", "clearPlaybackCache", "getPlaybackOptions", "setPlaybackOptions", "getSearchHistory", "addSearchHistory", "removeSearchHistory", "clearSearchHistory", "searchQuery", "openExternal", "shareSeries", "readShareClipboard", "resetPlaybackIdentity", "getAccount", "officialSendCode", "officialLoginSMS", "officialVerifyMFA", "officialCancelLogin", "officialLogout", "officialSync", "officialImportGuest", "officialWebQrcode", "officialWebPoll", "officialWebLogout", "officialWebCancel", "getAnnouncements", "searchNewReleases", "releaseCalendar", "browseDrama", "actorDirectory", "homeFeed", "getReservations", "readReservationMessage", "setReservation", "checkReservations", "enableReservationNotifications", "coverThumbnail", "nativeSeriesDetail", "seriesPublishers", "mergeDownloads", "getMergedVideos", "deleteMergedVideo", "playMergedVideo"));
+    private static final Set<String> METHODS = new HashSet<>(Arrays.asList("getInfo", "httpGet", "cancelHttp", "appRequest", "appDeviceIdentity", "appRegisteredModel", "appResolveResult", "getLibrary", "getSeriesHistory", "removeLibraryRows", "removeHistory", "clearHistory", "toggleFavorite", "play", "download", "getDownloads", "deleteDownload", "playDownload", "getPlaybackCache", "clearPlaybackCache", "getPlaybackOptions", "setPlaybackOptions", "getActivePlayback", "controlActivePlayback", "getSearchHistory", "addSearchHistory", "removeSearchHistory", "clearSearchHistory", "searchQuery", "openExternal", "shareSeries", "readShareClipboard", "resetPlaybackIdentity", "getAccount", "officialSendCode", "officialLoginSMS", "officialVerifyMFA", "officialCancelLogin", "officialLogout", "officialSync", "officialImportGuest", "officialWebQrcode", "officialWebPoll", "officialWebLogout", "officialWebCancel", "getAnnouncements", "searchNewReleases", "releaseCalendar", "browseDrama", "actorDirectory", "homeFeed", "getReservations", "readReservationMessage", "setReservation", "checkReservations", "enableReservationNotifications", "coverThumbnail", "nativeSeriesDetail", "seriesPublishers", "mergeDownloads", "getMergedVideos", "deleteMergedVideo", "playMergedVideo"));
     NativeBridge(MainActivity activity) { this.activity = activity; store = new LibraryStore(activity); downloads = (DownloadManager) activity.getSystemService(Context.DOWNLOAD_SERVICE); }
     @JavascriptInterface public void postMessage(String message) {
         if (message == null || message.length() > 256 * 1024 || message.getBytes(StandardCharsets.UTF_8).length > 256 * 1024) return;
@@ -75,6 +75,11 @@ final class NativeBridge {
             // Completion callbacks must not wait behind HTTP or full-media preparation.
             if (method.equals("appResolveResult")) {
                 try { handle(id, method, params); } catch (Exception error) { respond(id, null, "分集结果不匹配"); }
+                return;
+            }
+            if (method.equals("getActivePlayback") || method.equals("controlActivePlayback")) {
+                try { respond(id, BackgroundPlaybackService.controls(activity, method.equals("getActivePlayback") ? null : params), null); }
+                catch (Exception error) { respond(id, null, error.getMessage() == null ? "播放操作未成功" : error.getMessage()); }
                 return;
             }
             final AccountSync.Selection favoriteSelection;

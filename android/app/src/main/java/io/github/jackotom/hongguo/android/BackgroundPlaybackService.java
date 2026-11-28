@@ -15,6 +15,8 @@ import android.net.Uri;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public final class BackgroundPlaybackService extends Service {
     private static final String TAKEOVER = "background.takeover";
@@ -75,6 +77,29 @@ public final class BackgroundPlaybackService extends Service {
     static boolean isActive() {
         BackgroundPlaybackService service = running;
         return service != null && service.session != null;
+    }
+
+    // The page bridge and service callbacks share the Android main thread.
+    static JSONObject controls(Context context, JSONObject params) throws Exception {
+        BackgroundPlaybackService service = running;
+        BackgroundPlaybackSession current = service == null ? null : service.session;
+        if (current == null) return new JSONObject();
+        if (params != null) {
+            if (!current.id.equals(params.optString("id"))) throw new JSONException("当前播放已切换");
+            switch (params.getString("action")) {
+                case "open": context.startActivity(new Intent(current.reopen)); break;
+                case "play": service.setPaused(false); break;
+                case "pause": service.setPaused(true); break;
+                case "previous": service.switchEpisode(-1); break;
+                case "next": service.switchEpisode(1); break;
+                case "stop": service.park(); return new JSONObject();
+                default: throw new JSONException("播放操作无效");
+            }
+        }
+        return new JSONObject().put("id", current.id).put("title", current.owner().getString("title"))
+            .put("index", current.episode().getInt("index")).put("paused", current.paused)
+            .put("previous", current.index > 0).put("next", current.hasNext())
+            .put("positionMs", current.position);
     }
 
     static void stopOther(String id) {
