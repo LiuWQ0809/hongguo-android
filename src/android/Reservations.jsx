@@ -12,8 +12,9 @@ export function ReserveButton({ series, reservations }) {
 function ReservationMessages({ reservations, onOpen }) {
   if (!reservations.messages.length) return <p className="result-caption">{reservations.busy ? '正在读取消息…' : '预约的剧上线或追更的剧更新后，消息会出现在这里。'}</p>;
   return <div className="reservation-list">{reservations.messages.map(row => <article className="reservation-row" key={row.messageId}>
-    <button className="reservation-title" type="button" disabled={reservations.busy} onClick={async () => {
-      if (row.read || await reservations.readMessage(row.messageId)) onOpen(row);
+    <button className="reservation-title" type="button" disabled={reservations.busy} onClick={() => {
+      if (!row.read) reservations.readMessage(row.messageId);
+      onOpen(row);
     }}>
       <strong>{row.title}</strong>
       <span>{row.read ? '' : '未读 · '}{row.follow ? `更新至第 ${row.latestEpisode} 集` : '预约已上线'}</span>

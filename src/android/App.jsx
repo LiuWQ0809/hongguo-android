@@ -527,10 +527,13 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onR
   const [edit, setEdit] = useState(null);
   const currentOwner = useRef(library.owner);
   currentOwner.current = library.owner;
-  const selection = edit?.owner === library.owner && edit?.view === view ? edit.ids : null;
-  const toggleSelection = item => setEdit(previous => ({ ...previous, ids: previous.ids.includes(item.seriesId)
-    ? previous.ids.filter(id => id !== item.seriesId) : [...previous.ids, item.seriesId] }));
   const items = library[view] || [];
+  const availableIds = new Set(items.map(row => row.seriesId));
+  const selection = edit?.owner === library.owner && edit?.view === view ? edit.ids.filter(id => availableIds.has(id)) : null;
+  const toggleSelection = item => {
+    if (!historyBusy) setEdit({ ...edit, ids: selection.includes(item.seriesId)
+      ? selection.filter(id => id !== item.seriesId) : [...selection, item.seriesId] });
+  };
   // 观看记录删除：以设备返回的最新库视图整体替换，失败仅提示不动列表。
   const applyHistoryResult = result => {
     if (!result) return;
@@ -568,8 +571,8 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onR
     .filter(row => matchesPersonalTitle(row.title, query) && (!activeGenre || libraryGenre(row) === activeGenre));
   const visibleIds = shown.map(row => row.seriesId);
   const allSelected = visibleIds.length > 0 && visibleIds.every(id => selection?.includes(id));
-  const selectVisible = () => setEdit(previous => ({ ...previous, ids: allSelected
-    ? previous.ids.filter(id => !visibleIds.includes(id)) : [...new Set([...previous.ids, ...visibleIds])] }));
+  const selectVisible = () => setEdit({ ...edit, ids: allSelected
+    ? selection.filter(id => !visibleIds.includes(id)) : [...new Set([...selection, ...visibleIds])] });
   const completedCount = useMemo(() => (library.history || []).filter(row => completedEpisode(row)).length, [library.history]);
   return <>
     <header className="page-heading heading-actions"><h1>追剧与记录</h1><div className="heading-buttons">{view === 'history' && !!(library.history || []).length && <button type="button" className="button" disabled={historyBusy || !!selection} onClick={() => setConfirmClear(true)}>清空记录</button>}<button type="button" className="button" onClick={onAccount}>账号</button></div></header>
@@ -601,7 +604,7 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onR
     {(query || activeGenre) && !shown.length && !busy && !error && <p className="result-caption" role="status">当前列表没有匹配的短剧。</p>}
     {library.projection?.[view === 'favorites' ? 'favoritesHasMore' : 'historyHasMore'] && <p className="account-note" role="status">当前展示最近 {items.length} 项；完整记录已保存在账号库，较早剧集的原生播放进度仍保留。</p>}
     {view === 'history' && confirmClear && <div className="search-history-confirm" role="group" aria-label="确认清空观看记录"><p>清空这台设备上的全部观看记录？</p><div><button className="button" type="button" disabled={historyBusy} onClick={clearAll}>{historyBusy ? '正在更新…' : '确认清空'}</button><button className="button" type="button" disabled={historyBusy} onClick={() => setConfirmClear(false)}>取消</button></div></div>}
-    <Status busy={busy} error={error} preserve={!!shown.length} onRetry={onRetry} empty={!query && !activeGenre && !shown.length && { title: view === 'favorites' ? '还没有追剧' : historyView === 'completed' ? '还没有看完的短剧' : historyView === 'watching' ? '没有正在观看的短剧' : '还没有观看记录', text: view === 'favorites' ? '打开短剧详情，点击「加入追剧」。' : '播放短剧后，进度会自动记录。' }}><PosterGrid items={shown} onOpen={onOpen} onPlay={onPlay} history={view === 'history'} onDelete={view === 'history' && !selection ? removeRow : undefined} selection={selection} onSelect={selection && !historyBusy ? toggleSelection : selection ? () => {} : undefined} /></Status>
+    <Status busy={busy} error={error} preserve={!!shown.length} onRetry={onRetry} empty={!query && !activeGenre && !shown.length && { title: view === 'favorites' ? '还没有追剧' : historyView === 'completed' ? '还没有看完的短剧' : historyView === 'watching' ? '没有正在观看的短剧' : '还没有观看记录', text: view === 'favorites' ? '打开短剧详情，点击「加入追剧」。' : '播放短剧后，进度会自动记录。' }}><PosterGrid items={shown} onOpen={onOpen} onPlay={onPlay} history={view === 'history'} onDelete={view === 'history' && !selection ? removeRow : undefined} selection={selection} onSelect={selection ? toggleSelection : undefined} /></Status>
   </>;
 }
 

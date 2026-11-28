@@ -42,8 +42,7 @@ final class ReservationStore {
                 JSONObject row = rows.getJSONObject(i);
                 if (!id.equals(row.getString("messageId")) || row.optBoolean("read")) continue;
                 row.put("read", true);
-                if (!prefs.edit().putString("messages", rows.toString()).commit())
-                    throw new IOException("消息状态保存失败");
+                saveMessageChange(null, rows, "消息状态保存失败");
                 return;
             }
         }
@@ -57,8 +56,19 @@ final class ReservationStore {
         JSONArray previous = messages(), next = new JSONArray().put(message);
         for (int i = 0; i < previous.length() && next.length() < MESSAGE_LIMIT; i++)
             next.put(previous.getJSONObject(i));
-        if (!prefs.edit().putString("items", rows.toString()).putString("messages", next.toString()).commit())
-            throw new IOException("上线或追更消息保存失败");
+        saveMessageChange(rows, next, "上线或追更消息保存失败");
+    }
+
+    private void saveMessageChange(JSONArray items, JSONArray messages, String error) throws IOException {
+        String originalMessages = prefs.getString("messages", null), originalItems = prefs.getString("items", null);
+        SharedPreferences.Editor editor = prefs.edit().putString("messages", messages.toString());
+        if (items != null) editor.putString("items", items.toString());
+        if (!editor.commit()) {
+            SharedPreferences.Editor restore = prefs.edit().putString("messages", originalMessages);
+            if (items != null) restore.putString("items", originalItems);
+            restore.commit();
+            throw new IOException(error);
+        }
     }
 
     void update(String id, JSONObject series, boolean enabled, boolean follow, int latestEpisode) throws Exception {
