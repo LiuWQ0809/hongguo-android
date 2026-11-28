@@ -5,6 +5,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.net.URI;
+import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
@@ -27,6 +28,7 @@ final class OfflineTransfer {
         }).build();
 
     private volatile Call call;
+    private volatile Socket connection;
     private volatile boolean paused;
     volatile long total = -1;
 
@@ -90,5 +92,11 @@ final class OfflineTransfer {
             } finally { call = null; }
         }
         throw new IOException("下载地址未完成确认");
+    }
+    Socket connect(URI uri, long deadline) throws IOException {
+        ensureRunning();
+        connection = NetworkGuard.connectPublic(NetworkGuard.publicAddresses(uri, deadline), deadline);
+        try { ensureRunning(); return connection; }
+        catch (IOException stopped) { connection.close(); throw stopped; }
     }
 }
