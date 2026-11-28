@@ -310,6 +310,18 @@ final class OfficialWebAccount {
         };
     }
 
+    void syncLibrary(OfficialLibrary library,String account,java.util.function.BooleanSupplier current)throws Exception {
+        String lane;
+        synchronized(lock){
+            if(!cloudReady||!account.equals(uid()))throw new IOException("官网账号云端验证尚未完成");
+            lane=cloudLane;
+        }
+        if(LANE_UPSTREAM.equals(lane))library.sync(cloudApi(),account,current);
+        else try(OfficialApiClient client=cloudClient()){
+            library.sync(client,account,current);
+        }
+    }
+
     /** Marks the web lane dead after a 401 from a cloud call; the session itself stays until re-login. */
     void cloudExpired(){
         synchronized(lock){cloudReady=false;cloudGeneration++;diagnostic="cloud_session_expired";}

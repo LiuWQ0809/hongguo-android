@@ -24,6 +24,7 @@ final class AccountSync {
     private volatile String selectedUid="",selectionError="",syncError="";
     private volatile Runnable listener;
     private volatile OfficialApiClient syncClient;
+    private final java.util.concurrent.atomic.AtomicBoolean webProbePending = new java.util.concurrent.atomic.AtomicBoolean();
     private static OfficialAccountFlow createFlow(Context context)throws Exception {
         return new OfficialAccountFlow(new OfficialSessionStore(context),new OfficialAccountFlow.Clients(){
             public JSONObject fresh()throws Exception{return OfficialApiClient.newSession();}
@@ -113,19 +114,20 @@ final class AccountSync {
         if(web==null)return new JSONObject().put("available",false);
         JSONObject value=web.status();value.put("available",true);return value;
     }
-    JSONObject webQrcode()throws Exception {if(web==null)throw new java.io.IOException("红果官网扫码登录不可用");JSONObject value=web.start();notifyChanged();probeWeb();return value;}
+    JSONObject webQrcode()throws Exception {if(web==null)throw new java.io.IOException("红果官网扫码登录不可用");JSONObject value=web.start();notifyChanged();return value;}
     JSONObject webPoll()throws Exception {if(web==null)throw new java.io.IOException("红果官网扫码登录不可用");JSONObject value=web.poll();probeWeb();notifyChanged();return value;}
-    JSONObject webLogout()throws Exception {if(web==null)throw new java.io.IOException("红果官网扫码登录不可用");JSONObject value=web.logout();selectLibrary();notifyChanged();return value;}
+    JSONObject webLogout()throws Exception {if(web==null)throw new java.io.IOException("红果官网扫码登录不可用");cancelSync();JSONObject value=web.logout();selectLibrary();notifyChanged();return value;}
     JSONObject webCancel()throws Exception {if(web==null)throw new java.io.IOException("红果官网扫码登录不可用");JSONObject value=web.cancel();notifyChanged();return value;}
     /** Proves the web cookie on the signed cloud APIs, then re-selects the library when it passes. */
     private void probeWeb(){
-        if(web==null)return;
-        syncWorker.execute(()->{
-            try{
-                if(!web.probeCloud())return;
-                selectLibrary();schedule(0);notifyChanged();
-            }catch(RuntimeException ignored){ }
-        });
+        if(web==null||web.uid().isEmpty()||web.cloudReady()||!webProbePending.compareAndSet(false,true))return;
+        try {
+            syncWorker.execute(()->{
+                try {
+                    if(web.probeCloud()){selectLibrary();schedule(0);}
+                } finally {webProbePending.set(false);notifyChanged();}
+            });
+        } catch(RejectedExecutionException stopped) {webProbePending.set(false);}
     }
     JSONObject sendCode(JSONObject params)throws Exception{flow.sendCode(params.optString("phone",flow.phoneForLogin()));return getAccount();}
     JSONObject loginSMS(JSONObject params)throws Exception {
@@ -136,7 +138,12 @@ final class AccountSync {
     JSONObject suspendLogin()throws JSONException {flow.suspendLogin();notifyChanged();return getAccount();}
     JSONObject logout()throws Exception {cancelSync();flow.logout();selectLibrary();notifyChanged();return getAccount();}
     JSONObject importGuest()throws Exception {selectLibrary();if(cloudUid().isEmpty()||!libraryReady)throw new java.io.IOException("请先登录红果账号并读取本机记录");JSONObject result=library.importGuest();schedule(0);notifyChanged();return getAccount().put("importResult",result);}
-    JSONObject syncNow()throws Exception {selectLibrary();if(cloudUid().isEmpty()||!libraryReady)throw new java.io.IOException(web!=null&&!web.uid().isEmpty()?"官网会话云端验证未完成，请稍后重试同步":"请先登录红果账号并读取本机记录");schedule(0);notifyChanged();return getAccount();}
+    JSONObject syncNow()throws Exception {
+        selectLibrary();
+        if(cloudUid().isEmpty()&&web!=null&&!web.uid().isEmpty()){probeWeb();return getAccount();}
+        if(cloudUid().isEmpty()||!libraryReady)throw new java.io.IOException("请先登录红果账号并读取本机记录");
+        schedule(0);notifyChanged();return getAccount();
+    }
     private void schedule(long delay){
         if(cloudUid().isEmpty()||!libraryReady)return;
         synchronized(syncLock){syncRequested=true;requestedEpoch=cloudEpoch();if(syncing)return;if(scheduled!=null){if(scheduled.getDelay(TimeUnit.MILLISECONDS)<=delay)return;scheduled.cancel(false);}scheduled=syncWorker.schedule(this::sync,delay,TimeUnit.MILLISECONDS);}
@@ -149,8 +156,8 @@ final class AccountSync {
         notifyChanged();OfficialApiClient client=null;boolean sessionSaveAttempted=false;
         try {
             if(webLane){
-                // Every cloud call is signed the verified upstream way with the web cookie.
-                library.sync(web.cloudApi(),uid,current);
+                // Sync with the same transport that proved this account ID.
+                web.syncLibrary(library,uid,current);
                 if(current.getAsBoolean())syncError="";
             }else{
                 client=cloudClients.create(flow.session());syncClient=client;
