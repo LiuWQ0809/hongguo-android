@@ -22,6 +22,11 @@ final class PlayLauncher {
         // The compact descriptor crosses Binder once; decorated per-episode owners
         // exist only inside the player/services, never duplicated in Intent extras.
         if (!local && params.optJSONObject("playlist") != null) intent.putExtra("playlist", params.getJSONObject("playlist").toString());
+        if (!local && !BuildConfig.IS_TV && params.has(RecommendationQueue.EXTRA)) {
+            if (!params.optBoolean("resolveInPlayer") || params.has("playlist")) throw new JSONException("推荐播放必须使用独立原生短剧");
+            RecommendationQueue recommendations = new RecommendationQueue(params.get(RecommendationQueue.EXTRA), series.getString("seriesId"));
+            intent.putExtra(RecommendationQueue.EXTRA, recommendations.rows().toString());
+        }
         return intent;
     }
 }
