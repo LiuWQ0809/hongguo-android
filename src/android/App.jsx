@@ -252,11 +252,18 @@ function Discover({ onOpen, onPlay, onRecommend, library, onSearch, onUpdates, p
         const base = append && previous?.items?.length ? previous.items : [];
         const seen = new Set(base.map(row => row.seriesId));
         const merged = base.concat(items.filter(row => !seen.has(row.seriesId)));
-        return { busy: false, items: merged, offset: Number(result.offset) || 0, sessionId: String(result.sessionId || ''), hasMore: result.hasMore === true, error: '', genres: genres.length ? genres : previous?.genres || [], genre: genre || 'short_play' };
+        const nextOffset = Number(result.offset) || 0, nextSession = String(result.sessionId || '');
+        const firstPage = append ? previous?.firstPage : {
+          items, cursor: result.hasMore && nextOffset > 0
+            ? { offset: nextOffset, sessionId: nextSession, genre: genre || 'short_play' } : null,
+        };
+        return { busy: false, items: merged, firstPage, offset: nextOffset, sessionId: nextSession, hasMore: result.hasMore === true, error: '', genres: genres.length ? genres : previous?.genres || [], genre: genre || 'short_play' };
       });
     }).catch(() => {
       if (feedGen.current !== current) return;
-      setFeed(null); setFeedError(true);
+      if (append) {
+        setFeed(previous => ({ ...previous, busy: false, error: '下一批推荐暂未加载，请重试。' }));
+      } else { setFeed(null); setFeedError(true); }
     });
   };
   useEffect(() => { loadFeed(0, '', false, 'short_play'); }, []);
@@ -311,9 +318,9 @@ function Discover({ onOpen, onPlay, onRecommend, library, onSearch, onUpdates, p
   // Keep real in-progress episodes above the recommendation catalogue.
   const continueRows = useMemo(() => filterHistory(library?.history || [], 'watching'), [library?.history]);
   const feedMode = feed !== null;
-  const picks = [...new Map((feedMode ? feed.items : shown.items)
+  const picks = [...new Map((feedMode ? feed.firstPage?.items || [] : shown.items)
     .filter(item => /^\d{6,30}$/.test(item.seriesId) && !item.upcoming && !isRetiredSeriesId(item.seriesId))
-    .map(item => [item.seriesId, item])).values()].slice(0, 24);
+    .map(item => [item.seriesId, item])).values()].slice(0, 50);
   const searchButton = <button type="button" className="home-search" onClick={onSearch}><Search size={17} /><span>搜索短剧名称</span></button>;
   return <>
     <h1 className="visually-hidden">发现短剧</h1>
@@ -339,7 +346,7 @@ function Discover({ onOpen, onPlay, onRecommend, library, onSearch, onUpdates, p
       <h2>继续观看</h2>
       <div className="home-continue-row"><PosterGrid items={continueRows} onOpen={onOpen} onPlay={onPlay} history /></div>
     </section>}
-    {onRecommend && picks.length > 1 && <button type="button" className="recommend-entry" onClick={() => onRecommend(picks)}>
+    {onRecommend && picks.length > 1 && <button type="button" className="recommend-entry" onClick={() => onRecommend(picks, feed?.firstPage?.cursor)}>
       <DetailCover key={picks[0].seriesId} url={picks[0].coverUrl} />
       <span><strong>开始刷剧</strong><span>{picks[0].title}</span><small>上下滑切换作品</small></span>
       <Play size={24} />
@@ -1494,6 +1501,7 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLib
         Object.assign(params, { episodes: item.episodes.map(compactEpisode), ...preferences, resolveInPlayer: true });
         if (resumeIntent?.recommendations?.[0]?.seriesId === item.seriesId) {
           params.recommendations = resumeIntent.recommendations;
+          if (resumeIntent.recommendationCursor) params.recommendationCursor = resumeIntent.recommendationCursor;
         }
         // Only the selected season enters native playback/casting. Manual season
         // discovery and history navigation must not delay play or extend its queue.
@@ -1851,15 +1859,15 @@ export default function App() {
   useTvNavigation(!!info.isTv);
   const closeDetail = useCallback(() => { setDetail(current => current?.parent || null); setTimeout(() => lastDetailFocus.current?.isConnected && lastDetailFocus.current.focus(), 0); }, []);
   const sharedLinkRevision = useRef(0);
-  const openDetail = (series, vid, direct = false, { shareToken = 0, recommendations } = {}) => {
+  const openDetail = (series, vid, direct = false, { shareToken = 0, recommendations, recommendationCursor } = {}) => {
     if (isRetiredSeriesId(series?.seriesId)) { notify('原黄果来源已移除，观看记录仍保留。'); return; }
     lastDetailFocus.current = document.activeElement;
     previousScroll.current = content.current?.scrollTop || 0;
-    setDetail({ seed: series, initialVid: vid, shareToken, resumeIntent: direct ? { token: shareToken, seriesId: String(series.seriesId), vid, direct: true, shared: !!shareToken, recommendations } : null });
+    setDetail({ seed: series, initialVid: vid, shareToken, resumeIntent: direct ? { token: shareToken, seriesId: String(series.seriesId), vid, direct: true, shared: !!shareToken, recommendations, recommendationCursor } : null });
   };
   const openPlayback = info.isTv ? undefined : (series, vid) => openDetail(series, vid, true);
-  const openRecommendation = info.isTv ? undefined : items => openDetail(items[0], undefined, true, {
-    recommendations: items.map(({ seriesId }) => ({ seriesId })),
+  const openRecommendation = info.isTv ? undefined : (items, recommendationCursor) => openDetail(items[0], undefined, true, {
+    recommendations: items.map(({ seriesId }) => ({ seriesId })), recommendationCursor,
   });
   const openShareLink = ({ seriesId, vid }) => openDetail({ seriesId, title: '' }, vid, !!vid, { shareToken: ++sharedLinkRevision.current });
   const navigate = (id, view = null) => {
