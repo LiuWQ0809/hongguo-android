@@ -656,14 +656,18 @@ final class NativeBridge {
                 break;
             }
             case "shareSeries": {
-                String seriesId = params.getString("seriesId");
-                if (!OfficialApiClient.validID(seriesId)) throw new IllegalArgumentException("剧集编号无效");
-                String url = "https://hongguoduanju.com/detail?series_id=" + seriesId;
+                if (!(params.opt("seriesId") instanceof String seriesId) || !OfficialApiClient.validID(seriesId))
+                    throw new IllegalArgumentException("剧集编号无效");
+                boolean episode = params.has("vid");
+                String vid = params.opt("vid") instanceof String value ? value : null;
+                if (episode && !OfficialApiClient.validID(vid)) throw new IllegalArgumentException("分集编号无效");
+                String url = episode ? "https://hongguoduanju.com/player/" + seriesId + "/" + vid
+                        : "https://hongguoduanju.com/detail?series_id=" + seriesId;
                 activity.runOnUiThread(() -> {
                     if (closed || activity.isFinishing() || activity.isDestroyed()) return;
                     try {
                         Intent share = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url);
-                        activity.startActivity(Intent.createChooser(share, "分享短剧"));
+                        activity.startActivity(Intent.createChooser(share, episode ? "分享本集" : "分享短剧"));
                         respond(id, new JSONObject().put("opened", true), null);
                     } catch (Exception unavailable) { respond(id, null, "无法打开系统分享"); }
                 });

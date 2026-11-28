@@ -1537,6 +1537,8 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLib
             </button>}
             {!isTv && <button type="button" className="favorite-chip chip-fav share-chip" aria-label="分享短剧"
               onClick={() => nativeCall('shareSeries', { seriesId: item.seriesId }).catch(cause => notify(errorText(cause)))}><Share2 size={16} /></button>}
+            {!isTv && episode && <button type="button" className="favorite-chip chip-fav" aria-label={`分享第 ${episode.index} 集`}
+              onClick={() => nativeCall('shareSeries', { seriesId: item.seriesId, vid: episode.vid }).catch(cause => notify(errorText(cause)))}>分享本集</button>}
           </div>
           {!separateSynopsis && synopsis}
           {reservations?.error && <p className="text-error" role="alert">{reservations.error}</p>}
