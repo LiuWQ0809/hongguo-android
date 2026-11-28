@@ -99,7 +99,7 @@ public final class BackgroundPlaybackService extends Service {
         return new JSONObject().put("id", current.id).put("title", current.owner().getString("title"))
             .put("index", current.episode().getInt("index")).put("paused", current.paused)
             .put("previous", current.index > 0).put("next", current.hasNext())
-            .put("positionMs", current.position);
+            .put("ready", service.ready).put("positionMs", current.position);
     }
 
     static void stopOther(String id) {
@@ -317,6 +317,7 @@ public final class BackgroundPlaybackService extends Service {
     private void park() {
         if (session != null) {
             session.paused = true;
+            session.advancing = false;
             parked = session;
         }
         clearSession();

@@ -39,7 +39,7 @@ export function useMiniPlayer(enabled, notify) {
 
 export default function MiniPlayer({ session, command, busy }) {
   if (!session) return null;
-  const caption = session.paused ? '已暂停' : '正在播放';
+  const caption = session.paused ? '已暂停' : session.ready ? '正在播放' : '正在加载';
   return <section className="mini-player" aria-label="当前播放">
     <button type="button" className="mini-title" onClick={() => command('open')} disabled={busy} aria-label={`打开播放器，${session.title}第 ${session.index} 集`}><strong>{session.title}</strong><small>第 {session.index} 集 · {caption}</small></button>
     <button type="button" aria-label="上一集" onClick={() => command('previous')} disabled={busy || !session.previous}><ChevronRight className="mini-previous" size={20} /></button>
