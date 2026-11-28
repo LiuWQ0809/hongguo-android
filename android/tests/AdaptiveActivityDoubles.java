@@ -12,9 +12,11 @@ class MediaPlayer {
  int width=1080,height=1920;float rate=1;boolean playing;Size size;Seek seek;
  VideoView view;
  int getDuration(){return view.getDuration();}void seekTo(long value,int mode){view.seekTo((int)value);}
+ float observedSpeed(){return PlayerOptions.observedSpeed(this);}float setVerifiedSpeed(float rate,boolean playing){return PlayerOptions.setVerifiedSpeed(this,rate,playing);}void seekPrecisely(int position){seekTo(position,SEEK_CLOSEST);}
  int getVideoWidth(){return width;}int getVideoHeight(){return height;}void setOnVideoSizeChangedListener(Size s){size=s;}void setOnSeekCompleteListener(Seek s){seek=s;}boolean isPlaying(){return playing;}void pause(){playing=false;}void setVolume(float l,float r){}
 }
 class VideoView {
+ boolean soft;void configure(boolean enabled){soft=enabled;}boolean software(){return soft;}
  interface Prepared {void prepared(MediaPlayer p);}interface Error {boolean error(MediaPlayer p,int what,int extra);}interface Info {boolean info(MediaPlayer p,int what,int extra);}interface Completion {void complete(MediaPlayer p);}
  Prepared prepared;Error error;Info info;Completion completion;MediaPlayer player;Uri uri;int position,stops;boolean playing,deferSeek;
  VideoView(Object owner){}void setFocusable(boolean b){}void setFocusableInTouchMode(boolean b){}void setOnPreparedListener(Prepared p){prepared=p;}void setOnErrorListener(Error e){error=e;}void setOnInfoListener(Info i){info=i;}void setOnCompletionListener(Completion c){completion=c;}

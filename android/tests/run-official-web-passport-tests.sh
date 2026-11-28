@@ -12,6 +12,7 @@ package io.github.jackotom.hongguo.android;
 import org.json.JSONObject;
 final class OfficialLibrary {
     interface Api { JSONObject call(String path,String method,JSONObject query,JSONObject body,boolean gzip)throws Exception; }
+    void sync(Api api, String account, java.util.function.BooleanSupplier current) throws Exception { }
 }
 STUB
 cat > "$TMP/io/github/jackotom/hongguo/android/AppTransport.java" <<'STUB'
@@ -31,7 +32,7 @@ STUB
 cat > "$TMP/io/github/jackotom/hongguo/android/OfficialApiClient.java" <<'STUB'
 package io.github.jackotom.hongguo.android;
 import org.json.JSONObject;
-final class OfficialApiClient implements AutoCloseable {
+final class OfficialApiClient implements AutoCloseable, OfficialLibrary.Api {
     static final int MAX_BYTES=4*1024*1024;
     static final class HTTPError extends java.io.IOException { final int status,retryAfter; HTTPError(int status,int retry){this.status=status;this.retryAfter=retry;} }
     static JSONObject newSession() throws Exception { return new JSONObject().put("cookies", new JSONObject()); }
@@ -41,6 +42,9 @@ final class OfficialApiClient implements AutoCloseable {
     void registerDevice() throws Exception { }
     void deadlineNanos(long value) { }
     JSONObject cloud(String path, String method, JSONObject query, JSONObject body, boolean gzip) throws Exception { throw new java.io.IOException("网络在离线测试中不可用"); }
+    public JSONObject call(String path,String method,JSONObject query,JSONObject body,boolean gzip)throws Exception {
+        return cloud(path,method,query,body,gzip);
+    }
     public void close() { }
 }
 STUB
@@ -53,7 +57,8 @@ final class AccountSigner {
     static Signed request(String apiPath, Map<String, String> values, String deviceId, String iid, String cdid, long now, String processNonce, long processStarted, int[] randoms, byte[] body) throws Exception { throw new java.io.IOException("签名在离线测试中不可用"); }
 }
 STUB
-"$JAVA_HOME/bin/javac" --release 17 -encoding UTF-8 -cp "$JSON_JAR" -d "$TMP/classes" \
+SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}/platforms/android-36/android.jar"
+"$JAVA_HOME/bin/javac" --release 17 -encoding UTF-8 -cp "$JSON_JAR:$SDK" -d "$TMP/classes" \
   "$TMP/io/github/jackotom/hongguo/android/OfficialLibrary.java" "$TMP/io/github/jackotom/hongguo/android/AppTransport.java" "$TMP/io/github/jackotom/hongguo/android/UpstreamDeviceRegister.java" "$TMP/io/github/jackotom/hongguo/android/OfficialApiClient.java" "$TMP/io/github/jackotom/hongguo/android/AccountSigner.java" \
   "$SOURCE/AccountLog.java" "$SOURCE/OfficialWebPassport.java" "$SOURCE/OfficialWebAccount.java" "$SOURCE/NetworkGuard.java" "$SOURCE/DanmakuSigner.java" \
   "$ROOT/android/tests/OfficialWebAccountTest.java"

@@ -61,9 +61,12 @@ final class AdaptiveActivityHarness {
  Future<?> seasonLookup;
  boolean continueSeason(boolean paused){return false;} // Official relationships are tested separately.
  RecommendationQueue recommendations;
+ RecommendationCursor recommendationCursor;
  RecommendationPrefetch recommendationPrefetch;
+ boolean softwareFallback;
+ static final class RecommendationCursor {}
  static final class RecommendationQueue {String neighbor(int delta){return null;}}
- static final class RecommendationPrefetch {void preload(String value){}void ignoreSelection(){}}
+ static final class RecommendationPrefetch {void preload(String value){}void loadPage(RecommendationCursor cursor,java.util.function.Consumer<JSONObject> open){}void ignoreSelection(){}}
  final MainLoop main=new MainLoop();final Worker resolver=new Worker(),cacheWorker=new Worker();
  Future<?> resolution,prefetch;int prefetchedIndex=-1;
  RETRY_FIELDS
@@ -106,5 +109,6 @@ header=header.replace('MODERN_FIELD','final Set<PreparedMedia> pendingMedia=new 
 header=header.replace('MODERN_INIT','recoveryBudget.reset(generation);' if modern else '')
 header=header.replace('BASELINE_LOAD','' if modern else 'void loadAt(int index,String url,int position){loads++;loadedAt=index;loadedPosition=position;}')
 header=header.replace('METHODS','\n'.join(methods))
+header=header.replace('PlaybackVideoView','VideoView').replace('PlaybackEngine','MediaPlayer')
 Path(sys.argv[2]).write_text(header)
 print('ADAPTIVE_ACTIVITY_BINDING actualMethods=true modern='+str(modern).lower()+' methods='+str(len(methods))+' source='+sys.argv[1])
