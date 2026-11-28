@@ -1,0 +1,76 @@
+package io.github.jackotom.hongguo.android;
+
+import android.content.SharedPreferences;
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.regex.Pattern;
+import okhttp3.Request;
+import okhttp3.Response;
+
+/** Persist only a resource fingerprint and strong validator, never a signed URL. */
+final class OfflineRange {
+    private static final Pattern CONTENT_RANGE = Pattern.compile("bytes ([0-9]+)-([0-9]+)/([0-9]+)");
+    private final File part;
+    private final SharedPreferences prefs;
+    private final String key;
+
+    OfflineRange(File part, SharedPreferences prefs, long id) {
+        this.part = part;
+        this.prefs = prefs;
+        key = "range_" + id;
+    }
+
+    long request(URI uri, Request.Builder request) throws Exception {
+        String prior = prefs.getString(key, "");
+        String scope = scope(uri) + "\n";
+        long bytes = part.length();
+        if (bytes > 0 && prior.startsWith(scope)) {
+            String validator = prior.substring(scope.length());
+            if (strong(validator)) {
+                request.header("Range", "bytes=" + bytes + "-").header("If-Range", validator);
+                return bytes;
+            }
+        }
+        return 0;
+    }
+
+    long accept(URI uri, Response response, long requested, long limit) throws Exception {
+        long length = response.body() == null ? -1 : response.body().contentLength();
+        String etag = response.header("ETag", "");
+        if (length > limit || !response.header("Content-Encoding", "identity").equalsIgnoreCase("identity"))
+            throw new IOException("下载响应长度或编码无效");
+        if (response.code() == 206) {
+            var range = CONTENT_RANGE.matcher(response.header("Content-Range", ""));
+            if (requested <= 0 || !strong(etag) || !(scope(uri) + "\n" + etag).equals(prefs.getString(key, ""))
+                    || part.length() != requested || !range.matches()) throw new IOException("断点下载身份校验未通过");
+            long start = Long.parseLong(range.group(1)), end = Long.parseLong(range.group(2)), total = Long.parseLong(range.group(3));
+            if (start != requested || total <= start || total > limit || end != total - 1
+                    || length != end - start + 1) throw new IOException("断点下载响应区间无效");
+            return total;
+        }
+        if (response.code() != 200) throw new IOException("下载请求暂未完成（HTTP " + response.code() + "）");
+        try (var file = new RandomAccessFile(part, "rw")) {
+            file.setLength(0);
+            file.getFD().sync();
+        }
+        String value = strong(etag) ? scope(uri) + "\n" + etag : "";
+        if (!prefs.edit().putString(key, value).commit()) throw new IOException("下载断点保存未完成");
+        return length;
+    }
+
+    void forget() throws IOException {
+        if (!prefs.edit().remove(key).commit()) throw new IOException("断点记录清理未完成");
+    }
+
+    private static boolean strong(String tag) { return tag.matches("\"[!-!#-~]{1,180}\""); }
+
+    private static String scope(URI uri) throws Exception {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(
+            (uri.getHost().toLowerCase(java.util.Locale.ROOT) + uri.getRawPath()).getBytes(StandardCharsets.UTF_8));
+        return java.util.Base64.getEncoder().encodeToString(digest);
+    }
+}
