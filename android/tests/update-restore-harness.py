@@ -35,6 +35,7 @@ public final class UpdateRestoreHarness implements AutoCloseable {
  static int groups,checks;
  static void check(boolean ok,String message){checks++;if(!ok)throw new AssertionError(message);}
  static final class BuildConfig{static boolean DEBUG=false;}
+ static final class Build{static final class VERSION{static final int SDK_INT=35;}}
  static final class UpdatePolicy{static final long CHECK_INTERVAL=86400000;static boolean automaticCheckDue(long now,long attempted){return attempted<=0||attempted>now||now-attempted>=CHECK_INTERVAL;}static boolean automaticCheckDue(long now,long attempted,long succeeded){long stamp=Math.max(attempted,succeeded);long interval=succeeded>0&&succeeded>=attempted?CHECK_INTERVAL:900000;return stamp<=0||stamp>now||now-stamp>=interval;}}
  final File directory,apk,partial;final FakePrefs prefs=new FakePrefs();final Host host=new Host();
  final Deque<Runnable> worker=new ArrayDeque<>(),ui=new ArrayDeque<>();
