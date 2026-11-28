@@ -9,7 +9,7 @@ const METHODS = new Set([
   'appRequest', 'appDeviceIdentity', 'appRegisteredModel', 'appResolveResult', 'getPlaybackOptions', 'setPlaybackOptions',
   'getSearchHistory', 'addSearchHistory', 'removeSearchHistory', 'clearSearchHistory', 'searchQuery',
   'resetPlaybackIdentity',
-  'getReservations', 'setReservation', 'checkReservations', 'enableReservationNotifications', 'releaseCalendar', 'browseDrama',
+  'getReservations', 'setReservation', 'checkReservations', 'enableReservationNotifications', 'releaseCalendar', 'browseDrama', 'actorDirectory',
 ]);
 const pending = new Map();
 let sequence = 0;
