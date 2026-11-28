@@ -3,6 +3,7 @@ package io.github.jackotom.hongguo.android;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import androidx.media3.common.C;
+import androidx.media3.common.Effect;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.PlaybackException;
@@ -11,6 +12,8 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
+import androidx.media3.effect.RgbMatrix;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.function.Consumer;
 @UnstableApi
@@ -18,16 +21,20 @@ public final class PhoneMediaRenderer implements PlaybackVideoView.Backend, Play
     private final PlaybackVideoView owner;
     private final ExoPlayer player;
     private final PhoneVideoSurface surface;
+    private final PlaybackPicture picture;
+    private float outputAspect;
     private boolean prepared, seeking, released, ended, buffering;
     private Consumer<PlaybackEngine> onSeek;
     private SizeListener onSize;
 
     public static PlaybackVideoView.Backend create(PlaybackVideoView owner, boolean software) {
-        return software ? new PhoneMediaRenderer(owner, true) : null;
+        PlaybackPicture picture = PlaybackPicture.read(owner.getContext());
+        return software || !picture.equals(PlaybackPicture.DEFAULT) ? new PhoneMediaRenderer(owner, software, picture) : null;
     }
 
-    private PhoneMediaRenderer(PlaybackVideoView owner, boolean software) {
+    private PhoneMediaRenderer(PlaybackVideoView owner, boolean software, PlaybackPicture picture) {
         this.owner = owner;
+        this.picture = picture;
         var context = owner.getContext();
         surface = new PhoneVideoSurface(context);
         var factory = new DefaultRenderersFactory(context).setEnableDecoderFallback(true);
@@ -37,10 +44,15 @@ public final class PhoneMediaRenderer implements PlaybackVideoView.Backend, Play
         });
         player = new ExoPlayer.Builder(context, factory).build();
         player.setVideoSurfaceView(surface);
+        if (!picture.equals(PlaybackPicture.DEFAULT)) {
+            var screen = context.getResources().getDisplayMetrics();
+            resize(owner.getWidth() > 0 ? owner.getWidth() : screen.widthPixels,
+                owner.getHeight() > 0 ? owner.getHeight() : screen.heightPixels);
+        }
         player.addListener(new Player.Listener() {
             @Override public void onEvents(Player source, Player.Events events) { stateChanged(); }
             @Override public void onVideoSizeChanged(VideoSize size) {
-                surface.aspect(size.height == 0 ? 0 : size.width * size.pixelWidthHeightRatio / size.height);
+                if (!picture.blur()) surface.aspect(size.height == 0 ? 0 : size.width * size.pixelWidthHeightRatio / size.height);
                 if (onSize != null) onSize.changed(PhoneMediaRenderer.this, size.width, size.height);
             }
             @Override public void onRenderedFirstFrame() { info(MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START); }
@@ -48,6 +60,21 @@ public final class PhoneMediaRenderer implements PlaybackVideoView.Backend, Play
                 if (!released && owner.onError != null) owner.onError.onEvent(PhoneMediaRenderer.this, MediaPlayer.MEDIA_ERROR_UNSUPPORTED, error.errorCode);
             }
         });
+    }
+
+    @Override public void resize(int width, int height) {
+        if (released || picture.equals(PlaybackPicture.DEFAULT) || width <= 0 || height <= 0) return;
+        float aspect = picture.blur() ? (float) width / height : 0;
+        if (Math.abs(outputAspect - aspect) < .015f && outputAspect != 0) return;
+        outputAspect = aspect;
+        var effects = new ArrayList<Effect>();
+        float[] matrix = picture.matrix();
+        effects.add((RgbMatrix) (time, useHdr) -> matrix);
+        if (picture.blur()) {
+            effects.add(new PhoneBlurFill(aspect));
+            surface.aspect(aspect);
+        }
+        player.setVideoEffects(effects);
     }
 
     private void stateChanged() {

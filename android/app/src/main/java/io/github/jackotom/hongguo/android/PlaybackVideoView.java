@@ -22,6 +22,7 @@ final class PlaybackVideoView extends FrameLayout {
         boolean isPlaying();
         int getDuration();
         int getCurrentPosition();
+        default void resize(int width, int height) { }
     }
 
     private final VideoView platform;
@@ -73,9 +74,15 @@ final class PlaybackVideoView extends FrameLayout {
             return (Backend) Class.forName("io.github.jackotom.hongguo.android.PhoneMediaRenderer")
                 .getMethod("create", PlaybackVideoView.class, boolean.class).invoke(null, this, software);
         } catch (ReflectiveOperationException | LinkageError failure) {
-            if (software) throw new IllegalStateException("设备软解初始化未完成", failure);
+            if (software || !PlaybackPicture.DEFAULT.equals(PlaybackPicture.read(getContext())))
+                throw new IllegalStateException("原生画面或软件解码初始化未完成", failure);
             return null;
         }
+    }
+
+    @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight);
+        if (backend != null) backend.resize(width, height);
     }
 
     void start() { if (backend == null) platform.start(); else backend.start(); }
