@@ -34,6 +34,21 @@ final class ReservationStore {
         }
     }
 
+    void readMessage(String id) throws Exception {
+        if (!id.matches("[0-9a-f-]{36}")) throw new IOException("消息编号无效");
+        synchronized (ReservationStore.class) {
+            JSONArray rows = messages();
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject row = rows.getJSONObject(i);
+                if (!id.equals(row.getString("messageId")) || row.optBoolean("read")) continue;
+                row.put("read", true);
+                if (!prefs.edit().putString("messages", rows.toString()).commit())
+                    throw new IOException("消息状态保存失败");
+                return;
+            }
+        }
+    }
+
     private void saveChange(JSONArray rows, JSONObject row) throws Exception {
         JSONObject message = new JSONObject().put("messageId", UUID.randomUUID().toString())
             .put("seriesId", row.getString("seriesId")).put("title", row.getString("title"))

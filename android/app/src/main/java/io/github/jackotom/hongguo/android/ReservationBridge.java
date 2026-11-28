@@ -11,9 +11,13 @@ import org.json.JSONObject;
 
 final class ReservationBridge {
     static JSONObject state(Activity activity) throws Exception {
-        JSONArray rows = new ReservationStore(activity).snapshot();
-        for (int i = 0; i < rows.length(); i++) rows.getJSONObject(i).remove("token");
-        return new JSONObject().put("items", rows).put("notificationsAllowed", ReservationNotifications.allowed(activity));
+        ReservationStore store = new ReservationStore(activity);
+        synchronized (ReservationStore.class) {
+            JSONArray rows = store.snapshot();
+            for (int i = 0; i < rows.length(); i++) rows.getJSONObject(i).remove("token");
+            return new JSONObject().put("items", rows).put("messages", store.messages())
+                .put("notificationsAllowed", ReservationNotifications.allowed(activity));
+        }
     }
 
     static JSONObject update(Activity activity, JSONObject args) throws Exception {
