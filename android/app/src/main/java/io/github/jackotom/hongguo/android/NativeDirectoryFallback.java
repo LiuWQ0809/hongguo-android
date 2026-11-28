@@ -15,8 +15,12 @@ final class NativeDirectoryFallback {
         JSONObject partial = null;
         Exception missing = null;
         checkCancelled();
+        if (now >= deadline) throw new SocketTimeoutException("红果原生分集目录读取超时");
         try {
-            partial = preload.read(preloadDeadline);
+            JSONObject initial = preload.read(preloadDeadline);
+            checkCancelled();
+            if (System.nanoTime() >= preloadDeadline) throw new SocketTimeoutException("红果预载分集目录读取超时");
+            partial = initial;
             if (partial.optInt("episodeCount") <= partial.getJSONArray("episodes").length()) return partial;
         } catch (Exception failure) {
             checkCancelled();

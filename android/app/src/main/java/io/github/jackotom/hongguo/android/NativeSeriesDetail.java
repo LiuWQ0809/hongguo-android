@@ -25,9 +25,19 @@ final class NativeSeriesDetail {
             .put("use_os_player", false).put("use_server_dns", false);
         JSONObject body = new JSONObject().put("dr_scene", "preload").put("series_id", seriesId).put("biz_param", settings);
         try (OfficialApiClient client = new OfficialApiClient(OfficialApiClient.newSession())) {
-            client.deadlineNanos(deadline);
-            JSONObject response = client.cloud("/novel/player/multi_video_detail/preload/v1", "POST", null, body, false);
-            return project(seriesId, seriesResponse(seriesId, response));
+            return NativeDirectoryFallback.read(deadline, initialDeadline -> {
+                client.deadlineNanos(initialDeadline);
+                JSONObject response = client.cloud("/novel/player/multi_video_detail/preload/v1", "POST", null, body, false);
+                return project(seriesId, seriesResponse(seriesId, response));
+            }, alternateDeadline -> {
+                client.deadlineNanos(alternateDeadline);
+                JSONObject detail = new JSONObject().put("detail_page_version", 0).put("source", 4).put("video_id_type", 1)
+                    .put("caller_scene", "single_col").put("from_video_id", "")
+                    .put("need_all_video_definition", false).put("need_mp4_align", false);
+                JSONObject request = new JSONObject().put("series_id", seriesId).put("biz_param", detail);
+                JSONObject response = client.cloud("/novel/player/video_detail/v1/", "POST", null, request, true);
+                return project(seriesId, seriesResponse(seriesId, response, true));
+            });
         }
     }
 
