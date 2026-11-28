@@ -22,7 +22,9 @@ export default function Actors({ Status, onBack, onSearch }) {
       empty={!names.length && { title: keyword ? '已加载列表中没有匹配演员' : '暂未找到演员' }} onRetry={catalog.retry}>
       <div className="actor-list">{names.map(row => <button key={row.id} type="button" className="actor-row"
         aria-label={`搜索${row.name}的作品`} onClick={() => onSearch(row.name)}>
-        {row.avatar ? <img className="actor-avatar" src={row.avatar} alt="" loading="lazy" /> : <span className="actor-avatar"><User size={20} /></span>}
+        <span className="actor-avatar"><User size={20} />
+          {row.avatar && <img src={row.avatar} alt="" loading="lazy" onError={event => { event.currentTarget.hidden = true; }} />}
+        </span>
         <span><strong>{row.name}</strong>{row.works > 0 && <small>{row.works} 部短剧</small>}</span><Search size={17} />
       </button>)}</div>
     </Status>
