@@ -15,6 +15,7 @@ import CalendarBrowser from './CalendarBrowser.jsx';
 import BrowsePage from './BrowsePage.jsx';
 import { useReservations } from './use-reservations.mjs';
 import { parseSharedLink } from './shared-link.mjs';
+import { getSearchSuggestions, rememberCatalogTitles } from '../searchHistory.js';
 import { JuguoPage, JuguoSettings, useJuguoSettings } from './JuguoDesktop.jsx';
 import { createOfficialSeasonLookup, requestOfficialSeries } from './official-series.mjs';
 import { announcementLink, createAnnouncements } from './announcements.mjs';
@@ -365,24 +366,29 @@ function SharedLinkEntry({ onOpen }) {
   const [opened, setOpened] = useState(false);
   const [text, setText] = useState('');
   const [error, setError] = useState('');
+  const editRevision = useRef(0), input = useRef(null);
+  useEffect(() => { if (opened) input.current?.focus(); }, [opened]);
+  const close = () => { editRevision.current++; setOpened(false); setText(''); setError(''); };
   const paste = async () => {
     setOpened(true); setError('');
+    const revision = ++editRevision.current;
     try {
       const value = await nativeCall('readShareClipboard', {}, 5000);
-      setText(previous => previous || value.text.trim());
+      if (editRevision.current === revision) setText(value.text.trim());
     } catch { /* Manual paste remains available. */ }
   };
   const submit = event => {
     event.preventDefault();
-    try { onOpen(parseSharedLink(text, { allowId: true })); setOpened(false); setText(''); setError(''); }
+    try { onOpen(parseSharedLink(text, { allowId: true })); close(); }
     catch (cause) { setError(errorText(cause)); }
   };
   if (!opened) return <button className="button" type="button" onClick={paste}>粘贴链接</button>;
   return <form className="search-form" onSubmit={submit}>
     <label htmlFor="shared-drama-link">红果分享链接或剧集 ID</label>
-    <div className="search-controls"><input id="shared-drama-link" value={text} maxLength={4096} enterKeyHint="go"
-      onChange={event => { setText(event.target.value); setError(''); }} />
-      <button className="button primary" type="submit" disabled={!text.trim()}>打开</button></div>
+    <div className="search-controls"><input ref={input} id="shared-drama-link" value={text} maxLength={4096} enterKeyHint="go"
+      onChange={event => { editRevision.current++; setText(event.target.value); setError(''); }} />
+      <button className="button primary" type="submit" disabled={!text.trim()}>打开</button>
+      <button className="button" type="button" onClick={close}>取消</button></div>
     {error && <p className="text-error" role="alert">{error}</p>}
   </form>;
 }
@@ -395,6 +401,8 @@ function SearchPage({ onOpen, onPlay, onBrowse, onActors, onBack, onShareLink, i
   const [state, setState] = useState({ items: [], busy: false });
   const [history, setHistory] = useState({ keywords: [], busy: true, error: '' });
   const [confirmClear, setConfirmClear] = useState(false);
+  const suggestions = onPlay && keyword.trim() && keyword.trim() !== query
+    ? getSearchSuggestions(keyword, history.keywords).slice(0, 6) : [];
   const generation = useRef(0);
   const fetching = useRef(false);
   const refreshSearch = useRef(false);
@@ -465,6 +473,7 @@ function SearchPage({ onOpen, onPlay, onBrowse, onActors, onBack, onShareLink, i
       }
       fetching.current = false;
       const atKnownEnd = previous.endBeforePage && page + 1 >= previous.endBeforePage;
+      rememberCatalogTitles(result.items.map(item => ({ series_title: item.title })));
       setState({ ...result, query, page: result.page || page, requestedPage: page, busy: false,
         endBeforePage: previous.endBeforePage,
         ...(atKnownEnd ? { hasMore: false, notice: [result.notice, `没有更多结果，仍显示第 ${page} 页。`].filter(Boolean).join(' ') } : {}) });
@@ -517,6 +526,10 @@ function SearchPage({ onOpen, onPlay, onBrowse, onActors, onBack, onShareLink, i
       <ChevronRight size={20} />{initialActor ? '返回演员' : '返回首页'}
     </button>}
     <form className="search-form" onSubmit={submit}><label className={onPlay ? 'visually-hidden' : undefined} htmlFor="search-keyword">短剧名称</label><div className="search-controls"><input ref={input} id="search-keyword" type="search" autoFocus={!!onPlay && !initialActor} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索短剧名称" maxLength={100} enterKeyHint="search" /><button className="button primary" type="submit" disabled={!keyword.trim()}><Search />搜索</button></div></form>
+    {!!suggestions.length && <ul className="search-history-list" aria-label="本机搜索联想">
+      {suggestions.map(({ term, source }) => <li key={term}><button type="button" className="history-keyword"
+        aria-label={`搜索建议：${term}，${source}`} onClick={() => runSearch(term)}>{term}</button></li>)}
+    </ul>}
     {onShareLink && !initialActor && <SharedLinkEntry onOpen={onShareLink} />}
     {onBrowse && !query && <nav className="search-shortcuts" aria-label="搜索快捷入口">
       {onActors && <button type="button" className="button" onClick={onActors}><User size={16} />演员</button>}
