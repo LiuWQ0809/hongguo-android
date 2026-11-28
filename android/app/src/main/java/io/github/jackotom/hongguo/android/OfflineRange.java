@@ -9,8 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.regex.Pattern;
 import java.util.Map;
-import okhttp3.Request;
-import okhttp3.Response;
 
 /** Persist only a resource fingerprint and strong validator, never a signed URL. */
 final class OfflineRange {
@@ -30,12 +28,6 @@ final class OfflineRange {
 
     record Resume(long offset, String validator) { }
 
-    long request(URI uri, Request.Builder request) throws Exception {
-        Resume resume = request(uri);
-        if (resume.offset > 0) request.header("Range", "bytes=" + resume.offset + "-").header("If-Range", resume.validator);
-        return resume.offset;
-    }
-
     Resume request(URI uri) throws Exception {
         String prior = prefs.getString(key, "");
         String scope = scope(uri) + "\n";
@@ -47,15 +39,6 @@ final class OfflineRange {
             }
         }
         return new Resume(0, "");
-    }
-
-    long accept(URI uri, Response response, long requested, long limit) throws Exception {
-        var headers = new java.util.HashMap<String, String>();
-        for (String name : new String[]{"content-length", "content-encoding", "etag", "content-range"}) {
-            String value = response.header(name);
-            if (value != null) headers.put(name, value);
-        }
-        return accept(uri, response.code(), headers, requested, limit);
     }
 
     long accept(URI uri, int status, Map<String,String> headers, long requested, long limit) throws Exception {
