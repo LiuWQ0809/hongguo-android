@@ -14,6 +14,7 @@ import { ReservedDetail, ReservationsPage } from './Reservations.jsx';
 import CalendarBrowser from './CalendarBrowser.jsx';
 import BrowsePage from './BrowsePage.jsx';
 import { useReservations } from './use-reservations.mjs';
+import { parseSharedLink } from './shared-link.mjs';
 import { JuguoPage, JuguoSettings, useJuguoSettings } from './JuguoDesktop.jsx';
 import { createOfficialSeasonLookup, requestOfficialSeries } from './official-series.mjs';
 import { announcementLink, createAnnouncements } from './announcements.mjs';
@@ -1472,7 +1473,11 @@ function Detail({ seed, initialVid, resumeIntent, library, onBack, onOpen, onLib
     consumedResume.current = resumeIntent.token;
     const target = state.item.seriesId === resumeIntent.seriesId && (resumeIntent.vid == null
       ? episode || state.item.episodes[0] : state.item.episodes.find(entry => entry.vid === resumeIntent.vid));
-    if (!target) { setSelectedVid(null); setResumeError('上次观看的分集已不在当前目录，请手动选择；未自动播放其他集。'); return; }
+    if (!target) {
+      setSelectedVid(null);
+      setResumeError(resumeIntent.shared ? '当前目录中没有链接指定的这一集，请手动选择。' : '上次观看的分集已不在当前目录，请手动选择；未自动播放其他集。');
+      return;
+    }
     setSelectedVid(target.vid); run('play', target);
   }, [state.item, resumeIntent?.token]);
   const synopsis = !isTv && synopsisLong ? (
@@ -1785,15 +1790,18 @@ export default function App() {
   useEffect(() => { document.documentElement.dataset.tv = String(!!info.isTv); }, [info.isTv]);
   useTvNavigation(!!info.isTv);
   const closeDetail = useCallback(() => { setDetail(current => current?.parent || null); setTimeout(() => lastDetailFocus.current?.isConnected && lastDetailFocus.current.focus(), 0); }, []);
-  const openDetail = (series, vid, direct = false, recommendations) => {
+  const sharedLinkRevision = useRef(0);
+  const openDetail = (series, vid, direct = false, { shareToken = 0, recommendations } = {}) => {
     if (isRetiredSeriesId(series?.seriesId)) { notify('原黄果来源已移除，观看记录仍保留。'); return; }
     lastDetailFocus.current = document.activeElement;
     previousScroll.current = content.current?.scrollTop || 0;
-    setDetail({ seed: series, initialVid: vid, resumeIntent: direct ? { token: 0, seriesId: String(series.seriesId), vid, direct: true, recommendations } : null });
+    setDetail({ seed: series, initialVid: vid, shareToken, resumeIntent: direct ? { token: shareToken, seriesId: String(series.seriesId), vid, direct: true, shared: !!shareToken, recommendations } : null });
   };
   const openPlayback = info.isTv ? undefined : (series, vid) => openDetail(series, vid, true);
-  const openRecommendation = info.isTv ? undefined : items => openDetail(items[0], undefined, true,
-    items.map(({ seriesId }) => ({ seriesId })));
+  const openRecommendation = info.isTv ? undefined : items => openDetail(items[0], undefined, true, {
+    recommendations: items.map(({ seriesId }) => ({ seriesId })),
+  });
+  const openShareLink = ({ seriesId, vid }) => openDetail({ seriesId, title: '' }, vid, !!vid, { shareToken: ++sharedLinkRevision.current });
   const navigate = (id, view = null) => {
     if (id === 'juguo' && !juguoEnabled) return;
     if (id === 'library') setLibraryStart(view);
@@ -1826,14 +1834,16 @@ export default function App() {
   useEffect(() => {
     const back = () => { if (!window.dispatchEvent(new CustomEvent('androiddownloadback', { cancelable: true }))) return true; if (tab === 'juguo' && !window.dispatchEvent(new CustomEvent('juguoback', { cancelable: true }))) return true; if (detail) { closeDetail(); return true; } if (tab === 'reservations') { setTab('library'); return true; } if (tab === 'actors') { navigate('search'); return true; } if (tab === 'search' && actorQuery) { navigate('actors'); return true; } if (tab !== 'discover') { setTab(tab === 'downloads' && !info.isTv ? 'about' : 'discover'); return true; } return false; };
     window.__androidBack = back;
-    // A share link resolves to a series id natively; only an exact numeric id may open a detail.
-    window.__androidOpenSeries = (seriesId) => { const id = String(seriesId || ''); if (/^\d{1,30}$/.test(id)) openDetail({ seriesId: id, title: '' }); };
+    window.__androidOpenShareLink = value => {
+      try { openShareLink(parseSharedLink(value)); }
+      catch (error) { notify(errorText(error)); }
+    };
     const keydown = (event) => { if (event.key !== 'Escape' && event.key !== 'Backspace') return; if (event.target?.matches('input,textarea')) return; if (back()) event.preventDefault(); };
     document.addEventListener('keydown', keydown);
     return () => {
       document.removeEventListener('keydown', keydown);
       if (window.__androidBack === back) delete window.__androidBack;
-      if (window.__androidOpenSeries) delete window.__androidOpenSeries;
+      delete window.__androidOpenShareLink;
     };
   }, [detail, tab, actorQuery, closeDetail, info.isTv, notify]);
   const navigation = info.isTv ? NAV : PHONE_NAV;
@@ -1848,7 +1858,7 @@ export default function App() {
       : <strong>红果短剧</strong>}{!detail && !searchInHeader && tab !== 'search' && <button className="brand-search" type="button" aria-label="搜索短剧" onClick={() => navigate('search')}><Search size={20} /></button>}</div>{infoError && <div className="environment-error" role="alert"><span>{infoError}</span><button onClick={loadInfo}>重试连接</button></div>}<main ref={content} className={`main-content${detail ? ' detail-open' : ''}`} id="main-content" data-page={detail ? 'detail' : tab}>
       {detail?.seed.upcoming && reservationEnabled
         ? <ReservedDetail series={detail.seed} reservations={reservations} Cover={DetailCover} onBack={closeDetail} onPlay={openPlayback} />
-        : detail && <SeasonDetails key={detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onOpen={openDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi}
+        : detail && <SeasonDetails key={detail.shareToken ? `${detail.seed.seriesId}-share-${detail.shareToken}` : detail.seed.seriesId} {...detail} library={library} onBack={closeDetail} onOpen={openDetail} onLibrary={replaceLibrary} notify={notify} isTv={!!info.isTv} polishUi={polishUi}
           reservations={reservationEnabled ? reservations : undefined}
           onReserveSeason={reservationEnabled ? seed => setDetail(parent => ({ seed, parent })) : undefined} />}
       <div className="page-slot" hidden={!!detail}>

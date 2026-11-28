@@ -36,37 +36,32 @@ public final class MainActivity extends Activity {
         catch (Exception ignored) { script("window.__androidAccountChanged && window.__androidAccountChanged()"); }
     };
 
-    /** A share link opened before the page loaded is buffered and flushed on ready. */
-    private volatile String pendingSeriesId;
+    /** Deliver the full official URL so the frontend can validate both series and episode. */
+    private String pendingShareLink;
     @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); handleSeriesIntent(intent); }
-    /** Share links and official pages carry the series id in a query or the player path. */
     private void handleSeriesIntent(Intent intent) {
-        Uri data = intent == null ? null : intent.getData();
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
+        Uri data = intent.getData();
         if (data == null || !"https".equalsIgnoreCase(data.getScheme())) return;
         String host = data.getHost() == null ? "" : data.getHost().toLowerCase(Locale.ROOT);
         if (!host.equals("hongguoduanju.com") && !host.equals("www.hongguoduanju.com")) return;
-        String id = data.getQueryParameter("video_series_id");
-        if (id == null) id = data.getQueryParameter("series_id");
-        if (id == null) {
-            java.util.regex.Matcher match = java.util.regex.Pattern.compile("^/player/(\\d{1,30})(?:/\\d{1,30})?/?$")
-                    .matcher(data.getPath() == null ? "" : data.getPath());
-            if (match.find()) id = match.group(1);
-        }
-        if (id == null || !id.matches("[1-9][0-9]{0,29}")) return;
-        pendingSeriesId = id;
+        String url = data.toString();
+        if (url.length() > 4096) return;
+        pendingShareLink = url;
         flushSeriesLink();
     }
     private void flushSeriesLink() {
-        String id = pendingSeriesId;
-        if (!loaded || id == null) return;
-        pendingSeriesId = null;
-        script("window.__androidOpenSeries && window.__androidOpenSeries('" + id + "')");
+        String url = pendingShareLink;
+        if (!loaded || url == null) return;
+        pendingShareLink = null;
+        script("window.__androidOpenShareLink && window.__androidOpenShareLink(" + org.json.JSONObject.quote(url) + ")");
     }
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         processRestored = state != null;
         updates = new AppUpdater(this);
-        handleSeriesIntent(getIntent());
+        if (state == null) handleSeriesIntent(getIntent());
+        else pendingShareLink = state.getString("startupShareLink");
         AccountSync.get().setListener(accountChanged);
         softwareRendering = BuildConfig.IS_TV && state != null && state.getBoolean("startupSoftwareRendering", false);
         FrameLayout container = new FrameLayout(this); webContainer = container;
@@ -324,7 +319,11 @@ public final class MainActivity extends Activity {
         super.onConfigurationChanged(configuration);
         if (!BuildConfig.IS_TV && webContainer != null) webContainer.requestApplyInsets();
     }
-    @Override protected void onSaveInstanceState(Bundle state) { state.putBoolean("startupSoftwareRendering", softwareRendering); super.onSaveInstanceState(state); }
+    @Override protected void onSaveInstanceState(Bundle state) {
+        state.putBoolean("startupSoftwareRendering", softwareRendering);
+        state.putString("startupShareLink", pendingShareLink);
+        super.onSaveInstanceState(state);
+    }
     private static boolean local(Uri url) { return "https".equals(url.getScheme()) && "appassets.androidplatform.net".equals(url.getHost()) && url.getPort() == -1 && url.getUserInfo() == null; }
     private static WebResourceResponse error(int status) { return new WebResourceResponse("text/plain", "UTF-8", status, "Blocked", Collections.emptyMap(), new ByteArrayInputStream(new byte[0])); }
     boolean trusted() { return web != null && web.getUrl() != null && local(Uri.parse(web.getUrl())); }
