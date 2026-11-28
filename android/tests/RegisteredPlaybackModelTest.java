@@ -90,6 +90,30 @@ public final class RegisteredPlaybackModelTest {
    }
    check(!RegisteredPlaybackModel.byteVc2Only(result.getJSONObject("video_model").getJSONArray("video_list")),"returns compatible response");
   });
+  group("a completed v1 lookup and speculative prefetch never repeat the compatible request",()->{
+   AtomicInteger calls=new AtomicInteger();
+   operation(r->registration(),r->{
+    calls.incrementAndGet();return r.method.equals("GET")?response(200,""):response(200,envelope(model()));
+   }).fetch(VID,false,v->false);
+   check(calls.get()==2,"empty tab plus v1 end the ladder without another v1 call");
+   calls.set(0);
+   operation(r->registration(),r->{calls.incrementAndGet();return response(200,tabEnvelope(VID,model()));}).fetch(VID,true,v->false);
+   check(calls.get()==1,"speculative lookup never spends a compatibility request");
+  });
+  group("compatibility lookup cancellation and refusal never rotate the identity",()->{
+   for(boolean cancel:new boolean[]{true,false}){
+    AtomicInteger calls=new AtomicInteger(),registrations=new AtomicInteger();
+    Exception failure=reject(()->operation(r->{registrations.incrementAndGet();return registration();},r->{
+     calls.incrementAndGet();
+     if(r.method.equals("GET"))return response(200,tabEnvelope(VID,model()));
+     if(cancel){Thread.currentThread().interrupt();throw new InterruptedIOException("fixture cancelled");}
+     return response(200,"{\"code\":1}");
+    }).fetch(VID,false,v->false));
+    check(calls.get()==2&&registrations.get()==1,"compatibility lookup only once without rotation");
+    check(cancel?failure instanceof InterruptedIOException&&Thread.interrupted()
+      :failure instanceof RegisteredPlaybackModel.ModelError&&"BUSINESS_DENIED".equals(((RegisteredPlaybackModel.ModelError)failure).code),"terminal reason preserved");
+   }
+  });
   group("compatibility ConnectException is typed for the existing outer retry owner",()->{
    AtomicInteger requests=new AtomicInteger();Exception error=reject(()->operation(r->registration(),r->{requests.incrementAndGet();if(r.method.equals("GET"))return response(200,"");throw new ConnectException("synthetic connection refusal");}).fetch(VID));
    String code=error instanceof RegisteredPlaybackModel.ModelError?((RegisteredPlaybackModel.ModelError)error).code:error.getClass().getSimpleName();
