@@ -60,6 +60,10 @@ public final class PlaybackProgressHarness{
   PlaybackProgressHarness leaving=new PlaybackProgressHarness();leaving.video.position=57505;leaving.saveProgress();
   leaving.finishing=true;leaving.video.position=0;leaving.saveProgress();
   check(leaving.store.writes.size()==1&&leaving.store.writes.get(0).getLong("positionMs")==57505,"released surface cannot reset progress after finish");groups++;
+  leaving.finishing=false;leaving.active=false;leaving.saveProgress();
+  check(leaving.resumeAt==57505&&leaving.store.writes.size()==1,"stopped surface preserves the last valid checkpoint");groups++;
+  leaving.active=true;leaving.saveProgress();
+  check(leaving.resumeAt==0&&leaving.store.writes.get(1).getLong("positionMs")==0,"explicit foreground rewind to zero still saves");
   WATCH_TEST
   PlaybackProgressHarness e=new PlaybackProgressHarness();e.completed=true;e.video.position=180000;e.saveProgress();check(e.store.writes.get(0).getLong("positionMs")==0&&e.store.writes.get(0).getLong("durationMs")==180000,"completion retains duration with existing replay-zero semantics");e.cast=true;e.saveProgress();check(e.store.writes.size()==1,"cast never overwritten by local zero");groups++;
   PlaybackProgressHarness r=new PlaybackProgressHarness();r.lastProgressSavedAt=999999;SystemClock.now=15;r.video.position=99;r.tick.run();check(r.store.writes.size()==1,"monotonic reset does not defer persistence indefinitely");groups++;

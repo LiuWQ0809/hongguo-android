@@ -547,7 +547,11 @@ public final class PlayerActivity extends Activity {
         if (isFinishing()) return;
         if (handedOff || casting()) return; // The service persists the TV position, never the stopped local VideoView.
         if (prepared && episode != null && video != null) try {
-            resumeAt = completed ? 0 : Math.max(0, video.getCurrentPosition()); recordProgress(owner(episode), episode, resumeAt);
+            int position = completed ? 0 : Math.max(0, video.getCurrentPosition());
+            // 后台切换时画面可能已释放，避免把刚保存的进度覆盖成零。
+            if (!active && !completed && position == 0 && resumeAt > 0) return;
+            resumeAt = position;
+            recordProgress(owner(episode), episode, resumeAt);
         } catch (RuntimeException transition) { /* A decoder transition is retried at the next checkpoint. */ }
     }
     private void periodicProgress() {
@@ -1750,6 +1754,7 @@ public final class PlayerActivity extends Activity {
     }
     @Override protected void onResume() { super.onResume(); active = true; resumeFromService(); if (decoderPreparing && !casting() && !castWasActive) armPreparationTimeout(generation, video); updateBufferingWatchdog(generation, video); if (!casting() && prepared && !completed && !userPaused) video.start(); showControls(); }
     @Override protected void onStop() {
+        active = false;
         closePipControls();
         saveProgress();
         handoffPlayback();
