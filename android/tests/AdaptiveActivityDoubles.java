@@ -7,9 +7,11 @@ class Uri {
  final String value;Uri(String s){value=s;}static Uri parse(String s){return new Uri(s);}static Uri fromFile(File f){return new Uri("file:"+f.getPath());}String getScheme(){return value.split(":")[0];}String getPath(){try{return new java.net.URI(value).getPath();}catch(Exception e){return null;}}
 }
 class MediaPlayer {
- static final int MEDIA_ERROR_UNSUPPORTED=-1010,MEDIA_INFO_VIDEO_RENDERING_START=3,MEDIA_INFO_BUFFERING_START=701,MEDIA_INFO_BUFFERING_END=702;
+ static final int MEDIA_ERROR_UNSUPPORTED=-1010,MEDIA_INFO_VIDEO_RENDERING_START=3,MEDIA_INFO_BUFFERING_START=701,MEDIA_INFO_BUFFERING_END=702,SEEK_CLOSEST=3;
  interface Size {void changed(MediaPlayer p,int w,int h);}interface Seek {void complete(MediaPlayer p);}
  int width=1080,height=1920;float rate=1;boolean playing;Size size;Seek seek;
+ VideoView view;
+ int getDuration(){return view.getDuration();}void seekTo(long value,int mode){view.seekTo((int)value);}
  int getVideoWidth(){return width;}int getVideoHeight(){return height;}void setOnVideoSizeChangedListener(Size s){size=s;}void setOnSeekCompleteListener(Seek s){seek=s;}boolean isPlaying(){return playing;}void pause(){playing=false;}void setVolume(float l,float r){}
 }
 class VideoView {
@@ -18,7 +20,7 @@ class VideoView {
  VideoView(Object owner){}void setFocusable(boolean b){}void setFocusableInTouchMode(boolean b){}void setOnPreparedListener(Prepared p){prepared=p;}void setOnErrorListener(Error e){error=e;}void setOnInfoListener(Info i){info=i;}void setOnCompletionListener(Completion c){completion=c;}
  void setVideoURI(Uri u,Map<String,String> h){uri=u;}
  int getCurrentPosition(){return position;}int getDuration(){return 180000;}boolean isPlaying(){return playing;}void start(){playing=true;if(player!=null)player.playing=true;}void pause(){playing=false;if(player!=null)player.playing=false;}void stopPlayback(){playing=false;stops++;}
- void seekTo(int v){position=v;if(!deferSeek&&player!=null&&player.seek!=null)player.seek.complete(player);}void complete(int width,int height){player=new MediaPlayer();player.width=width;player.height=height;if(prepared!=null)prepared.prepared(player);}void fail(int what,int extra){if(error!=null)error.error(player,what,extra);}
+ void seekTo(int v){position=v;if(!deferSeek&&player!=null&&player.seek!=null)player.seek.complete(player);}void complete(int width,int height){player=new MediaPlayer();player.view=this;player.width=width;player.height=height;if(prepared!=null)prepared.prepared(player);}void fail(int what,int extra){if(error!=null)error.error(player,what,extra);}
 }
 class Label {String text="";boolean enabled;void setText(String s){text=s;}void setEnabled(boolean v){enabled=v;}}
 class SeekBar {int value;void setProgress(int v){value=v;}}

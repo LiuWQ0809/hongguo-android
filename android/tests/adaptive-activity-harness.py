@@ -36,6 +36,7 @@ for extra in ['resetDownloadMarks','reportDownloadProgress','stageCeiling','prep
     if re.search(r'\b'+extra+r'\(',source): names.append(extra)
 if playlist: names+=['owner','mediaKey','closeLocalWindow','pruneReleasedWindow','saveProgress','restoreSelection','savePlaybackState']
 if 'void recordProgress(' in source: names+=['recordProgress','watchProgressSeeks']
+if 'void finishEpisode(' in source: names+=['finishEpisode','cancelSeasonLookup']
 methods=[]
 for name in names:
     found=blocks(r'^    (?:private|public|protected) (?:synchronized )?(?:static )?[^\n{]*\b'+re.escape(name)+r'\([^;\n]*\)(?: throws [^\n{]+)?\s*\{')
@@ -49,7 +50,16 @@ for name in (['RecoveryBudget','PreparedMedia','QualitySwitch'] if modern else [
 header='''package io.github.jackotom.hongguo.android;
 import java.io.*;import java.util.*;import java.util.concurrent.*;import org.json.*;
 final class BuildConfig { static final boolean IS_TV = false; }
+final class Build { static final class VERSION { static final int SDK_INT = 34; } }
+final class PlaybackCuts {
+ static final PlaybackCuts DEFAULT=new PlaybackCuts();
+ static PlaybackCuts read(Object activity){return DEFAULT;}
+ int start(int position,int duration){return position;}
+}
 final class AdaptiveActivityHarness {
+ PlaybackCuts cuts=PlaybackCuts.DEFAULT;
+ Future<?> seasonLookup;
+ boolean continueSeason(boolean paused){return false;} // Official relationships are tested separately.
  RecommendationQueue recommendations;
  RecommendationPrefetch recommendationPrefetch;
  static final class RecommendationQueue {String neighbor(int delta){return null;}}
