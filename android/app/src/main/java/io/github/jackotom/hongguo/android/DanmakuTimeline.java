@@ -16,19 +16,25 @@ final class DanmakuTimeline {
     private final List<Visible> active=new ArrayList<>();
     private final Set<String> emitted=new HashSet<>();
     private int cursor;
+    private int laneLimit=LANES, visibleLimit=MAX_VISIBLE;
     private long last=-1;
     static float velocity(float width){return Math.max(.10f,width/8000f);}
     void clear(){items=Collections.emptyList();active.clear();emitted.clear();cursor=0;last=-1;}
     void replace(List<DanmakuClient.Item> input,long position){items=new ArrayList<>(input);items.sort(Comparator.comparingLong(x->x.timeMs));cursor=lowerBound(Math.max(0,position-750));if(emitted.size()>3000)emitted.clear();}
     private int lowerBound(long position){int low=0,high=items.size();while(low<high){int middle=(low+high)>>>1;if(items.get(middle).timeMs<position)low=middle+1;else high=middle;}return low;}
     void seek(long position){active.clear();emitted.clear();cursor=lowerBound(Math.max(0,position));last=position;}
+    void limits(int lanes,int visible){
+        laneLimit=Math.max(1,Math.min(6,lanes));visibleLimit=Math.max(1,Math.min(30,visible));
+        active.removeIf(item->item.lane>=laneLimit);
+        if(active.size()>visibleLimit)active.subList(visibleLimit,active.size()).clear();
+    }
     List<Visible> advance(long position,boolean playing,float screen,Measure measure){
         if(position<0||screen<=0)return Collections.emptyList();
         if(last>=0&&(position<last-200||position>last+3000))seek(position);
         last=position;
         active.removeIf(x->position<x.item.timeMs||x.x(position,screen)+x.width<0||position-x.item.timeMs>40000);
-        if(playing){int burst=0;while(cursor<items.size()&&items.get(cursor).timeMs<=position){DanmakuClient.Item item=items.get(cursor++);String key=item.id.isEmpty()?item.timeMs+":"+item.text:item.id;if(position-item.timeMs>750||!emitted.add(key))continue;if(active.size()>=MAX_VISIBLE||burst>=LANES)continue;
-                int selected=-1;for(int lane=0;lane<LANES;lane++){boolean room=true;for(Visible existing:active)if(existing.lane==lane&&existing.x(position,screen)+existing.width>screen-32){room=false;break;}if(room){selected=lane;break;}}
+        if(playing){int burst=0;while(cursor<items.size()&&items.get(cursor).timeMs<=position){DanmakuClient.Item item=items.get(cursor++);String key=item.id.isEmpty()?item.timeMs+":"+item.text:item.id;if(position-item.timeMs>750||!emitted.add(key))continue;if(active.size()>=visibleLimit||burst>=laneLimit)continue;
+                int selected=-1;for(int lane=0;lane<laneLimit;lane++){boolean room=true;for(Visible existing:active)if(existing.lane==lane&&existing.x(position,screen)+existing.width>screen-32){room=false;break;}if(room){selected=lane;break;}}
                 if(selected>=0){active.add(new Visible(item,selected,Math.max(1,measure.width(item.text))));burst++;}
             }}
         return new ArrayList<>(active);
