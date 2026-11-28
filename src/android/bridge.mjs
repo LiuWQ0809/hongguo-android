@@ -5,6 +5,7 @@ const METHODS = new Set([
   'officialWebQrcode', 'officialWebPoll', 'officialWebLogout', 'officialWebCancel', 'getAnnouncements', 'searchNewReleases', 'homeFeed', 'nativeSeriesDetail', 'mergeDownloads',
   'getMergedVideos', 'deleteMergedVideo', 'playMergedVideo', 'seriesPublishers', 'coverThumbnail',
   'download', 'getDownloads', 'playDownload', 'deleteDownload', 'openExternal', 'shareSeries', 'readShareClipboard',
+  'getActivePlayback', 'controlActivePlayback', 'getPlaybackCuts', 'setPlaybackCuts',
   'getPlaybackCache', 'clearPlaybackCache',
   'appRequest', 'appDeviceIdentity', 'appRegisteredModel', 'appResolveResult', 'getPlaybackOptions', 'setPlaybackOptions',
   'getSearchHistory', 'addSearchHistory', 'removeSearchHistory', 'clearSearchHistory', 'searchQuery',
