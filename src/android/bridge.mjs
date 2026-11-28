@@ -1,6 +1,6 @@
 /** Android-only JSON RPC. No Electron or browser networking fallback. */
 const METHODS = new Set([
-  'getInfo', 'httpGet', 'cancelHttp', 'getLibrary', 'getSeriesHistory', 'removeHistory', 'clearHistory', 'toggleFavorite', 'play',
+  'getInfo', 'httpGet', 'cancelHttp', 'getLibrary', 'getSeriesHistory', 'removeLibraryRows', 'removeHistory', 'clearHistory', 'toggleFavorite', 'play',
   'getAccount', 'officialSendCode', 'officialLoginSMS', 'officialVerifyMFA', 'officialCancelLogin', 'officialLogout', 'officialSync', 'officialImportGuest',
   'officialWebQrcode', 'officialWebPoll', 'officialWebLogout', 'officialWebCancel', 'getAnnouncements', 'searchNewReleases', 'homeFeed', 'nativeSeriesDetail', 'mergeDownloads',
   'getMergedVideos', 'deleteMergedVideo', 'playMergedVideo', 'seriesPublishers', 'coverThumbnail',
@@ -10,7 +10,7 @@ const METHODS = new Set([
   'appRequest', 'appDeviceIdentity', 'appRegisteredModel', 'appResolveResult', 'getPlaybackOptions', 'setPlaybackOptions',
   'getSearchHistory', 'addSearchHistory', 'removeSearchHistory', 'clearSearchHistory', 'searchQuery',
   'resetPlaybackIdentity',
-  'getReservations', 'setReservation', 'checkReservations', 'enableReservationNotifications', 'releaseCalendar', 'browseDrama', 'actorDirectory',
+  'getReservations', 'readReservationMessage', 'setReservation', 'checkReservations', 'enableReservationNotifications', 'releaseCalendar', 'browseDrama', 'actorDirectory',
 ]);
 const pending = new Map();
 let sequence = 0;
