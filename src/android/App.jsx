@@ -608,6 +608,7 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onR
 function Downloads({ notify, onBack }) {
   const [state, setState] = useState({ busy: true, items: [], merged: [] });
   const [opening, setOpening] = useState(null);
+  const [keyword, setKeyword] = useState('');
   const [confirm, setConfirm] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState('');
@@ -812,7 +813,10 @@ function Downloads({ notify, onBack }) {
     const group = { seriesId: entry.seriesId, title: entry.title || '短剧', items: [], done: 0, bytes: 0 };
     bySeries.set(entry.seriesId, group); seriesGroups.push(group);
   });
-  const groupOpen = group => openGroups === null ? seriesGroups.length <= 1 || group === seriesGroups[0] : openGroups.has(group.seriesId);
+  const query = keyword.trim();
+  const visibleGroups = seriesGroups.filter(group => matchesPersonalTitle(group.title, query));
+  const groupOpen = group => openGroups === null ? !!query || seriesGroups.length <= 1 || group === seriesGroups[0] : openGroups.has(group.seriesId);
+  const search = value => { setKeyword(value); setOpenGroups(null); };
   const toggleGroup = group => {
     setOpenGroups(previous => {
       const base = previous === null ? new Set(seriesGroups.filter(entry => groupOpen(entry)).map(entry => entry.seriesId)) : new Set(previous);
@@ -834,6 +838,12 @@ function Downloads({ notify, onBack }) {
   return <>
     {onBack && <button className="back-button" onClick={onBack}><ChevronRight size={20} />返回我的</button>}
     <header className="page-heading heading-actions"><div><h1>离线下载</h1><p>系统下载任务与设备上的离线视频。</p></div><button ref={refreshButton} className="button" onClick={() => refresh(true)} disabled={state.busy || locked} aria-label="刷新下载列表"><RefreshCw /><span>刷新</span></button></header>
+    {(seriesGroups.length > 0 || keyword) && <div className="library-search search-controls">
+      <label className="visually-hidden" htmlFor="download-keyword">搜索已下载的剧</label>
+      <input id="download-keyword" type="search" placeholder="搜索已下载的剧" value={keyword} disabled={locked}
+        onChange={event => search(event.target.value)} />
+      {keyword && <button type="button" className="button" disabled={locked} onClick={() => search('')}>清除</button>}
+    </div>}
     {confirm && <div className="download-confirm" role="group" aria-label="确认删除下载">
       {confirm.kind === 'episode' && <>
         <h2>{activeDownload(confirm) ? '取消并删除这个下载？' : '删除这个下载？'}</h2>
@@ -854,7 +864,8 @@ function Downloads({ notify, onBack }) {
       <div className="download-confirm-actions"><button ref={cancelButton} type="button" className="button" onClick={cancelConfirmation} disabled={deleting !== null}>取消</button><button type="button" className="button download-destructive" onClick={remove} disabled={deleting !== null}>{deleting !== null ? '删除中…' : '确认删除'}</button></div>
     </div>}
     <Status busy={state.busy} error={state.error} preserve={!!state.items.length || !!(state.merged || []).length} onRetry={() => refresh(true)} empty={!state.items.length && !(state.merged || []).length && { title: '还没有下载任务', text: '在短剧详情中选择一集，点「下载」；或多集用「批量下载」。' }}>
-      <div className="download-list" ref={list}>{seriesGroups.map(group => {
+      {query && !visibleGroups.length && !state.error && <p className="result-caption" role="status">没有匹配的下载。</p>}
+      <div className="download-list" ref={list}>{visibleGroups.map(group => {
         const expanded = groupOpen(group);
         const doneLabel = group.done >= group.items.length ? `${group.items.length} 集` : `${group.done}/${group.items.length} 集`;
         const mergeInfo = mergeable.find(entry => entry.seriesId === group.seriesId);
