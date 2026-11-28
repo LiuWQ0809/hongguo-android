@@ -842,6 +842,17 @@ function Downloads({ notify, onBack }) {
   };
   const statuses = { pending: '等待下载', running: '正在下载', paused: '已暂停', success: '下载完成', failed: '下载失败' };
   const activeDownload = item => ['pending', 'running', 'paused'].includes(item.status);
+  const changeDownload = async item => {
+    if (operation.current) return;
+    const action = ['pending', 'running'].includes(item.status) ? 'pause' : 'resume';
+    operation.current = { kind: action, id: item.id }; setOpening(item.id);
+    try { await nativeCall('controlDownload', { id: item.id, action }); }
+    catch (error) { if (alive.current) notify(errorText(error)); }
+    finally {
+      operation.current = null;
+      if (alive.current) { setOpening(null); refresh(true); }
+    }
+  };
   const locked = !!confirm || deleting !== null || opening !== null;
   // Same-series merge: every completed episode of one series, offered per group.
   const [merging, setMerging] = useState('');
@@ -935,7 +946,10 @@ function Downloads({ notify, onBack }) {
           </div>
           {expanded && group.items.map(item => {
             const percent = item.totalBytes > 0 ? Math.min(100, Math.max(0, Math.round(item.downloadedBytes / item.totalBytes * 100))) : null;
-            return <article className="download-row" key={item.id}><div className="download-icon"><Download size={24} /></div><div className="download-info"><h2>第 {item.index} 集</h2><p className={item.status === 'failed' ? 'text-error' : ''}>{statuses[item.status] || item.status}{percent !== null && item.status !== 'success' ? ` · ${percent}%` : ''} · {byteText(item.downloadedBytes)}{item.totalBytes > 0 ? ` / ${byteText(item.totalBytes)}` : ''}</p>{item.status === 'running' && <progress value={percent ?? undefined} max="100" aria-label={`${group.title}第 ${item.index} 集下载进度`} />}{item.reason && item.status !== 'success' ? <p className="download-reason">{item.reason}</p> : null}</div><div className="download-actions">{item.status === 'success' && <button type="button" className="button" onClick={() => open(item.id)} disabled={locked}><Play />{opening === item.id ? '打开中…' : '播放'}</button>}<button type="button" className="button download-delete" aria-label={`${activeDownload(item) ? '取消并删除' : '删除'} ${group.title} 第 ${item.index} 集`} onClick={() => askDelete(item, group.items.indexOf(item))} disabled={locked}>{activeDownload(item) ? '取消并删除' : '删除'}</button></div></article>;
+            return <article className="download-row" key={item.id}><div className="download-icon"><Download size={24} /></div><div className="download-info"><h2>第 {item.index} 集</h2><p className={item.status === 'failed' ? 'text-error' : ''}>{statuses[item.status] || item.status}{percent !== null && item.status !== 'success' ? ` · ${percent}%` : ''} · {byteText(item.downloadedBytes)}{item.totalBytes > 0 ? ` / ${byteText(item.totalBytes)}` : ''}</p>{item.status === 'running' && <progress value={percent ?? undefined} max="100" aria-label={`${group.title}第 ${item.index} 集下载进度`} />}{item.reason && item.status !== 'success' ? <p className="download-reason">{item.reason}</p> : null}</div><div className="download-actions">{item.canControl && ['pending', 'running', 'paused', 'failed'].includes(item.status) &&
+              <button type="button" className="button" onClick={() => changeDownload(item)} disabled={locked}>
+                {item.status === 'failed' ? '重试下载' : item.status === 'paused' ? '继续下载' : '暂停下载'}
+              </button>}{item.status === 'success' && <button type="button" className="button" onClick={() => open(item.id)} disabled={locked}><Play />{opening === item.id ? '打开中…' : '播放'}</button>}<button type="button" className="button download-delete" aria-label={`${activeDownload(item) ? '取消并删除' : '删除'} ${group.title} 第 ${item.index} 集`} onClick={() => askDelete(item, group.items.indexOf(item))} disabled={locked}>{activeDownload(item) ? '取消并删除' : '删除'}</button></div></article>;
           })}
           {expanded && groupMerged.map(entry => <article className="download-row merged-row" key={`m${entry.id}`}>
             <div className="download-icon"><Film size={24} /></div>
