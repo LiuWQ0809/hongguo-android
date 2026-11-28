@@ -211,8 +211,13 @@ final class RegisteredPlaybackModel implements AutoCloseable {
             }
             JSONObject video = projected.video;
             // The registered route gets one compatibility lookup outside identity rotation.
-            if (!speculative && projected.canTryPlayerV1 && codecCheck != null && !codecCheck.accepts(video))
-                video = playerV1(used[0], used[1], cdid, vid);
+            if (!speculative && projected.canTryPlayerV1 && codecCheck != null && !codecCheck.accepts(video)) {
+                try { video = playerV1(used[0], used[1], cdid, vid); }
+                catch (ModelError supplemental) {
+                    check();
+                    if (!"APP_EMPTY_RESPONSE".equals(supplemental.code)) throw supplemental;
+                }
+            }
             check();
             HOLLOW_STREAK.set(0);
             DENIAL_ROTATIONS.set(0);

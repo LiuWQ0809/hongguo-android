@@ -114,6 +114,16 @@ public final class RegisteredPlaybackModelTest {
       :failure instanceof RegisteredPlaybackModel.ModelError&&"BUSINESS_DENIED".equals(((RegisteredPlaybackModel.ModelError)failure).code),"terminal reason preserved");
    }
   });
+  group("empty compatibility reply preserves the original model",()->{
+   AtomicInteger calls=new AtomicInteger();
+   JSONObject first=model();
+   first.getJSONArray("video_list").getJSONObject(0).getJSONObject("video_meta").put("codec_type","bytevc2");
+   JSONObject actual=operation(r->registration(),r->{
+    calls.incrementAndGet();return response(200,r.method.equals("GET")?tabEnvelope(VID,first):"");
+   }).fetch(VID,false,v->false).getJSONObject("video_model");
+   check(calls.get()==2&&RegisteredPlaybackModel.byteVc2Only(actual.getJSONArray("video_list")),
+     "empty compatibility response retains codec failure without starting the empty-model retry");
+  });
   group("compatibility ConnectException is typed for the existing outer retry owner",()->{
    AtomicInteger requests=new AtomicInteger();Exception error=reject(()->operation(r->registration(),r->{requests.incrementAndGet();if(r.method.equals("GET"))return response(200,"");throw new ConnectException("synthetic connection refusal");}).fetch(VID));
    String code=error instanceof RegisteredPlaybackModel.ModelError?((RegisteredPlaybackModel.ModelError)error).code:error.getClass().getSimpleName();
