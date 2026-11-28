@@ -25,6 +25,6 @@ final class OfficialApiClient implements AutoCloseable {
 }
 STUB
 "$JAVA_HOME/bin/javac" --release 17 -encoding UTF-8 -cp "$JSON_JAR" -d "$TMP/classes" \
-  "$TMP/io/github/jackotom/hongguo/android/OfficialApiClient.java" "$SOURCE/NewReleaseCatalog.java" \
+  "$TMP/io/github/jackotom/hongguo/android/OfficialApiClient.java" "$SOURCE/NewReleaseCatalog.java" "$SOURCE/BrowseQuery.java" \
   "$ROOT/android/tests/NewReleaseCatalogTest.java"
 "$JAVA_HOME/bin/java" -cp "$TMP/classes:$JSON_JAR" io.github.jackotom.hongguo.android.NewReleaseCatalogTest

@@ -87,6 +87,24 @@ public final class NewReleaseCatalogTest {
             try(OfficialApiClient client=new OfficialApiClient(stalled)){NewReleaseCatalog.fetch(client,1,System.nanoTime()+1_000_000_000L);}
             check(stalled.posts.get()==2,"the stalled genre stops and the other genre still runs");
         });
+        group("browse uses combined selectors without imposing an up-next window",()->{
+            JSONObject input = new JSONObject().put("genre", "short_play").put("category_dim_theme", "cate_165");
+            JSONObject initial = BrowseQuery.body(input, 0, "", true);
+            JSONObject selected = initial.getJSONObject("select_items");
+            check(initial.getBoolean("need_selector_panel"), "initial catalogue includes selectors");
+            check(selected.getJSONArray("category_dim_theme").getString(0).equals("cate_165"), "the genre and theme are sent together");
+            check(selected.getJSONArray("online_time").length()==0, "recommendations have no implicit time filter");
+            JSONObject next = BrowseQuery.body(input, 24, "valid", false);
+            check("only_content".equals(next.getString("req_type")) && next.getInt("offset")==24, "paging keeps matching content");
+            try { BrowseQuery.body(input, 24, "", false); throw new AssertionError("missing cursor accepted"); }
+            catch (java.io.IOException expected) { checks++; }
+        });
+        group("only explicit marketing cards are excluded from the catalogue",()->{
+            JSONObject candidate = row("7003","广告界的故事",null,null,false);
+            check(NewReleaseCatalog.row(candidate)!=null, "legitimate titles with advertising words are kept");
+            check(NewReleaseCatalog.row(candidate.put("is_ad", true))==null, "advertising rows are rejected");
+            check(NewReleaseCatalog.row(candidate.put("is_ad", false).put("card_type","shop"))==null, "shop rows are rejected");
+        });
         System.out.println("NEW_RELEASE_CATALOG_OK groups="+groups+" checks="+checks+" networkRequests=0");
     }
 }
