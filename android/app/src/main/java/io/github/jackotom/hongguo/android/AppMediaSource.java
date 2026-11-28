@@ -65,18 +65,32 @@ final class AppMediaSource {
         }
         return rows;
     }
+    static boolean hasCompatibleVideo(JSONObject model) throws JSONException {
+        for (JSONObject row : videoRows(model))
+            if (hasCandidateUrl(row) && codecRank(row, row.optJSONObject("video_meta")) < 2) return true;
+        return false;
+    }
+    private static boolean hasCandidateUrl(JSONObject row) {
+        if (!text(row.opt("main_url")).isEmpty() || !text(row.opt("backup_url")).isEmpty()) return true;
+        JSONArray backups = row.optJSONArray("backup_url_list");
+        for (int i = 0; backups != null && i < Math.min(backups.length(), 16); i++)
+            if (!text(backups.opt(i)).isEmpty()) return true;
+        return false;
+    }
+    private static int codecRank(JSONObject row, JSONObject meta) {
+        String codec = text(row.opt("codec_type"));
+        if (codec.isEmpty() && meta != null) codec = text(meta.opt("codec_type"));
+        codec = codec.toLowerCase(Locale.ROOT);
+        return Arrays.asList("h264", "avc", "avc1").contains(codec) ? 0
+            : Arrays.asList("hevc", "h265", "hvc1", "hev1", "bytevc1").contains(codec) ? 1 : 2;
+    }
     /** [row, codecRank, pixels, width, height, qualityLabel]; bounded keeps confirmed sizes within the ceiling. */
     private static List<Object[]> rank(List<JSONObject> rows, String quality, boolean bounded, Integer ceiling) throws JSONException {
         List<Object[]> ranked = new ArrayList<>();
         for (JSONObject row : rows) {
-            boolean hasUrl = !text(row.opt("main_url")).isEmpty() || !text(row.opt("backup_url")).isEmpty() || row.optJSONArray("backup_url_list") != null;
-            if (!hasUrl) continue;
             JSONObject meta = row.optJSONObject("video_meta");
-            String codec = text(row.opt("codec_type"));
-            if (codec.isEmpty() && meta != null) codec = text(meta.opt("codec_type"));
-            codec = codec.toLowerCase(Locale.ROOT);
-            int rank = Arrays.asList("h264", "avc", "avc1").contains(codec) ? 0 : Arrays.asList("hevc", "h265", "hvc1", "hev1", "bytevc1").contains(codec) ? 1 : 2;
-            if (rank >= 2) continue;
+            int rank = codecRank(row, meta);
+            if (rank >= 2 || !hasCandidateUrl(row)) continue;
             int[] size = size(row, meta);
             String label = label(row, meta);
             int pixels = size[0] > 0 && size[1] > 0 ? Math.min(size[0], size[1]) : digits(label);

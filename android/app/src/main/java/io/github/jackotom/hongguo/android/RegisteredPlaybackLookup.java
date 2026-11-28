@@ -26,7 +26,7 @@ final class RegisteredPlaybackLookup {
         long deadline = System.nanoTime() + budget;
         return new AppMediaSource(requestedVid -> {
             try (RegisteredPlaybackModel model = new RegisteredPlaybackModel(deadline)) {
-                return model.fetch(requestedVid, speculative);
+                return model.fetch(requestedVid, speculative, AppMediaSource::hasCompatibleVideo);
             } catch (RegisteredPlaybackModel.ModelError error) {
                 throw new AppMediaSource.AppSourceException(error.getMessage(), error.code);
             }

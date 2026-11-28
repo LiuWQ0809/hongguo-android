@@ -33,6 +33,13 @@ public final class AppMediaSourceTest {
         catch (AppMediaSource.AppSourceException expected) { check(code.equals(expected.code), "code " + code + " got " + expected.code); }
     }
     public static void main(String[] unused) throws Exception {
+        JSONObject unsupported = row(encoded("bytevc2"), "ByteVC2", "1080p", 1920, 1080, null);
+        JSONObject emptyBackup = row("", "h264", "1080p", 1920, 1080, null).put("backup_url_list", new JSONArray().put(""));
+        check(!AppMediaSource.hasCompatibleVideo(model(unsupported, emptyBackup).getJSONObject("video_model")), "unsupported codec and empty backups have no usable candidate");
+        JSONObject low = row("", "", "360p", 0, 0, null).put("video_meta", new JSONObject().put("codec_type", "HEVC"))
+            .put("backup_url_list", new JSONArray().put(encoded("compatible-backup")));
+        check(AppMediaSource.hasCompatibleVideo(model(unsupported, low).getJSONObject("video_model")), "compatible backup triggers no extra lookup even when sizes are unknown");
+        rejected(model(unsupported, low), "2160p", null, "QUALITY_UNAVAILABLE");
         // auto: pixels desc then codecRank asc → 1080p h264 first, 720p hevc second, 480p third; unsupported codec dropped.
         JSONObject auto = resolve(model(
             row(encoded("hevc720"), "bytevc1", "720p", 1280, 720, KEY_B),
