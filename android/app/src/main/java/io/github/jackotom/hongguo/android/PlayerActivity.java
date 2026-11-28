@@ -300,8 +300,9 @@ public final class PlayerActivity extends Activity {
             applyDanmakuAppearance();
             danmakuButton.setOnLongClickListener(view -> { showDanmakuAppearance(); return true; });
         }
+        Button picture = BuildConfig.IS_TV ? null : button("画面与解码", this::showPicture);
         episodeActions = BuildConfig.IS_TV ? new Button[]{previous, toggle, next, select, autoplayButton}
-            : new Button[]{select, danmakuButton, qualityButton, speedButton};
+            : new Button[]{select, danmakuButton, qualityButton, speedButton, picture};
         for (Button b : episodeActions) actions.addView(b, new LinearLayout.LayoutParams(0, dp(50), 1));
         content.addView(actions); phoneActions = BuildConfig.IS_TV ? null : actions;
         if (BuildConfig.IS_TV) {
@@ -314,9 +315,7 @@ public final class PlayerActivity extends Activity {
             PlayerChrome.icon(danmakuButton, R.drawable.ic_player_danmaku);
             PlayerChrome.text(qualityButton);
             PlayerChrome.text(speedButton);
-            Button picture = button("画面与解码", this::showPicture);
             PlayerChrome.icon(picture, R.drawable.ic_player_picture);
-            actions.addView(picture, new LinearLayout.LayoutParams(0, dp(50), 1));
         }
         updateDanmakuButton();
         root.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
