@@ -1819,9 +1819,10 @@ public final class PlayerActivity extends Activity {
             previous.optString("vid"), previous.optInt("index"), queueSeries);
         if (match < 0) {
             try {
-                Intent resumed = new Intent(request.reopen).removeFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                Intent resumed = new Intent(request.reopen)
                     .putExtra("episode", previous.toString()).putExtra("backgroundPosition", request.position)
                     .putExtra("backgroundPaused", request.paused || request.completed).putExtra("fullscreen", fullscreen);
+                resumed.removeFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                 startActivity(resumed);
                 finish();
                 return true;
