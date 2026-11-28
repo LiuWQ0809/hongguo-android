@@ -36,7 +36,7 @@ final class NativeBridge {
     // Login/cloud control never occupies source or media request workers.
     private final ThreadPoolExecutor accountWorker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
     private final ThreadPoolExecutor reservationWorker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
-    private static final Set<String> METHODS = new HashSet<>(Arrays.asList("getInfo", "httpGet", "cancelHttp", "appRequest", "appDeviceIdentity", "appRegisteredModel", "appResolveResult", "getLibrary", "getSeriesHistory", "removeLibraryRows", "removeHistory", "clearHistory", "toggleFavorite", "play", "download", "getDownloads", "deleteDownload", "playDownload", "getPlaybackCache", "clearPlaybackCache", "getPlaybackOptions", "setPlaybackOptions", "getSearchHistory", "addSearchHistory", "removeSearchHistory", "clearSearchHistory", "searchQuery", "openExternal", "shareSeries", "resetPlaybackIdentity", "getAccount", "officialSendCode", "officialLoginSMS", "officialVerifyMFA", "officialCancelLogin", "officialLogout", "officialSync", "officialImportGuest", "officialWebQrcode", "officialWebPoll", "officialWebLogout", "officialWebCancel", "getAnnouncements", "searchNewReleases", "releaseCalendar", "browseDrama", "actorDirectory", "homeFeed", "getReservations", "readReservationMessage", "setReservation", "checkReservations", "enableReservationNotifications", "coverThumbnail", "nativeSeriesDetail", "seriesPublishers", "mergeDownloads", "getMergedVideos", "deleteMergedVideo", "playMergedVideo"));
+    private static final Set<String> METHODS = new HashSet<>(Arrays.asList("getInfo", "httpGet", "cancelHttp", "appRequest", "appDeviceIdentity", "appRegisteredModel", "appResolveResult", "getLibrary", "getSeriesHistory", "removeLibraryRows", "removeHistory", "clearHistory", "toggleFavorite", "play", "download", "getDownloads", "deleteDownload", "playDownload", "getPlaybackCache", "clearPlaybackCache", "getPlaybackOptions", "setPlaybackOptions", "getSearchHistory", "addSearchHistory", "removeSearchHistory", "clearSearchHistory", "searchQuery", "openExternal", "shareSeries", "readShareClipboard", "resetPlaybackIdentity", "getAccount", "officialSendCode", "officialLoginSMS", "officialVerifyMFA", "officialCancelLogin", "officialLogout", "officialSync", "officialImportGuest", "officialWebQrcode", "officialWebPoll", "officialWebLogout", "officialWebCancel", "getAnnouncements", "searchNewReleases", "releaseCalendar", "browseDrama", "actorDirectory", "homeFeed", "getReservations", "readReservationMessage", "setReservation", "checkReservations", "enableReservationNotifications", "coverThumbnail", "nativeSeriesDetail", "seriesPublishers", "mergeDownloads", "getMergedVideos", "deleteMergedVideo", "playMergedVideo"));
     NativeBridge(MainActivity activity) { this.activity = activity; store = new LibraryStore(activity); downloads = (DownloadManager) activity.getSystemService(Context.DOWNLOAD_SERVICE); }
     @JavascriptInterface public void postMessage(String message) {
         if (message == null || message.length() > 256 * 1024 || message.getBytes(StandardCharsets.UTF_8).length > 256 * 1024) return;
@@ -641,6 +641,19 @@ final class NativeBridge {
             case "openExternal": {
                 String url = NetworkGuard.external(LibraryStore.text(params, "url", 4096));
                 activity.runOnUiThread(() -> { if (closed || activity.isFinishing() || activity.isDestroyed()) return; try { activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)); respond(id, new JSONObject().put("opened", true), null); } catch (Exception error) { respond(id, null, "设备上未找到浏览器"); } }); break;
+            }
+            case "readShareClipboard": {
+                activity.runOnUiThread(() -> {
+                    if (closed || activity.isFinishing() || activity.isDestroyed()) return;
+                    try {
+                        ClipboardManager clipboard = activity.getSystemService(ClipboardManager.class);
+                        ClipData clip = clipboard == null ? null : clipboard.getPrimaryClip();
+                        CharSequence text = clip != null && clip.getItemCount() > 0 ? clip.getItemAt(0).getText() : null;
+                        if (text == null || text.length() > 4096) throw new IllegalArgumentException();
+                        respond(id, new JSONObject().put("text", text.toString()), null);
+                    } catch (Exception unavailable) { respond(id, null, "请手动粘贴红果分享链接"); }
+                });
+                break;
             }
             case "shareSeries": {
                 String seriesId = params.getString("seriesId");

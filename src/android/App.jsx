@@ -361,7 +361,33 @@ function Discover({ onOpen, onPlay, onRecommend, library, onSearch, onUpdates, p
   </>;
 }
 
-function SearchPage({ onOpen, onPlay, onBrowse, onActors, onBack, initialActor }) {
+function SharedLinkEntry({ onOpen }) {
+  const [opened, setOpened] = useState(false);
+  const [text, setText] = useState('');
+  const [error, setError] = useState('');
+  const paste = async () => {
+    setOpened(true); setError('');
+    try {
+      const value = await nativeCall('readShareClipboard', {}, 5000);
+      setText(previous => previous || value.text.trim());
+    } catch { /* Manual paste remains available. */ }
+  };
+  const submit = event => {
+    event.preventDefault();
+    try { onOpen(parseSharedLink(text, { allowId: true })); setOpened(false); setText(''); setError(''); }
+    catch (cause) { setError(errorText(cause)); }
+  };
+  if (!opened) return <button className="button" type="button" onClick={paste}>粘贴链接</button>;
+  return <form className="search-form" onSubmit={submit}>
+    <label htmlFor="shared-drama-link">红果分享链接或剧集 ID</label>
+    <div className="search-controls"><input id="shared-drama-link" value={text} maxLength={4096} enterKeyHint="go"
+      onChange={event => { setText(event.target.value); setError(''); }} />
+      <button className="button primary" type="submit" disabled={!text.trim()}>打开</button></div>
+    {error && <p className="text-error" role="alert">{error}</p>}
+  </form>;
+}
+
+function SearchPage({ onOpen, onPlay, onBrowse, onActors, onBack, onShareLink, initialActor }) {
   const [keyword, setKeyword] = useState(initialActor || '');
   const [query, setQuery] = useState(initialActor || '');
   const [page, setPage] = useState(1);
@@ -491,6 +517,7 @@ function SearchPage({ onOpen, onPlay, onBrowse, onActors, onBack, initialActor }
       <ChevronRight size={20} />{initialActor ? '返回演员' : '返回首页'}
     </button>}
     <form className="search-form" onSubmit={submit}><label className={onPlay ? 'visually-hidden' : undefined} htmlFor="search-keyword">短剧名称</label><div className="search-controls"><input ref={input} id="search-keyword" type="search" autoFocus={!!onPlay && !initialActor} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索短剧名称" maxLength={100} enterKeyHint="search" /><button className="button primary" type="submit" disabled={!keyword.trim()}><Search />搜索</button></div></form>
+    {onShareLink && !initialActor && <SharedLinkEntry onOpen={onShareLink} />}
     {onBrowse && !query && <nav className="search-shortcuts" aria-label="搜索快捷入口">
       {onActors && <button type="button" className="button" onClick={onActors}><User size={16} />演员</button>}
       {[['browse', '筛选找剧'], ['rank', '榜单'], ['new', '上新'], ['reserve', '预约榜']].map(([id, label]) =>
@@ -1869,6 +1896,7 @@ export default function App() {
         {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} onRecommend={openRecommendation} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} startSection={browseStart} />}
         {tab === 'juguo' && juguoEnabled && <JuguoPage api={juguoApi} PosterGrid={PosterGrid} Status={Status} />}
         {tab === 'search' && <SearchPage key={actorQuery || ''} onOpen={openDetail} onPlay={openPlayback}
+          onShareLink={info.isTv ? undefined : openShareLink}
           initialActor={actorQuery} onBack={info.isTv ? undefined : () => navigate(actorQuery ? 'actors' : 'discover')}
           onActors={androidPackage && !info.isTv ? () => navigate('actors') : undefined}
           onBrowse={info.isTv ? undefined : section => navigate('discover', section)} />}
