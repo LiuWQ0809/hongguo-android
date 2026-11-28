@@ -25,7 +25,7 @@ final class ActorRows {
                 JSONObject stats = profile.optJSONObject("user_stat");
                 int works = stats == null ? 0 : stats.optInt("celebrity_work_cnt");
                 rows.put(new JSONObject().put("id", id).put("name", name).put("rank", rank)
-                    .put("avatar", EpisodeResolver.publicHttpsUrl(base.optString("user_avatar")))
+                    .put("avatar", EpisodeResolver.publicHttpsUrl(NewReleaseCatalog.cover(base.optString("user_avatar"))))
                     .put("works", Math.max(0, Math.min(10000, works))));
                 if (rows.length() >= 40) return rows;
             }

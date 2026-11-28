@@ -210,7 +210,7 @@ final class NewReleaseCatalog {
         return text.replaceAll("\\s+", " ").trim();
     }
 
-    private static String cover(String value) {
+    static String cover(String value) {
         if (value == null || value.length() > 2048) return "";
         // Official covers arrive http:// on known image CDNs; upgrade in place for the web view.
         if (value.startsWith("http://")) {
