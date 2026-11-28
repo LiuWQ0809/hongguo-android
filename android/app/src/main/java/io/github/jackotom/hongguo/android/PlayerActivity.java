@@ -35,6 +35,7 @@ public final class PlayerActivity extends Activity {
     private String danmakuNotice = "弹幕默认关闭，开启后只读匿名时间轴弹幕";
     private final Handler main = new Handler(Looper.getMainLooper());
     private RecommendationQueue recommendations;
+    private RecommendationCursor recommendationCursor;
     private RecommendationPrefetch recommendationPrefetch;
     private final ExecutorService resolver = Executors.newSingleThreadExecutor();
     private Future<?> resolution, prefetch;
@@ -169,6 +170,8 @@ public final class PlayerActivity extends Activity {
             if (!BuildConfig.IS_TV && !offline && recommendationRows != null) {
                 recommendations = new RecommendationQueue(new JSONArray(recommendationRows), series.getString("seriesId"));
                 recommendationPrefetch = new RecommendationPrefetch(main);
+                String cursor = getIntent().getStringExtra(RecommendationCursor.EXTRA);
+                if (cursor != null) recommendationCursor = RecommendationCursor.parse(new JSONObject(cursor));
             }
             JSONObject defaults = PlayerOptions.read(this);
             danmakuEnabled = defaults.optBoolean("danmaku", false);
@@ -544,11 +547,34 @@ public final class PlayerActivity extends Activity {
         }
         String target = recommendations.neighbor(direction);
         if (target == null) {
-            Toast.makeText(this, direction > 0 ? "已到本批推荐末尾" : "已到本批推荐开头", Toast.LENGTH_SHORT).show(); return;
+            if (direction > 0 && recommendationCursor != null) loadRecommendationPage(3);
+            else Toast.makeText(this, direction > 0 ? "推荐已经刷完" : "已到推荐开头", Toast.LENGTH_SHORT).show();
+            return;
         }
         Toast.makeText(this, "正在打开相邻短剧", Toast.LENGTH_SHORT).show();
         recommendationPrefetch.load(target, this::openRecommendation);
     }
+    private void loadRecommendationPage(int attempts) {
+        RecommendationCursor cursor = recommendationCursor;
+        Toast.makeText(this, "正在加载下一批推荐", Toast.LENGTH_SHORT).show();
+        recommendationPrefetch.loadPage(cursor, page -> {
+            if (!active || destroyed || isFinishing() || isInPictureInPictureMode() || casting() || castWasActive) return;
+            try {
+                if (page == null) throw new java.io.IOException("推荐页未返回");
+                RecommendationCursor next = cursor.after(page);
+                recommendations.append(page);
+                recommendationCursor = next;
+                String target = recommendations.neighbor(1);
+                if (target != null) recommendationPrefetch.load(target, this::openRecommendation);
+                else if (next != null && attempts > 1) loadRecommendationPage(attempts - 1);
+                else Toast.makeText(this, next == null ? "推荐已经刷完" : "本批内容已看，可继续上滑", Toast.LENGTH_SHORT).show();
+            } catch (Exception unavailable) {
+                recommendationPrefetch.cancel();
+                Toast.makeText(this, "下一批推荐暂未加载，可以再次上滑重试", Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
     private void openRecommendation(JSONObject detail) {
         if (!active || destroyed || isFinishing() || isInPictureInPictureMode() || casting() || castWasActive) return;
         try (UpdateOperationGate.Lease held = UpdateInstallCheckpoint.operation()) {
@@ -558,6 +584,7 @@ public final class PlayerActivity extends Activity {
             JSONObject options = new JSONObject().put(RecommendationQueue.EXTRA, recommendations.rows())
                 .put("resolveInPlayer", true).put("autoplay", autoplay).put("cleanupPlaybackCache", cleanup)
                 .put("quality", quality).put("speed", requestedSpeed);
+            if (recommendationCursor != null) options.put(RecommendationCursor.EXTRA, recommendationCursor.toJson());
             Intent next = PlayLauncher.build(this, owner, entry, episodes, null, false, options);
             UpdateInstallCheckpoint.playerLaunching();
             startActivity(next.putExtra("fullscreen", fullscreen));
@@ -956,8 +983,11 @@ public final class PlayerActivity extends Activity {
         buffering = false;
         view.setOnInfoListener((player, what, extra) -> {
             if (destroyed || token != generation || video != view) return false;
-            if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START && active && !castWasActive && recommendationPrefetch != null)
-                recommendationPrefetch.preload(recommendations.neighbor(1));
+            if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START && active && !castWasActive && recommendationPrefetch != null) {
+                String next = recommendations.neighbor(1);
+                if (next != null) recommendationPrefetch.preload(next);
+                else if (recommendationCursor != null) recommendationPrefetch.loadPage(recommendationCursor, null);
+            }
             if (what == MediaPlayer.MEDIA_INFO_BUFFERING_START || what == MediaPlayer.MEDIA_INFO_BUFFERING_END) {
                 buffering = what == MediaPlayer.MEDIA_INFO_BUFFERING_START; updateBufferingWatchdog(token, view); updateControlsState();
             }
