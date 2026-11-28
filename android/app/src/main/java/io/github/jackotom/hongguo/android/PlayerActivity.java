@@ -22,7 +22,7 @@ public final class PlayerActivity extends Activity {
         new SynchronousQueue<>(), task -> { Thread thread = new Thread(task, "hongguo-source-retry"); thread.setDaemon(true); return thread; });
     private static final long RETRY_LOOKUP_TIMEOUT_MS = 30_000L;
     private boolean registeredPlayer, handedOff;
-    private static final String BACKGROUND_ID = "backgroundPlaybackId";
+    static final String BACKGROUND_ID = "backgroundPlaybackId";
     private String backgroundId;
     static boolean hasLivePlayer() { return LIVE_PLAYERS.get() > 0 || BackgroundPlaybackService.isActive(); }
     private DanmakuController danmaku;
@@ -190,9 +190,12 @@ public final class PlayerActivity extends Activity {
                 dispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback);
                 systemBackCleanup = () -> dispatcher.unregisterOnBackInvokedCallback(callback);
             }
-            int position = restored ? Math.max(0, state.getInt("position")) : store.position(series, queue.get(current));
+            int position = restored ? Math.max(0, state.getInt("position")) :
+                getIntent().getIntExtra("backgroundPosition", store.position(series, queue.get(current)));
             String initial = state == null ? getIntent().getStringExtra("url") : null;
-            if (!resumeFromService()) loadAt(current, initial, position, restored && state.getBoolean("userPaused", false));
+            boolean paused = restored ? state.getBoolean("userPaused", false) : getIntent().getBooleanExtra("backgroundPaused", false);
+            if (!resumeFromService()) loadAt(current, initial, position, paused);
+            if (isFinishing()) return;
             main.post(tick);
             if (!BuildConfig.IS_TV) {
                 castBound = bindService(new Intent(this, DlnaCastService.class), castConnection, BIND_AUTO_CREATE);
@@ -1776,7 +1779,16 @@ public final class PlayerActivity extends Activity {
         JSONObject previous = request.episode();
         int match = PlaybackPlaylist.find(queue, request.owner().optString("seriesId"),
             previous.optString("vid"), previous.optInt("index"), queueSeries);
-        if (match < 0) { handedOff = false; return false; }
+        if (match < 0) {
+            try {
+                Intent resumed = new Intent(request.reopen).removeFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                    .putExtra("episode", previous.toString()).putExtra("backgroundPosition", request.position)
+                    .putExtra("backgroundPaused", request.paused || request.completed).putExtra("fullscreen", fullscreen);
+                startActivity(resumed);
+                finish();
+                return true;
+            } catch (RuntimeException unavailable) { handedOff = false; return false; }
+        }
         handedOff = true;
         autoplay = request.autoplay;
         actualQuality = request.quality; automaticCeiling = request.ceiling; requestedSpeed = request.speed;
@@ -1799,7 +1811,7 @@ public final class PlayerActivity extends Activity {
         if (!active && !casting() && video != null && prepared) video.pause();
         super.onPause();
     }
-    @Override protected void onResume() { super.onResume(); active = true; resumeFromService(); if (decoderPreparing && !casting() && !castWasActive) armPreparationTimeout(generation, video); updateBufferingWatchdog(generation, video); if (!casting() && prepared && !completed && !userPaused) video.start(); showControls(); }
+    @Override protected void onResume() { super.onResume(); active = true; resumeFromService(); if (isFinishing()) return; if (decoderPreparing && !casting() && !castWasActive) armPreparationTimeout(generation, video); updateBufferingWatchdog(generation, video); if (!casting() && prepared && !completed && !userPaused) video.start(); showControls(); }
     @Override protected void onStop() {
         active = false;
         closePipControls();
