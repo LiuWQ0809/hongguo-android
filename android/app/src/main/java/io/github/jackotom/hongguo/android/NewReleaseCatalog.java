@@ -169,7 +169,9 @@ final class NewReleaseCatalog {
 
     /** Compact row projection; unknown shapes are skipped, never guessed. */
     static JSONObject row(JSONObject raw) {
-        if (raw == null) return null;
+        if (raw == null || raw.optBoolean("is_ad") || raw.optInt("is_ad") == 1) return null;
+        if (Set.of("advertisement", "sponsored", "commerce", "shop")
+                .contains(raw.optString("card_type").toLowerCase(java.util.Locale.ROOT))) return null;
         String id = String.valueOf(raw.optString("series_id", ""));
         if (!id.matches("\\d{1,30}") || id.matches("0+")) return null;
         String title = clean(raw.optString("title", raw.optString("series_title", raw.optString("series_name", ""))));

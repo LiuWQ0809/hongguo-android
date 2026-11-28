@@ -99,8 +99,12 @@ function publicHttpsUrl(value) {
     return url.href;
   } catch (_) { return ''; }
 }
+function promotional(item) {
+  return item?.is_ad === true || item?.is_ad === 1 ||
+    ['advertisement', 'sponsored', 'commerce', 'shop'].includes(String(item?.card_type || '').toLowerCase());
+}
 function series(item, search = false) {
-  if (!item || !isId(item.series_id)) return null;
+  if (!item || !isId(item.series_id) || promotional(item)) return null;
   const title = text(search ? item.series_title : item.series_name);
   if (!title) return null;
   const rawTags = search ? item.category_list : item.tags;
@@ -114,7 +118,7 @@ function series(item, search = false) {
 }
 function uniqueSeries(items, search = false) {
   const seen = new Set();
-  return items.map(item => series(search ? item?.video_data : item, search)).filter(item => {
+  return items.filter(item => !promotional(item)).map(item => series(search ? item?.video_data : item, search)).filter(item => {
     if (!item || seen.has(item.seriesId)) return false;
     seen.add(item.seriesId);
     return true;
@@ -129,6 +133,7 @@ export function parseRanking(html, ranking, page) {
     throw error('榜单目录未返回有效数据');
   const seen = new Set();
   const items = content.rankList.flatMap(row => {
+    if (promotional(row)) return [];
     const item = series({ series_id: row?.seriesId, series_name: row?.title,
       series_cover: row?.cover, series_intro: row?.description, episode_cnt: row?.episodeCount,
       tags: row?.tags, episode_right_text: row?.primaryMetricText });
