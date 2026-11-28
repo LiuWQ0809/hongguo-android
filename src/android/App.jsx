@@ -11,6 +11,7 @@ import AccountPanel from './AccountPanel.jsx';
 import UpdatePanel from './UpdatePanel.jsx';
 import Actors from './Actors.jsx';
 import MiniPlayer, { useMiniPlayer } from './MiniPlayer.jsx';
+import PlaybackCutsSettings from './PlaybackCutsSettings.jsx';
 import { ReservedDetail, ReservationsPage } from './Reservations.jsx';
 import CalendarBrowser from './CalendarBrowser.jsx';
 import BrowsePage from './BrowsePage.jsx';
@@ -944,7 +945,7 @@ function AutoplaySetting({ enabled, onChange, disabled }) {
   </div>;
 }
 
-function About({ info, notify, accountFocus, announcementsRef, juguoSettings, onDownloads, onReservations, onHistory, appearance, setAppearance }) {
+function About({ info, notify, accountFocus, announcementsRef, juguoSettings, onDownloads, onReservations, onHistory, appearance, setAppearance, nativePhone }) {
   const [cache, setCache] = useState({ busy: true });
   const [clearing, setClearing] = useState(false);
   const [autoplay, setAutoplay] = useState(() => getPlaybackPreferences().autoplay);
@@ -991,6 +992,7 @@ function About({ info, notify, accountFocus, announcementsRef, juguoSettings, on
     {!info.isTv && <section className="about-section playback-settings" aria-label="播放设置">
       <AutoplaySetting enabled={autoplay} onChange={() => setAutoplay(setPlaybackPreference('autoplay', !autoplay).autoplay)} />
     </section>}
+    {nativePhone && <PlaybackCutsSettings notify={notify} />}
     <AccountPanel isTv={!!info.isTv} focusRequest={accountFocus} />
     <AnnouncementSettings announcementsRef={announcementsRef} notify={notify} />
     {juguoSettings && <JuguoSettings config={juguoSettings} />}
@@ -1924,7 +1926,7 @@ export default function App() {
         {tab === 'library' && <Library library={library} error={libraryError} busy={libraryBusy} onRetry={loadLibrary} onOpen={openDetail} onPlay={openPlayback} onAccount={() => { navigate('about'); setAccountFocus(value => value + 1); }} onReservations={reservationEnabled ? () => navigate('reservations') : undefined} onLibrary={replaceLibrary} notify={notify} startView={libraryStart} />}
         {tab === 'reservations' && reservationEnabled && <ReservationsPage reservations={reservations} onBack={() => navigate('library')} onOpen={openDetail} onPlay={openPlayback} />}
         {tab === 'downloads' && !detail && <Downloads notify={notify} onBack={info.isTv ? undefined : () => navigate('about')} />}
-        {tab === 'about' && <About info={info} notify={notify} accountFocus={accountFocus} announcementsRef={announcements} juguoSettings={juguoApi && juguoSettings}
+        {tab === 'about' && <About info={info} notify={notify} nativePhone={reservationEnabled} accountFocus={accountFocus} announcementsRef={announcements} juguoSettings={juguoApi && juguoSettings}
           appearance={appearance} setAppearance={setAppearance} onDownloads={info.isTv ? undefined : () => navigate('downloads')}
           onReservations={reservationEnabled ? () => navigate('reservations') : undefined} onHistory={() => navigate('library', 'history')} />}
       </div>
