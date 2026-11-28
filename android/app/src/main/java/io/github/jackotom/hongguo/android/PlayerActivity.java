@@ -925,7 +925,7 @@ public final class PlayerActivity extends Activity {
         buffering = false;
         view.setOnInfoListener((player, what, extra) -> {
             if (destroyed || token != generation || video != view) return false;
-            if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START && active && recommendationPrefetch != null)
+            if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START && active && !castWasActive && recommendationPrefetch != null)
                 recommendationPrefetch.preload(recommendations.neighbor(1));
             if (what == MediaPlayer.MEDIA_INFO_BUFFERING_START || what == MediaPlayer.MEDIA_INFO_BUFFERING_END) {
                 buffering = what == MediaPlayer.MEDIA_INFO_BUFFERING_START; updateBufferingWatchdog(token, view); updateControlsState();

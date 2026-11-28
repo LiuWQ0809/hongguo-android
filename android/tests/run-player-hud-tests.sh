@@ -47,7 +47,7 @@ def method(name,optional=False):
 modern='controlsHud = new PlayerHud(' in source
 methods='\n'.join(method(name) for name in ['installVideoTouch','showControls','exitPlayer','onBackPressed','dispatchKeyEvent','onKeyDown','onPause','onResume','onDestroy'])
 methods+='\n'+ '\n'.join(method(name,True) for name in ['canHideControls','updateControlsState','showPlayerDialog','dispatchTouchEvent','cancelPlaybackWatchdogs','validPlaybackCallback','armPreparationTimeout','updateBufferingWatchdog'])
-methods+='\n'+'\n'.join(method(name,True) for name in ['underTouch','switchBySwipe','togglePictureControls','updateResumeOverlay'])
+methods+='\n'+'\n'.join(method(name,True) for name in ['underTouch','switchBySwipe','switchRecommendation','togglePictureControls','updateResumeOverlay'])
 methods=methods.replace('android.util.Log.i(', 'HudLog.i(')
 setup=''
 if modern:
@@ -102,7 +102,7 @@ final class VideoView extends View {
  void setOnInfoListener(Info listener){info=listener;}void info(int code){if(info!=null)info.info(new MediaPlayer(),code,0);}
  boolean isPlaying(){return playing;}void start(){playing=true;}void pause(){playing=false;}void stopPlayback(){playing=false;stops++;}void seekTo(int value){}int getDuration(){return 100000;}int getCurrentPosition(){return 50000;}
 }
-final class MediaPlayer {static final int MEDIA_INFO_BUFFERING_START=701,MEDIA_INFO_BUFFERING_END=702;}
+final class MediaPlayer {static final int MEDIA_INFO_VIDEO_RENDERING_START=3,MEDIA_INFO_BUFFERING_START=701,MEDIA_INFO_BUFFERING_END=702;}
 final class AlertDialog {interface Dismiss {void dismiss(AlertDialog dialog);}boolean shown;Dismiss listener;void setOnDismissListener(Dismiss value){listener=value;}void show(){shown=true;}void dismiss(){shown=false;if(listener!=null){Dismiss old=listener;listener=null;old.dismiss(this);}}}
 final class MainLoop {
  long now;final Map<Runnable,Long> jobs=new HashMap<>();
@@ -123,6 +123,17 @@ final class PlayerHudHarness extends HudActivityBase {
  final View top=new View(),bottom=new View(),toggle=new View(),back=new View();VideoView video=new VideoView();
  final View phoneScroller=new View(),seek=new View(),resumeOverlay=new View();
  PlayerSurfaceTaps surfaceTaps;
+ RecommendationQueue recommendations;
+ RecommendationPrefetch recommendationPrefetch;
+ static final class RecommendationQueue {String neighbor(int delta){return delta<0?"previous":"next";}}
+ static final class RecommendationPrefetch {
+  String preloaded,selection;boolean cancelled,closed;
+  void preload(String value){preloaded=value;}
+  void load(String value,java.util.function.Consumer<JSONObject> selected){selection=value;}
+  void cancel(){cancelled=true;}
+  void close(){closed=true;}
+ }
+ void openRecommendation(JSONObject detail){}
  Runnable systemBackCleanup;
  boolean fullscreen,swipeAllowed,tapAllowed,handedOff,softActive;float swipeX,swipeY;Object softLayer;
  java.util.concurrent.Future<?> prefetch;int prefetchedIndex=-1;

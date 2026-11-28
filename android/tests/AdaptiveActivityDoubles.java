@@ -7,7 +7,7 @@ class Uri {
  final String value;Uri(String s){value=s;}static Uri parse(String s){return new Uri(s);}static Uri fromFile(File f){return new Uri("file:"+f.getPath());}String getScheme(){return value.split(":")[0];}String getPath(){try{return new java.net.URI(value).getPath();}catch(Exception e){return null;}}
 }
 class MediaPlayer {
- static final int MEDIA_ERROR_UNSUPPORTED=-1010,MEDIA_INFO_BUFFERING_START=701,MEDIA_INFO_BUFFERING_END=702;
+ static final int MEDIA_ERROR_UNSUPPORTED=-1010,MEDIA_INFO_VIDEO_RENDERING_START=3,MEDIA_INFO_BUFFERING_START=701,MEDIA_INFO_BUFFERING_END=702;
  interface Size {void changed(MediaPlayer p,int w,int h);}interface Seek {void complete(MediaPlayer p);}
  int width=1080,height=1920;float rate=1;boolean playing;Size size;Seek seek;
  int getVideoWidth(){return width;}int getVideoHeight(){return height;}void setOnVideoSizeChangedListener(Size s){size=s;}void setOnSeekCompleteListener(Seek s){seek=s;}boolean isPlaying(){return playing;}void pause(){playing=false;}void setVolume(float l,float r){}

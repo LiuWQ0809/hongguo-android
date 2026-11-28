@@ -128,6 +128,21 @@ public final class PlayerHudActivityTest {
         swipes.current = 2;
         swipe(swipes, 100, 400, 100, 180);
         check(swipes.moveCalls == moves && Toast.messages.size() == 2 && Toast.messages.get(1).equals("已经是最后一集"), "the last episode reports the boundary instead of moving");
+        PlayerHudHarness recommendations = ready();
+        recommendations.recommendations = new PlayerHudHarness.RecommendationQueue();
+        recommendations.recommendationPrefetch = new PlayerHudHarness.RecommendationPrefetch();
+        recommendations.attachInfo(recommendations.video, recommendations.generation);
+        check(recommendations.recommendationPrefetch.preloaded == null, "directory is not fetched before the current first frame");
+        recommendations.video.info(MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START);
+        check("next".equals(recommendations.recommendationPrefetch.preloaded), "first frame prefetches only the next work");
+        swipe(recommendations, 100, 450, 100, 200);
+        check("next".equals(recommendations.recommendationPrefetch.selection) && recommendations.moveCalls == 0, "recommendation up opens neighbor instead of changing episode");
+        swipe(recommendations, 100, 200, 100, 450);
+        check("previous".equals(recommendations.recommendationPrefetch.selection), "recommendation down opens previous work");
+        recommendations.onPause();
+        check(recommendations.recommendationPrefetch.cancelled, "background entry cancels pending recommendation");
+        recommendations.onDestroy();
+        check(recommendations.recommendationPrefetch.closed, "destroy closes recommendation worker");
         System.out.println("PASS PlayerHudActivityTest checks=" + checks + " actualActivityMethods=true topAndBottomTogether=true phoneTouch=true swipeEpisode=true tvWake=true lifecycle=true mediaInfo=true noNetwork=true deviceUntouched=true");
     }
 }
