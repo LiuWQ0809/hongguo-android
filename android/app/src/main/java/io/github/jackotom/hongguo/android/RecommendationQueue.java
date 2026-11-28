@@ -17,7 +17,7 @@ final class RecommendationQueue {
         if (rows.length() < 2 || rows.length() > 24) throw new JSONException("推荐播放清单数量无效");
         for (int i = 0; i < rows.length(); i++) {
             Object raw = rows.getJSONObject(i).opt("seriesId");
-            if (!(raw instanceof String) || !OfficialApiClient.validID((String) raw) || ids.contains(raw)
+            if (!(raw instanceof String) || ((String) raw).length() < 6 || !OfficialApiClient.validID((String) raw) || ids.contains(raw)
                     || PlaybackSources.isRetiredSeries((String) raw)) throw new JSONException("推荐播放清单包含无效或重复剧集");
             ids.add((String) raw);
         }

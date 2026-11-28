@@ -18,8 +18,9 @@ final class OfficialApiClient implements AutoCloseable {
     public void close() { }
 }
 final class EpisodeResolver { static String publicHttpsUrl(String value) { return ""; } }
+final class PlaybackSources { static boolean isRetiredSeries(String sid) { return sid.matches("99[0-9]{8}"); } }
 final class LibraryStore { static JSONObject series(JSONObject value) { return value; } }
 JAVA
 "$JAVA_HOME/bin/javac" --release 17 -encoding UTF-8 -cp "$JSON_JAR" -d "$TMP" "$TMP/DirectoryStubs.java" \
-  "$SRC/NativeSeriesDetail.java" "$SRC/NativeDirectoryFallback.java" "$ROOT/android/tests/NativeDirectoryFallbackTest.java"
+  "$SRC/NativeSeriesDetail.java" "$SRC/NativeDirectoryFallback.java" "$SRC/RecommendationQueue.java" "$ROOT/android/tests/NativeDirectoryFallbackTest.java"
 "$JAVA_HOME/bin/java" -cp "$TMP:$JSON_JAR" io.github.jackotom.hongguo.android.NativeDirectoryFallbackTest

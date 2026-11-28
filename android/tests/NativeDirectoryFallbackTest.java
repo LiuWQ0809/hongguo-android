@@ -6,6 +6,7 @@ import java.net.SocketTimeoutException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 public final class NativeDirectoryFallbackTest {
@@ -16,6 +17,37 @@ public final class NativeDirectoryFallbackTest {
         JSONArray rows = new JSONArray().put(first);
         if (index != 1) rows.put(new JSONObject().put("vid", vid).put("vid_index", index));
         return new JSONObject().put("series_id", seriesId).put("episode_cnt", 8).put("video_list", rows);
+    }
+    private static JSONObject candidate(String id) throws Exception {
+        return new JSONObject().put("seriesId", id);
+    }
+    private static void rejectQueue(JSONArray rows, String selected) throws Exception {
+        try {
+            new RecommendationQueue(rows, selected);
+            throw new AssertionError("invalid recommendation queue");
+        } catch (JSONException expected) { }
+    }
+    private static void recommendations(JSONArray episodes) throws Exception {
+        String previous = "223456789", next = "323456789";
+        JSONArray rows = new JSONArray().put(candidate(previous)).put(candidate(SID)).put(candidate(next));
+        RecommendationQueue queue = new RecommendationQueue(rows, SID);
+        require(previous.equals(queue.neighbor(-1)) && next.equals(queue.neighbor(1)));
+        require(queue.neighbor(0) == null);
+        RecommendationQueue head = new RecommendationQueue(queue.rows(), previous);
+        require(head.neighbor(-1) == null && SID.equals(head.neighbor(1)));
+        rejectQueue(rows, "423456789");
+        rejectQueue(new JSONArray().put(candidate(SID)).put(candidate("123")), SID);
+        rejectQueue(new JSONArray().put(candidate(SID)).put(candidate(SID)), SID);
+        rejectQueue(new JSONArray().put(candidate(SID)).put(candidate("9912345678")), SID);
+        rejectQueue(new JSONArray().put(candidate(SID)).put(new JSONObject().put("seriesId", 123456829)), SID);
+        require(RecommendationQueue.startEpisode(episodes, null).getInt("index") == 1);
+        JSONObject fourth = episodes.getJSONObject(1);
+        require(RecommendationQueue.startEpisode(episodes, fourth).getInt("index") == 4);
+        require(RecommendationQueue.startEpisode(episodes, new JSONObject(fourth.toString()).put("index", 5)).getInt("index") == 1);
+        try {
+            RecommendationQueue.startEpisode(new JSONArray().put(fourth), null);
+            throw new AssertionError("partial directory must not start at episode 4");
+        } catch (JSONException expected) { }
     }
     public static void main(String[] args) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
@@ -41,6 +73,7 @@ public final class NativeDirectoryFallbackTest {
         JSONArray episodes = extension.getJSONArray("episodes");
         require(episodes.getJSONObject(1).getInt("index") == 4);
         require(!episodes.getJSONObject(1).getBoolean("webAvailable"));
+        recommendations(episodes);
         JSONObject foreign = new JSONObject().put("code", 0).put("data", new JSONObject().put("video_data", pack("223456789", 4, "123456784")));
         try { NativeSeriesDetail.seriesResponse(SID, foreign, true); throw new AssertionError("foreign identity"); }
         catch (IOException expected) { require(!(expected instanceof NativeSeriesDetail.MissingDirectory)); }
