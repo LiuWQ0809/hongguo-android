@@ -1666,6 +1666,7 @@ public final class PlayerActivity extends Activity {
         if (surfaceTaps != null) surfaceTaps.cancel();
         if (controlsHud != null) controlsHud.suspend();
         saveProgress();
+        if (prepared) handoffPlayback(true);
         finish();
     }
     @Override public void onBackPressed() {
@@ -1757,12 +1758,15 @@ public final class PlayerActivity extends Activity {
         if (danmaku != null && inPip) danmaku.suspend();
     }
 
-    private void handoffPlayback() {
+    private void handoffPlayback() { handoffPlayback(false); }
+
+    private void handoffPlayback(boolean allowPaused) {
         if (BuildConfig.IS_TV || handedOff || backgroundId == null || episode == null
-            || userPaused || completed || casting() || isFinishing() || destroyed) return;
+            || (userPaused && !allowPaused) || completed || casting() || isFinishing() || destroyed) return;
         BackgroundPlaybackSession request = new BackgroundPlaybackSession(backgroundId, getIntent(),
             queueSeries, queue, current, resumeAt, actualQuality, automaticCeiling, requestedSpeed,
             autoplay, cleanup, offline, adoptedMedia == null ? null : adoptedMedia.uri);
+        request.paused = userPaused;
         handedOff = BackgroundPlaybackService.begin(this, request);
     }
 
