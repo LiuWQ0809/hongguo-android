@@ -777,7 +777,7 @@
 .phone-brand{background:var(--grad-brand);border-bottom:0;padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:12px;box-shadow:0 2px 14px rgba(214,58,42,.4)}
 .phone-brand>span,.nav-brand>span{background:rgba(255,255,255,.16);border-radius:9px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
 /* 底部导航：深色浮层 + 选中胶囊。 */
-.phone-layout .app-nav{background:rgba(16,18,22,.92);backdrop-filter:blur(14px);border-top:1px solid rgba(255,255,255,.06);padding-top:6px}
+.phone-layout .app-nav{background:var(--sidebar);border-top:1px solid var(--border);padding-top:6px}
 .phone-layout .nav-items{padding:0 10px;gap:4px}
 .phone-layout .nav-items>button{border-radius:14px;min-height:50px;color:var(--faint);transition:background .18s,color .18s}
 .phone-layout .nav-items>button[aria-current="page"]{background:var(--accent-soft);color:var(--accent);font-weight:600}

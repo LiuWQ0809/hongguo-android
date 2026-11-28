@@ -1726,6 +1726,7 @@ export default function App() {
     if (id === 'juguo' && !juguoEnabled) return;
     if (id === 'library') setLibraryStart(view);
     if (id === 'discover') setBrowseStart(view);
+    if (id === tab && content.current) content.current.scrollTop = 0;
     previousScroll.current = 0; setDetail(null); setTab(id);
   };
   // Keep the browsing position so a background process death can reopen it.
