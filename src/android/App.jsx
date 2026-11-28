@@ -522,6 +522,12 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onR
   const [keyword, setKeyword] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
+  const [edit, setEdit] = useState(null);
+  const currentOwner = useRef(library.owner);
+  currentOwner.current = library.owner;
+  const selection = edit?.owner === library.owner && edit?.view === view ? edit.ids : null;
+  const toggleSelection = item => setEdit(previous => ({ ...previous, ids: previous.ids.includes(item.seriesId)
+    ? previous.ids.filter(id => id !== item.seriesId) : [...previous.ids, item.seriesId] }));
   const items = library[view] || [];
   // 观看记录删除：以设备返回的最新库视图整体替换，失败仅提示不动列表。
   const applyHistoryResult = result => {
@@ -529,9 +535,16 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onR
     onLibrary({ favorites: result.favorites || [], history: result.history || [], projection: result.projection || null, owner: result.owner });
   };
   const removeRow = async item => {
-    if (historyBusy) return;
+    if (historyBusy || typeof library.owner !== 'string') return;
+    const owner = library.owner;
     setHistoryBusy(true);
-    try { applyHistoryResult(await nativeCall('removeHistory', { seriesId: item.seriesId })); }
+    try {
+      const result = await nativeCall('removeLibraryRows', { owner, list: view, seriesIds: item ? [item.seriesId] : selection });
+      if (currentOwner.current === owner && result?.owner === owner) {
+        applyHistoryResult(result);
+        if (!item) setEdit(null);
+      }
+    }
     catch (cause) { notify(`删除未成功：${errorText(cause)}`); }
     finally { setHistoryBusy(false); }
   };
@@ -549,11 +562,23 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onR
   const query = keyword.trim().toLocaleLowerCase();
   const shown = (view === 'history' ? filterHistory(rows, historyView) : items)
     .filter(row => String(row.title || '').toLocaleLowerCase().includes(query));
+  const visibleIds = shown.map(row => row.seriesId);
+  const allSelected = visibleIds.length > 0 && visibleIds.every(id => selection?.includes(id));
+  const selectVisible = () => setEdit(previous => ({ ...previous, ids: allSelected
+    ? previous.ids.filter(id => !visibleIds.includes(id)) : [...new Set([...previous.ids, ...visibleIds])] }));
   const completedCount = useMemo(() => (library.history || []).filter(row => completedEpisode(row)).length, [library.history]);
   return <>
-    <header className="page-heading heading-actions"><h1>追剧与记录</h1><div className="heading-buttons">{view === 'history' && !!(library.history || []).length && <button type="button" className="button" onClick={() => setConfirmClear(true)}>清空记录</button>}<button type="button" className="button" onClick={onAccount}>账号</button></div></header>
-    <div className="section-tabs" role="group" aria-label="我的内容"><button aria-pressed={view === 'favorites'} onClick={() => setView('favorites')}><Heart />追剧 ({library.favorites.length})</button><button aria-pressed={view === 'history'} onClick={() => { setView('history'); setConfirmClear(false); }}><Clock />观看历史 ({library.history.length})</button></div>
+    <header className="page-heading heading-actions"><h1>追剧与记录</h1><div className="heading-buttons">{view === 'history' && !!(library.history || []).length && <button type="button" className="button" disabled={historyBusy || !!selection} onClick={() => setConfirmClear(true)}>清空记录</button>}<button type="button" className="button" onClick={onAccount}>账号</button></div></header>
+    <div className="section-tabs" role="group" aria-label="我的内容"><button aria-pressed={view === 'favorites'} onClick={() => { setView('favorites'); setEdit(null); setConfirmClear(false); }}><Heart />追剧 ({library.favorites.length})</button><button aria-pressed={view === 'history'} onClick={() => { setView('history'); setEdit(null); setConfirmClear(false); }}><Clock />观看历史 ({library.history.length})</button></div>
     {onReservations && <button className="button reservation-entry" type="button" onClick={onReservations}>我的预约<ChevronRight size={16} /></button>}
+    {onPlay && (selection || items.length > 0) && <div className="section-tabs" role="group" aria-label="管理当前列表">
+      <button type="button" aria-pressed={!!selection} disabled={busy || historyBusy || confirmClear || typeof library.owner !== 'string'}
+        onClick={() => setEdit(selection ? null : { owner: library.owner, view, ids: [] })}>{selection ? '完成' : '管理'}</button>
+      {selection && <><button type="button" disabled={historyBusy || !visibleIds.length} onClick={selectVisible}>{allSelected ? '取消全选' : '全选当前结果'}</button>
+        <button type="button" className="download-destructive" disabled={historyBusy || !selection.length} onClick={() => removeRow(null)}>
+          {view === 'favorites' ? '取消追剧' : '删除记录'} ({selection.length})</button></>}
+    </div>}
+    {selection && view === 'history' && library.owner !== 'guest' && <p className="account-note">删除本机记录。账号同步后，云端记录可能再次出现。</p>}
     {view === 'history' && <div className="section-tabs" role="group" aria-label="观看状态">
       <button aria-pressed={historyView === 'all'} onClick={() => setHistoryView('all')}>全部 ({(library.history || []).length})</button>
       <button aria-pressed={historyView === 'watching'} onClick={() => setHistoryView('watching')}>未看完 ({(library.history || []).length - completedCount})</button>
@@ -567,7 +592,7 @@ function Library({ library, error, busy, onRetry, onOpen, onPlay, onAccount, onR
     {query && !shown.length && !busy && !error && <p className="result-caption" role="status">当前列表没有匹配的短剧。</p>}
     {library.projection?.[view === 'favorites' ? 'favoritesHasMore' : 'historyHasMore'] && <p className="account-note" role="status">当前展示最近 {items.length} 项；完整记录已保存在账号库，较早剧集的原生播放进度仍保留。</p>}
     {view === 'history' && confirmClear && <div className="search-history-confirm" role="group" aria-label="确认清空观看记录"><p>清空这台设备上的全部观看记录？</p><div><button className="button" type="button" disabled={historyBusy} onClick={clearAll}>{historyBusy ? '正在更新…' : '确认清空'}</button><button className="button" type="button" disabled={historyBusy} onClick={() => setConfirmClear(false)}>取消</button></div></div>}
-    <Status busy={busy} error={error} preserve={!!shown.length} onRetry={onRetry} empty={!query && !shown.length && { title: view === 'favorites' ? '还没有追剧' : historyView === 'completed' ? '还没有看完的短剧' : historyView === 'watching' ? '没有正在观看的短剧' : '还没有观看记录', text: view === 'favorites' ? '打开短剧详情，点击「加入追剧」。' : '播放短剧后，进度会自动记录。' }}><PosterGrid items={shown} onOpen={onOpen} onPlay={onPlay} history={view === 'history'} onDelete={view === 'history' ? removeRow : undefined} /></Status>
+    <Status busy={busy} error={error} preserve={!!shown.length} onRetry={onRetry} empty={!query && !shown.length && { title: view === 'favorites' ? '还没有追剧' : historyView === 'completed' ? '还没有看完的短剧' : historyView === 'watching' ? '没有正在观看的短剧' : '还没有观看记录', text: view === 'favorites' ? '打开短剧详情，点击「加入追剧」。' : '播放短剧后，进度会自动记录。' }}><PosterGrid items={shown} onOpen={onOpen} onPlay={onPlay} history={view === 'history'} onDelete={view === 'history' && !selection ? removeRow : undefined} selection={selection} onSelect={selection && !historyBusy ? toggleSelection : selection ? () => {} : undefined} /></Status>
   </>;
 }
 
