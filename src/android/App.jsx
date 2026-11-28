@@ -1626,7 +1626,7 @@ function useAppearance() {
   const [appearance, choose] = useState(() => {
     try {
       const saved = localStorage.getItem(APPEARANCE_KEY);
-      if (Object.hasOwn(APPEARANCE, saved)) return saved;
+      if (Object.prototype.hasOwnProperty.call(APPEARANCE, saved)) return saved;
     } catch {}
     return 'system';
   });
@@ -1643,6 +1643,10 @@ export default function App() {
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const changed = ({ matches }) => setSystemDark(matches);
+    if (typeof media.addEventListener !== 'function') {
+      media.addListener(changed);
+      return () => media.removeListener(changed);
+    }
     media.addEventListener('change', changed);
     return () => media.removeEventListener('change', changed);
   }, []);
