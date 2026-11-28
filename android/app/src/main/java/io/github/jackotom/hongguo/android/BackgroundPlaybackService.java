@@ -33,10 +33,15 @@ public final class BackgroundPlaybackService extends Service {
     private final Runnable preparationTimeout = () -> { if (!this.ready) park(); };
     private LibraryStore store;
     private boolean ready;
+    private PlaybackCuts cuts = PlaybackCuts.DEFAULT;
     private int loadGeneration;
     private final Runnable checkpoint = new Runnable() {
         @Override public void run() {
             savePosition();
+            if (ready && session != null && !session.paused && player.isPlaying()
+                    && cuts.finishesAt(session.position, player.getDuration())) {
+                player.pause(); completed(); return;
+            }
             updateMediaState();
             if (ready) main.postDelayed(this, 2000);
         }
@@ -164,12 +169,14 @@ public final class BackgroundPlaybackService extends Service {
     }
     private void open(Uri uri, BackgroundPlaybackSession request) {
         preparing = null;
+        cuts = PlaybackCuts.read(this);
         try {
             player = new MediaPlayer();
             player.setWakeMode(this, PowerManager.PARTIAL_WAKE_LOCK);
             player.setDataSource(this, uri);
             player.setOnPreparedListener(ready -> {
                 if (ready != player) return;
+                request.position = cuts.start(request.position, ready.getDuration());
                 if (request.position > 0) ready.seekTo(request.position);
                 try { PlayerOptions.setVerifiedSpeed(ready, request.speed, false); }
                 catch (Exception rejectedSpeed) { android.util.Log.w("HongguoBackground", "设备未确认后台倍速"); }
@@ -189,7 +196,10 @@ public final class BackgroundPlaybackService extends Service {
     }
 
     private void completed() {
-        savePosition();
+        if (ready && session != null) {
+            session.position = Math.max(0, player.getDuration());
+            store.history(session.owner(), session.episode(), session.position, session.position);
+        }
         session.completed = true;
         if (session.autoplay && session.hasNext()) switchEpisode(1);
         else if (!advanceSeason()) park();

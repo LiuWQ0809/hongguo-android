@@ -25,6 +25,7 @@ public final class PlayerActivity extends Activity {
     static final String BACKGROUND_ID = "backgroundPlaybackId";
     private String backgroundId;
     private Future<?> seasonLookup;
+    private PlaybackCuts cuts = PlaybackCuts.DEFAULT;
     static boolean hasLivePlayer() { return LIVE_PLAYERS.get() > 0 || BackgroundPlaybackService.isActive(); }
     private DanmakuController danmaku;
     private DanmakuOverlay danmakuOverlay;
@@ -860,6 +861,7 @@ public final class PlayerActivity extends Activity {
         SoftDecoder.stop(softLayer); softLayer = null; softActive = false; adoptedMedia = null;
         cancelQualitySwitch(); cancelPlaybackWatchdogs(); decoderPreparing = false; if (!recovering) saveProgress(); video.stopPlayback(); releaseCurrent(); mediaPlayer = null;
         current = position; episode = queue.get(current); series = owner(episode); final JSONObject target = episode, targetSeries = series;
+        cuts = BuildConfig.IS_TV ? PlaybackCuts.DEFAULT : PlaybackCuts.read(this);
         if (!offline) {
             if (localWindow == null) localWindow = cache.openQueueWindow(queueSeries == null ? series : queueSeries, queue, current, cleanup, 1, false);
             else localWindow.moveTo(current);
@@ -909,6 +911,7 @@ public final class PlayerActivity extends Activity {
                         player.setOnVideoSizeChangedListener((mp, width, height) -> { if (video == targetView && token == generation) { videoWidth = width; videoHeight = height; renderStatus(); } });
                         try { actualSpeed = PlayerOptions.setVerifiedSpeed(player, requestedSpeed, false); }
                         catch (Exception error) { actualSpeed = PlayerOptions.observedSpeed(player); Toast.makeText(this, "设备未接受倍速设置，当前速度以播放器确认为准", Toast.LENGTH_LONG).show(); }
+                        resumeAt = cuts.start(resumeAt, video.getDuration());
                         if (resumeAt > 0 && (video.getDuration() <= 0 || resumeAt < video.getDuration() - 1500)) video.seekTo(resumeAt);
                         if (active && !userPaused) video.start();
                         recordProgress(targetSeries, target, resumeAt); renderStatus(); updateButtons();
@@ -940,11 +943,7 @@ public final class PlayerActivity extends Activity {
         });
         view.setOnCompletionListener(player -> {
             if (destroyed || token != generation || video != view) return;
-            cancelPlaybackWatchdogs(); decoderPreparing = false;
-            completed = true; resumeAt = 0; recordProgress(targetSeries, target, Math.max(0, player.getDuration()));
-            if (autoplay && current + 1 < queue.size()) loadAt(current + 1, null, 0);
-            else if (continueSeason(false)) return;
-            else { currentKind = current + 1 == queue.size() ? "本剧已播完" : "本集已播完 · " + (BuildConfig.IS_TV ? "按下一集" : recommendations == null ? "上滑切集" : "选择下一集"); renderStatus(); showControls(); updateButtons(); }
+            finishEpisode(player.getDuration());
         });
         view.setOnErrorListener((player, what, extra) -> {
             if (token == generation && !destroyed && video == view) {
@@ -954,6 +953,15 @@ public final class PlayerActivity extends Activity {
             }
             return true;
         });
+    }
+    private void finishEpisode(int duration) {
+        if (completed || episode == null) return;
+        cancelPlaybackWatchdogs(); decoderPreparing = false;
+        completed = true; resumeAt = 0; recordProgress(series, episode, Math.max(0, duration));
+        if (autoplay && current + 1 < queue.size()) { loadAt(current + 1, null, 0); return; }
+        if (continueSeason(false)) return;
+        currentKind = current + 1 == queue.size() ? "本剧已播完" : "本集已播完 · " + (BuildConfig.IS_TV ? "按下一集" : recommendations == null ? "上滑切集" : "选择下一集");
+        renderStatus(); showControls(); updateButtons();
     }
     private boolean continueSeason(boolean paused) {
         if (BuildConfig.IS_TV || !autoplay || offline || current + 1 != queue.size()
@@ -1331,6 +1339,10 @@ public final class PlayerActivity extends Activity {
         updateBufferingWatchdog(generation, video);
         if (prepared && !dragging) {
             lastGoodPosition = Math.max(0, video.getCurrentPosition());
+            int duration = video.getDuration();
+            if (!completed && active && video.isPlaying() && cuts.finishesAt(lastGoodPosition, duration)) {
+                video.pause(); finishEpisode(duration); main.postDelayed(this, 500); return;
+            }
             seek.setMax(Math.max(1, video.getDuration())); seek.setProgress(lastGoodPosition); time.setText(format(video.getCurrentPosition()) + " / " + format(video.getDuration()));
             if (mediaPlayer != null) {
                 // 换集/换源窗口内实例可能已释放：捕获状态异常并放弃失效引用，避免轮询崩溃。
