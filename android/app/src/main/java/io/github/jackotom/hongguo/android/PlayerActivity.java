@@ -912,7 +912,10 @@ public final class PlayerActivity extends Activity {
                         try { actualSpeed = PlayerOptions.setVerifiedSpeed(player, requestedSpeed, false); }
                         catch (Exception error) { actualSpeed = PlayerOptions.observedSpeed(player); Toast.makeText(this, "设备未接受倍速设置，当前速度以播放器确认为准", Toast.LENGTH_LONG).show(); }
                         resumeAt = cuts.start(resumeAt, video.getDuration());
-                        if (resumeAt > 0 && (video.getDuration() <= 0 || resumeAt < video.getDuration() - 1500)) video.seekTo(resumeAt);
+                        if (resumeAt > 0 && (video.getDuration() <= 0 || resumeAt < video.getDuration() - 1500)) {
+                            if (Build.VERSION.SDK_INT >= 26) player.seekTo((long) resumeAt, MediaPlayer.SEEK_CLOSEST);
+                            else video.seekTo(resumeAt);
+                        }
                         if (active && !userPaused) video.start();
                         recordProgress(targetSeries, target, resumeAt); renderStatus(); updateButtons();
                         if (!offline && autoplay) schedulePrefetch(token);
@@ -930,7 +933,6 @@ public final class PlayerActivity extends Activity {
         });
     }
     private void bindPlayback(VideoView view, int token, JSONObject target) {
-        final JSONObject targetSeries = owner(target);
         buffering = false;
         view.setOnInfoListener((player, what, extra) -> {
             if (destroyed || token != generation || video != view) return false;

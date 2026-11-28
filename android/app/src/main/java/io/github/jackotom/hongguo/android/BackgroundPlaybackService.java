@@ -177,7 +177,10 @@ public final class BackgroundPlaybackService extends Service {
             player.setOnPreparedListener(ready -> {
                 if (ready != player) return;
                 request.position = cuts.start(request.position, ready.getDuration());
-                if (request.position > 0) ready.seekTo(request.position);
+                if (request.position > 0) {
+                    if (android.os.Build.VERSION.SDK_INT >= 26) ready.seekTo((long) request.position, MediaPlayer.SEEK_CLOSEST);
+                    else ready.seekTo(request.position);
+                }
                 try { PlayerOptions.setVerifiedSpeed(ready, request.speed, false); }
                 catch (Exception rejectedSpeed) { android.util.Log.w("HongguoBackground", "设备未确认后台倍速"); }
                 if (!request.paused) ready.start();
