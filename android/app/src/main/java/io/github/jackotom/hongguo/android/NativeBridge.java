@@ -418,13 +418,9 @@ final class NativeBridge {
                 String genre = params == null ? "short_play" : params.optString("genre", "short_play");
                 if (!genre.matches("[a-z_]{1,30}")) genre = "short_play";
                 long deadline = System.nanoTime() + 20_000_000_000L;
-                try (OfficialApiClient client = new OfficialApiClient(OfficialApiClient.newSession())) {
-                    client.deadlineNanos(deadline);
-                    client.registerDevice();
-                    JSONObject result = NewReleaseCatalog.feed(client, offset, sessionId, genre);
-                    inlineFeedCovers(result.optJSONArray("items"), deadline);
-                    respond(id, result, null);
-                }
+                JSONObject result = RecommendationCursor.fetch(offset, sessionId, genre, deadline);
+                inlineFeedCovers(result.optJSONArray("items"), deadline);
+                respond(id, result, null);
                 break;
             }
             case "getPlaybackCuts": respond(id, PlaybackCuts.read(activity).toJson(), null); break;
