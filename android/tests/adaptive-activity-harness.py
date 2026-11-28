@@ -31,7 +31,7 @@ modern='AdaptiveQuality.prepare(' in source
 playlist='PlaybackPlaylist.' in source
 names=['selectEpisode']
 if modern:
-    names+=['releaseCurrent','reserveMedia','releasePrepared','discardPendingMedia','adoptMedia','prepareMedia','stageProgress','loadAt','loadAtInternal','bindPlayback','recoverMedia','lowerCurrentMedia','validSwitch','releaseSwitch','cancelQualitySwitch','failQualitySwitch','selectQuality','switchQuality','resolveQualitySwitch','prepareQualitySwitch','validCandidate','lowerQualitySwitch','finishQualitySwitch','schedulePrefetch','renderStatus','qualityLabel']
+    names+=['releaseCurrent','reserveMedia','releasePrepared','discardPendingMedia','adoptMedia','prepareMedia','stageProgress','loadAt','loadAtInternal','openDecoder','bindPlayback','recoverMedia','lowerCurrentMedia','validSwitch','releaseSwitch','cancelQualitySwitch','failQualitySwitch','selectQuality','switchQuality','resolveQualitySwitch','prepareQualitySwitch','validCandidate','lowerQualitySwitch','finishQualitySwitch','schedulePrefetch','renderStatus','qualityLabel']
 for extra in ['resetDownloadMarks','reportDownloadProgress','stageCeiling','prepareStage','resolveRetry','logRefetch','cancelPlaybackWatchdogs','validPlaybackCallback','armPreparationTimeout','updateBufferingWatchdog','observedShortEdge','failCurrentMedia','restoreAutomaticCeiling','cacheEpisode']:
     if re.search(r'\b'+extra+r'\(',source): names.append(extra)
 if playlist: names+=['owner','mediaKey','closeLocalWindow','pruneReleasedWindow','saveProgress','restoreSelection','savePlaybackState']
