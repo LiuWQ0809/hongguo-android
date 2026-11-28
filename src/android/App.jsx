@@ -9,6 +9,7 @@ import { fetchAppPlayUrl } from './generated/mac-app-source.mjs';
 import gplLicense from '../../LICENSE?raw';
 import AccountPanel from './AccountPanel.jsx';
 import UpdatePanel from './UpdatePanel.jsx';
+import Actors from './Actors.jsx';
 import { ReservedDetail, ReservationsPage } from './Reservations.jsx';
 import CalendarBrowser from './CalendarBrowser.jsx';
 import BrowsePage from './BrowsePage.jsx';
@@ -349,9 +350,9 @@ function Discover({ onOpen, onPlay, library, onSearch, onUpdates, polishUi, star
   </>;
 }
 
-function SearchPage({ onOpen, onPlay, onBrowse }) {
-  const [keyword, setKeyword] = useState('');
-  const [query, setQuery] = useState('');
+function SearchPage({ onOpen, onPlay, onBrowse, onActors, onBack, initialActor }) {
+  const [keyword, setKeyword] = useState(initialActor || '');
+  const [query, setQuery] = useState(initialActor || '');
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
   const [state, setState] = useState({ items: [], busy: false });
@@ -395,9 +396,9 @@ function SearchPage({ onOpen, onPlay, onBrowse }) {
   }, []);
   useEffect(() => {
     mounted.current = true;
-    updateHistory('getSearchHistory');
+    updateHistory(initialActor ? 'addSearchHistory' : 'getSearchHistory', initialActor);
     return () => { mounted.current = false; historyVersion.current++; };
-  }, [updateHistory]);
+  }, [initialActor, updateHistory]);
   useEffect(() => { if (confirmClear) confirmButton.current?.focus(); }, [confirmClear]);
   useEffect(() => {
     const current = ++generation.current;
@@ -475,8 +476,12 @@ function SearchPage({ onOpen, onPlay, onBrowse }) {
   const cancelClear = () => { setConfirmClear(false); clearButton.current?.focus(); };
   return <>
     <header className={onPlay ? 'visually-hidden' : 'page-heading'}><h1>搜索短剧</h1></header>
-    <form className="search-form" onSubmit={submit}><label className={onPlay ? 'visually-hidden' : undefined} htmlFor="search-keyword">短剧名称</label><div className="search-controls"><input ref={input} id="search-keyword" type="search" autoFocus={!!onPlay} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索短剧名称" maxLength={100} enterKeyHint="search" /><button className="button primary" type="submit" disabled={!keyword.trim()}><Search />搜索</button></div></form>
+    {onBack && <button type="button" className="back-button" onClick={onBack}>
+      <ChevronRight size={20} />{initialActor ? '返回演员' : '返回首页'}
+    </button>}
+    <form className="search-form" onSubmit={submit}><label className={onPlay ? 'visually-hidden' : undefined} htmlFor="search-keyword">短剧名称</label><div className="search-controls"><input ref={input} id="search-keyword" type="search" autoFocus={!!onPlay && !initialActor} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索短剧名称" maxLength={100} enterKeyHint="search" /><button className="button primary" type="submit" disabled={!keyword.trim()}><Search />搜索</button></div></form>
     {onBrowse && !query && <nav className="search-shortcuts" aria-label="搜索快捷入口">
+      {onActors && <button type="button" className="button" onClick={onActors}><User size={16} />演员</button>}
       {[['browse', '筛选找剧'], ['rank', '榜单'], ['new', '上新'], ['reserve', '预约榜']].map(([id, label]) =>
         <button key={id} type="button" className="button" onClick={() => onBrowse(id)}>{label}</button>)}
     </nav>}
@@ -1656,6 +1661,7 @@ export default function App() {
   const [detail, setDetail] = useState(null);
   const [libraryStart, setLibraryStart] = useState(null);
   const [browseStart, setBrowseStart] = useState(null);
+  const [actorQuery, setActorQuery] = useState(null);
   const androidPackage = typeof __HONGGUO_PACKAGED_ANDROID__ !== 'undefined' && __HONGGUO_PACKAGED_ANDROID__;
   const juguoApi = androidPackage || typeof window === 'undefined' ? undefined : window.JuguoDesktop;
   const juguoSettings = useJuguoSettings(juguoApi);
@@ -1730,6 +1736,7 @@ export default function App() {
     if (id === 'juguo' && !juguoEnabled) return;
     if (id === 'library') setLibraryStart(view);
     if (id === 'discover') setBrowseStart(view);
+    if (id === 'search') setActorQuery(view);
     if (id === tab && content.current) content.current.scrollTop = 0;
     previousScroll.current = 0; setDetail(null); setTab(id);
   };
@@ -1755,7 +1762,7 @@ export default function App() {
   useEffect(() => { if (content.current) content.current.scrollTop = 0; }, [tab]);
   useEffect(() => { if (content.current) content.current.scrollTop = detail ? 0 : previousScroll.current; if (detail) content.current?.querySelector('.back-button')?.focus(); }, [detail?.seed?.seriesId]);
   useEffect(() => {
-    const back = () => { if (!window.dispatchEvent(new CustomEvent('androiddownloadback', { cancelable: true }))) return true; if (tab === 'juguo' && !window.dispatchEvent(new CustomEvent('juguoback', { cancelable: true }))) return true; if (detail) { closeDetail(); return true; } if (tab === 'reservations') { setTab('library'); return true; } if (tab !== 'discover') { setTab(tab === 'downloads' && !info.isTv ? 'about' : 'discover'); return true; } return false; };
+    const back = () => { if (!window.dispatchEvent(new CustomEvent('androiddownloadback', { cancelable: true }))) return true; if (tab === 'juguo' && !window.dispatchEvent(new CustomEvent('juguoback', { cancelable: true }))) return true; if (detail) { closeDetail(); return true; } if (tab === 'reservations') { setTab('library'); return true; } if (tab === 'actors') { navigate('search'); return true; } if (tab === 'search' && actorQuery) { navigate('actors'); return true; } if (tab !== 'discover') { setTab(tab === 'downloads' && !info.isTv ? 'about' : 'discover'); return true; } return false; };
     window.__androidBack = back;
     // A share link resolves to a series id natively; only an exact numeric id may open a detail.
     window.__androidOpenSeries = (seriesId) => { const id = String(seriesId || ''); if (/^\d{1,30}$/.test(id)) openDetail({ seriesId: id, title: '' }); };
@@ -1766,10 +1773,10 @@ export default function App() {
       if (window.__androidBack === back) delete window.__androidBack;
       if (window.__androidOpenSeries) delete window.__androidOpenSeries;
     };
-  }, [detail, tab, closeDetail, info.isTv, notify]);
+  }, [detail, tab, actorQuery, closeDetail, info.isTv, notify]);
   const navigation = info.isTv ? NAV : PHONE_NAV;
   const navItems = juguoEnabled ? [navigation[0], { id: 'juguo', label: '剧果', Icon: Film }, ...navigation.slice(1)] : navigation;
-  const currentTab = tab === 'reservations' ? 'library' : !info.isTv && tab === 'downloads' ? 'about' : !info.isTv && tab === 'search' ? 'discover' : tab;
+  const currentTab = tab === 'reservations' ? 'library' : !info.isTv && tab === 'downloads' ? 'about' : !info.isTv && ['search', 'actors'].includes(tab) ? 'discover' : tab;
   const searchInHeader = !info.isTv && !detail && tab === 'discover';
   const resumeRow = !info.isTv && !detail && tab !== 'discover' && library.history.find(row =>
     row.vid && row.positionMs > 0 && !isRetiredSeriesId(row.seriesId) && !completedEpisode(row));
@@ -1789,7 +1796,11 @@ export default function App() {
         </button>}
         {tab === 'discover' && <Discover onOpen={openDetail} onPlay={openPlayback} library={library} onSearch={info.isTv ? () => navigate('search') : undefined} onUpdates={() => navigate('about')} polishUi={polishUi} startSection={browseStart} />}
         {tab === 'juguo' && juguoEnabled && <JuguoPage api={juguoApi} PosterGrid={PosterGrid} Status={Status} />}
-        {tab === 'search' && <SearchPage onOpen={openDetail} onPlay={openPlayback} onBrowse={info.isTv ? undefined : section => navigate('discover', section)} />}
+        {tab === 'search' && <SearchPage key={actorQuery || ''} onOpen={openDetail} onPlay={openPlayback}
+          initialActor={actorQuery} onBack={info.isTv ? undefined : () => navigate(actorQuery ? 'actors' : 'discover')}
+          onActors={androidPackage && !info.isTv ? () => navigate('actors') : undefined}
+          onBrowse={info.isTv ? undefined : section => navigate('discover', section)} />}
+        {tab === 'actors' && <Actors Status={Status} onBack={() => navigate('search')} onSearch={name => navigate('search', name)} />}
         {tab === 'library' && <Library library={library} error={libraryError} busy={libraryBusy} onRetry={loadLibrary} onOpen={openDetail} onPlay={openPlayback} onAccount={() => { navigate('about'); setAccountFocus(value => value + 1); }} onReservations={reservationEnabled ? () => navigate('reservations') : undefined} onLibrary={replaceLibrary} notify={notify} startView={libraryStart} />}
         {tab === 'reservations' && reservationEnabled && <ReservationsPage reservations={reservations} onBack={() => navigate('library')} onOpen={openDetail} onPlay={openPlayback} />}
         {tab === 'downloads' && !detail && <Downloads notify={notify} onBack={info.isTv ? undefined : () => navigate('about')} />}

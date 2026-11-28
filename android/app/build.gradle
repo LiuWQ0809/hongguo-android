@@ -39,8 +39,8 @@ android {
             dimension 'device'
             applicationId 'com.hongguo.android'
             minSdk 26
-            versionCode 62
-            versionName '0.7.12-local.31'
+            versionCode 63
+            versionName '0.7.12-local.32'
             buildConfigField 'boolean', 'IS_TV', 'false'
             buildConfigField 'boolean', 'NATIVE_UI', 'false'
         }
